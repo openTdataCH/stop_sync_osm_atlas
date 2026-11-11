@@ -46,8 +46,10 @@ function codeMap() {
       { id: 'app:backend/api.py:serve@3', name: 'serve', file: 'app:backend/api.py', line: 3 },
       { id: 'app:backend/api.py:helper@10', name: 'helper', file: 'app:backend/api.py', line: 10 },
       { id: 'app:backend/api_helpers.py:fmt@2', name: 'fmt', file: 'app:backend/api_helpers.py', line: 2 },
-      { id: 'app:backend/importer.py:run@5', name: 'run', file: 'app:backend/importer.py', line: 5 }
+      { id: 'app:backend/importer.py:run@5', name: 'run', file: 'app:backend/importer.py', line: 5, unused: true }
     ],
+    clones: [{ files: ['app:backend/api.py', 'app:backend/importer.py'], lines: 14,
+      locations: [{ file: 'app:backend/api.py', start: 30, end: 43 }, { file: 'app:backend/importer.py', start: 5, end: 18 }] }],
     symbol_links: [
       { source: 'app:backend/importer.py:run@5', target: 'app:backend/api.py:serve@3', kind: 'calls', count: 2 },
       { source: 'app:backend/api.py:serve@3', target: 'app:backend/api.py:helper@10', kind: 'calls', count: 1 },
@@ -66,14 +68,15 @@ function codeMap() {
 
 function report() {
   return {
-    completeness: 'partial', generated_at: '2026-11-01T10:00:00+00:00', revision: { app: 'a'.repeat(40), engine: 'b'.repeat(40) },
+    completeness: 'complete', generated_at: '2026-11-01T10:00:00+00:00', revision: { app: 'a'.repeat(40), engine: 'b'.repeat(40) },
     checks: [{ name: 'app-python-tests', status: 'pass' }, { name: 'engine-tests', status: 'fail' }],
     modules: {
       'app.api': { criticality: 'high', tests: { status: 'pass', count: 12, skipped: 0, missing_files: [] }, coverage: { status: 'measured', branches: 87.5, lines: 91 },
-        mutation: { status: 'not_measured' }, duplication: { status: 'attention', count: 3, new: 1 }, dead_code: { status: 'not_applicable' },
+        duplication: { status: 'attention', count: 3, new: 1 },
         docs: { status: 'pass', satisfied: 4, required: 4 }, architecture: { status: 'pass', violations: [] } },
-      'app.import': { criticality: 'critical', tests: { status: 'fail', count: 1 }, coverage: { status: 'stale', branches: 12 } }
-    }
+      'app.import': { criticality: 'critical', tests: { status: 'fail', count: 1 }, coverage: { status: 'measured', branches: 12 } }
+    },
+    files: { 'app:backend/api.py': { lines: 95, branches: 90 }, 'app:backend/api_helpers.py': { lines: 40, branches: null } }
   };
 }
 
@@ -117,20 +120,6 @@ describe('QualityDashboard', () => {
     expect(files.links.map((link) => link.source + '>' + link.target)).toEqual(['app:static/js/ui.js>app:backend/api.py']);
   });
 
-  test('a file\'s function graph puts its functions in line order between their users and what they use', () => {
-    const graph = window.QualityDashboard.functionGraph(codeMap(), 'app:backend/api.py');
-    expect(graph.inside).toEqual(['app:backend/api.py:serve@3', 'app:backend/api.py:helper@10']);
-    // A file-level user, as a script's request, has no function of its own; a page link draws nothing.
-    expect(graph.users).toEqual({ 'app:backend/importer.py': ['app:backend/importer.py:run@5'], 'app:static/js/ui.js': [] });
-    expect(graph.used).toEqual({ 'app:backend/api_helpers.py': ['app:backend/api_helpers.py:fmt@2'] });
-    expect(Array.from(graph.entries)).toEqual(['app:backend/api.py:serve@3']);
-    const byKey = Object.fromEntries(graph.links.map((link) => [link.source + '>' + link.target, link]));
-    expect(byKey['app:backend/importer.py:run@5>app:backend/api.py:serve@3']).toMatchObject({ crossing: true, declared: true, count: 2 });
-    expect(byKey['app:static/js/ui.js>app:backend/api.py:serve@3']).toMatchObject({ crossing: true, declared: false, kinds: { requests: 2 } });
-    expect(byKey['app:backend/api.py:serve@3>app:backend/api.py:helper@10']).toMatchObject({ crossing: false });
-    expect(byKey['app:backend/importer.py>app:backend/api.py:helper@10']).toBeUndefined();
-  });
-
   test('blind spots list unmatched references, unreached routes, runtime URLs and shared names', () => {
     const spots = window.QualityDashboard.blindSpots(codeMap());
     expect(spots.unmatched.map((row) => row.reference)).toEqual(['/api/missing']);
@@ -149,14 +138,29 @@ describe('QualityDashboard', () => {
     expect(findings.unused.map((link) => link.target)).toEqual(['app.ui']);
   });
 
-  test('dependents sit above their dependencies and contracts between repositories', () => {
+  test('cleanup candidates are functions nothing mentions, copied blocks and long code files', () => {
+    const map = codeMap();
+    map.files.push({ id: 'app:package-lock.json', module: 'app.ui', lines: 9000, symbols: 0 });
+    const tidy = window.QualityDashboard.cleanup(map);
+    expect(tidy.unused.map((symbol) => symbol.name)).toEqual(['run']);
+    expect(tidy.clones).toHaveLength(1);
+    // A lock file is long but is no code to tidy.
+    expect(tidy.large.map((file) => file.id)).toEqual(['engine:src/core.py']);
+    expect(window.QualityDashboard.cleanup({ files: [] })).toEqual({ unused: [], clones: [], large: [] });
+  });
+
+  test('a module sits above its dependencies, each repository in its own column, on one bottom line', () => {
     const map = codeMap();
     expect(window.QualityDashboard.moduleLevels(map)).toEqual({ 'app.api': 0, 'app.import': 1, 'app.ui': 0, 'engine.core': 0 });
-    const positions = window.QualityDashboard.modulePositions(map);
-    expect(positions['app.import'].y).toBeLessThan(positions['app.api'].y);
-    expect(positions['engine.core'].x).toBeLessThan(positions['app.api'].x);
-    expect(positions['contract:bundle'].x).toBeGreaterThan(positions['engine.core'].x);
-    expect(positions['contract:bundle'].x).toBeLessThan(Math.min(positions['app.api'].x, positions['app.ui'].x));
+    expect(window.QualityDashboard.moduleColumns(map)).toEqual({ 'app.api': 0, 'app.import': 0, 'app.ui': 0, 'engine.core': 1 });
+    const radii = { 'app.api': 50, 'app.import': 30, 'app.ui': 20, 'engine.core': 40 };
+    const at = window.QualityDashboard.layeredCentres(map, radii);
+    expect(at['app.import'].y + radii['app.import']).toBeLessThan(at['app.api'].y - radii['app.api']);
+    // Modules of the same level sit side by side without touching.
+    expect(at['app.ui'].y).toBe(at['app.api'].y);
+    expect(Math.abs(at['app.ui'].x - at['app.api'].x)).toBeGreaterThan(radii['app.api'] + radii['app.ui']);
+    expect(at['engine.core'].x - radii['engine.core']).toBeGreaterThan(Math.max(at['app.api'].x + radii['app.api'], at['app.ui'].x + radii['app.ui']));
+    expect(at['engine.core'].y + radii['engine.core']).toBe(at['app.api'].y + radii['app.api']);
   });
 
   test('a focused file graph keeps the whole module and marks files entered from outside', () => {
@@ -174,25 +178,31 @@ describe('QualityDashboard', () => {
     expect(summary(row, 'coverage')).toMatchObject({ status: 'measured', text: '87.5%', detail: '91% of lines' });
     expect(summary(row, 'duplication')).toMatchObject({ status: 'attention', text: '3', detail: '1 new since the reviewed baseline' });
     expect(summary(row, 'docs')).toMatchObject({ text: '4/4' });
-    expect(summary(row, 'dead_code').text).toBe('Not applicable');
-    expect(summary({}, 'mutation')).toMatchObject({ status: 'not_measured', text: 'Not measured' });
+    expect(summary({}, 'coverage')).toMatchObject({ status: 'not_measured', text: 'Not measured' });
+    expect(summary(undefined, 'tests')).toMatchObject({ status: 'not_measured' });
     expect(summary({ tests: { status: 'surprising' } }, 'tests').status).toBe('not_measured');
   });
 
-  test('node colors follow the chosen encoding', () => {
+  test('colours follow the chosen encoding, and coverage is a file\'s own', () => {
     const module = codeMap().modules[0];
     const color = window.QualityDashboard.nodeColor;
     expect(color(module, report(), 'criticality')).toBe('#617db5');
     expect(color(module, report(), 'coverage')).toBe('#2d529c');
     expect(color(module, { modules: {} }, 'coverage')).toBe('#e9ecef');
     expect(color(module, report(), 'repository')).toBe('#174092');
+    // A file is painted with its own branch coverage, or its line coverage when it has no branches.
+    expect(color(module, report(), 'coverage', null, 'app:backend/api.py')).toBe('#174092');
+    expect(color(module, report(), 'coverage', null, 'app:backend/api_helpers.py')).not.toBe('#e9ecef');
+    expect(color(module, report(), 'coverage', null, 'app:backend/api_helpers.py')).not.toBe('#174092');
+    expect(color(module, report(), 'coverage', null, 'app:backend/unmeasured.css')).toBe('#e9ecef');
+    expect(color(undefined, report(), 'module', {})).toBe('#e9ecef');
   });
 
   test('escapes catalog text before it reaches the page', () => {
     expect(window.QualityDashboard.escapeHtml('<b title="x">&</b>')).toBe('&lt;b title=&quot;x&quot;&gt;&amp;&lt;/b&gt;');
   });
 
-  describe('functions map', () => {
+  describe('dots and circles', () => {
     test('every function is a node; users count functions and files, links join functions and draw no page links', () => {
       const graph = window.QualityDashboard.symbolGraph(codeMap());
       const byId = Object.fromEntries(graph.nodes.map((node) => [node.id, node]));
@@ -200,7 +210,8 @@ describe('QualityDashboard', () => {
       expect(byId['app:backend/api.py:serve@3']).toMatchObject({ module: 'app.api', name: 'serve', users: 2, uses: 2 });
       // A page link from importer.py is not a use.
       expect(byId['app:backend/api.py:helper@10']).toMatchObject({ users: 1, uses: 0 });
-      expect(byId['app:backend/importer.py:run@5']).toMatchObject({ module: 'app.import', users: 0, uses: 1 });
+      expect(byId['app:backend/importer.py:run@5']).toMatchObject({ module: 'app.import', users: 0, uses: 1, unused: true, size: 6 });
+      expect(byId['app:backend/api.py:serve@3']).toMatchObject({ kind: 'symbol', group: 'app:backend/api.py', unused: false });
       const links = Object.fromEntries(graph.links.map((link) => [link.source + '>' + link.target, link]));
       expect(Object.keys(links).sort()).toEqual([
         'app:backend/api.py:serve@3>app:backend/api.py:helper@10',
@@ -221,7 +232,7 @@ describe('QualityDashboard', () => {
         'app:backend/api.py:serve@3>app:backend/api.py:helper@10',
         'app:backend/api.py:serve@3>app:backend/api_helpers.py:fmt@2'
       ]);
-      const positions = window.QualityDashboard.symbolPositions(codeMap(), api);
+      const { positions } = window.QualityDashboard.dotLayout(api);
       expect(Object.keys(positions).sort()).toEqual(api.nodes.map((node) => node.id).sort());
       expect(window.QualityDashboard.moduleSymbolGraph(graph, 'app.ui')).toEqual({ nodes: [], links: [] });
     });
@@ -263,10 +274,10 @@ describe('QualityDashboard', () => {
     test('the layout gives each module its own region of dots that do not overlap, the same every time', () => {
       const map = largeCodeMap(3, 60);
       const graph = window.QualityDashboard.symbolGraph(map);
-      const positions = window.QualityDashboard.symbolPositions(map, graph);
+      const { positions } = window.QualityDashboard.dotLayout(graph);
       expect(Object.keys(positions)).toHaveLength(180);
-      expect(window.QualityDashboard.symbolPositions(map, graph)).toEqual(positions);
-      const radius = (node) => window.QualityDashboard.symbolSize(node.users) / 2;
+      expect(window.QualityDashboard.dotLayout(graph).positions).toEqual(positions);
+      const radius = (node) => node.size / 2;
       let closest = Infinity;
       for (let a = 0; a < graph.nodes.length; a++) {
         for (let b = a + 1; b < graph.nodes.length; b++) {
@@ -286,14 +297,14 @@ describe('QualityDashboard', () => {
         - Math.hypot(point.x - centre[b].x / centre[b].n, point.y - centre[b].y / centre[b].n))[0];
       const inOwnRegion = graph.nodes.filter((node) => nearest(positions[node.id]) === node.module).length;
       expect(inOwnRegion / graph.nodes.length).toBeGreaterThan(0.95);
-      expect(window.QualityDashboard.symbolPositions({ modules: [] }, { nodes: [], links: [] })).toEqual({});
+      expect(window.QualityDashboard.dotLayout({ nodes: [], links: [] })).toEqual({ positions: {}, regions: [] });
     });
 
     test('each region is a circle around its own dots that no other circle reaches, and dots keep room between them', () => {
       const map = largeCodeMap(3, 60);
-      const radius = (node) => window.QualityDashboard.symbolSize(node.users) / 2;
-      const check = (graph, byFile, regionOf) => {
-        const { positions, regions } = window.QualityDashboard.symbolLayout(map, graph, { byFile });
+      const radius = (node) => node.size / 2;
+      const check = (graph, regionOf) => {
+        const { positions, regions } = window.QualityDashboard.dotLayout(graph, { regionOf });
         const byId = Object.fromEntries(regions.map((region) => [region.id, region]));
         expect(Object.keys(byId).sort()).toEqual(Array.from(new Set(graph.nodes.map(regionOf))).sort());
         expect(regions.map((region) => region.count)).toEqual(regions.map((region) => region.count).sort((a, b) => b - a));
@@ -313,33 +324,105 @@ describe('QualityDashboard', () => {
             closest = Math.min(closest, Math.hypot(p.x - q.x, p.y - q.y) / (radius(graph.nodes[a]) + radius(graph.nodes[b])));
           }
         }
-        // Each dot keeps SYMBOL_ROOM (0.6) of its radius clear, so neighbours sit well apart, not edge to edge.
+        // Each dot keeps DOT_ROOM (0.6) of its radius clear, so neighbours sit well apart, not edge to edge.
         expect(closest).toBeGreaterThan(1.4);
       };
       const graph = window.QualityDashboard.symbolGraph(map);
-      check(graph, false, (node) => node.module);
+      check(graph, (node) => node.module);
       // A module drawn alone has a circle for each of its four files.
       const alone = window.QualityDashboard.moduleSymbolGraph(graph, 'app.m1');
-      check(alone, true, (node) => node.file);
-      expect(window.QualityDashboard.symbolLayout(map, alone, { byFile: true }).regions).toHaveLength(4);
-      expect(window.QualityDashboard.symbolLayout(map, { nodes: [], links: [] })).toEqual({ positions: {}, regions: [] });
+      check(alone, (node) => node.file);
+      expect(window.QualityDashboard.dotLayout(alone, { regionOf: (node) => node.file }).regions).toHaveLength(4);
+    });
+
+    test('every file is a dot sized by its lines, in its folder\'s group, and page links draw nothing', () => {
+      const graph = window.QualityDashboard.fileDots(codeMap());
+      const byId = Object.fromEntries(graph.nodes.map((node) => [node.id, node]));
+      expect(graph.nodes).toHaveLength(5);
+      expect(byId['app:backend/api.py']).toMatchObject({ kind: 'file', name: 'api.py', module: 'app.api', lines: 400, group: 'app:backend/', large: false });
+      expect(byId['engine:src/core.py'].large).toBe(true);
+      expect(byId['engine:src/core.py'].size).toBeGreaterThan(byId['app:backend/api.py'].size);
+      const size = window.QualityDashboard.fileSize;
+      expect(size(0)).toBe(5);
+      // A generated file of any length is no larger than one of 3,000 lines.
+      expect(size(90000)).toBe(size(3000));
+      expect(graph.links.map((link) => link.source + '>' + link.target).sort()).toEqual([
+        'app:backend/api.py>app:backend/api_helpers.py', 'app:backend/api.py>app:backend/importer.py',
+        'app:backend/importer.py>app:backend/api.py', 'app:static/js/ui.js>app:backend/api.py'
+      ]);
+    });
+
+    test('Modules and Files share one layout of module circles; Functions has its own, and one for a module alone', () => {
+      const context = window.QualityDashboard.createContext({ code_map: codeMap(), report: report() }, {});
+      const view = window.QualityDashboard.mapView;
+      const files = view(context, 'files', null);
+      expect(view(context, 'modules', 'app.api')).toBe(files);
+      expect(files.regions.map((region) => region.id).sort()).toEqual(['app.api', 'app.import', 'app.ui', 'engine.core']);
+      expect(files.regions.find((region) => region.id === 'app.api')).toMatchObject({ of: 'module', label: 'api', count: 2 });
+      const at = Object.fromEntries(files.regions.map((region) => [region.id, region]));
+      expect(at['app.import'].y).toBeLessThan(at['app.api'].y);
+      expect(at['engine.core'].x).toBeGreaterThan(at['app.api'].x);
+      for (let a = 0; a < files.regions.length; a++) {
+        for (let b = a + 1; b < files.regions.length; b++) {
+          expect(Math.hypot(files.regions[a].x - files.regions[b].x, files.regions[a].y - files.regions[b].y)).toBeGreaterThan(files.regions[a].r + files.regions[b].r);
+        }
+      }
+      const all = view(context, 'symbols', null);
+      expect(all).not.toBe(files);
+      expect(view(context, 'symbols', null)).toBe(all);
+      expect(all.regions.map((region) => region.id).sort()).toEqual(['app.api', 'app.import']);
+      const alone = view(context, 'symbols', 'app.api');
+      expect(alone.regions.map((region) => region.label).sort()).toEqual(['api.py', 'api_helpers.py']);
+      expect(alone.regions[0].of).toBe('file');
+    });
+
+    test('each level draws circles, dots and lines: arcs between modules, a dashed line for a copy, hollow and ringed dots', () => {
+      const context = window.QualityDashboard.createContext({ code_map: codeMap(), report: report() }, {});
+      const draw = (level, moduleId) => window.QualityDashboard.mapElements(context, { level, module: moduleId, colorBy: 'module' },
+        window.QualityDashboard.mapView(context, level, moduleId));
+      const byId = (elements) => Object.fromEntries(elements.map((item) => [item.data.id, item]));
+      const modules = byId(draw('modules', null));
+      expect(modules['app.api']).toMatchObject({ classes: 'module', data: { kind: 'module', color: '#2a78d6' } });
+      expect(modules['app.api'].data.size).toBeGreaterThan(modules['app.ui'].data.size);
+      expect(modules['region-label:app.api'].data.label).toBe('api');
+      expect(modules['link:app.import>app.api']).toMatchObject({ classes: 'module-link declared', data: { label: '5' } });
+      expect(modules['link:app.api>app.import'].classes).toBe('module-link undeclared');
+      expect(modules['link:app.import>app.ui']).toMatchObject({ classes: 'module-link unused', data: { label: '' } });
+      // Both bend to the right of their direction: the one that follows the layering outwards, the other inwards.
+      expect(modules['link:app.import>app.api'].data.arc).toBeGreaterThan(0);
+      expect(modules['link:app.api>app.import'].data.arc).toBe(modules['link:app.import>app.api'].data.arc);
+      expect(modules['contract:bundle'].classes).toBe('contract');
+      expect(modules['contract:bundle~engine.core'].classes).toBe('contract-link');
+      const files = byId(draw('files', null));
+      expect(files['region:app.api']).toMatchObject({ classes: 'region', data: { of: 'module', count: 2 } });
+      expect(files['app:backend/api.py']).toMatchObject({ classes: 'dot', data: { kind: 'file', module: 'app.api', label: 'api.py' } });
+      expect(files['engine:src/core.py'].classes).toBe('dot large');
+      expect(files['dot-link:app:static/js/ui.js>app:backend/api.py'].classes).toBe('dot-link crossing undeclared');
+      expect(files['dot-link:app:backend/api.py>app:backend/api_helpers.py'].classes).toBe('dot-link internal');
+      expect(files['clone:0']).toMatchObject({ classes: 'clone', data: { source: 'app:backend/api.py', target: 'app:backend/importer.py', kind: 'clone', clone: 0 } });
+      const functions = byId(draw('symbols', null));
+      expect(functions['app:backend/importer.py:run@5'].classes).toBe('dot unused');
+      expect(functions['app:backend/api.py:serve@3']).toMatchObject({ classes: 'dot', data: { kind: 'symbol', file: 'app:backend/api.py' } });
+      expect(functions['clone:0']).toBeUndefined();
     });
 
     test('search ranks the exact name, then a prefix, then a part of the name, then the path', () => {
-      const graph = window.QualityDashboard.symbolGraph(codeMap());
-      const match = window.QualityDashboard.matchSymbols;
-      expect(match(graph, '  ')).toEqual([]);
-      expect(match(graph, 'serve')[0]).toEqual({ kind: 'symbol', id: 'app:backend/api.py:serve@3', name: 'serve', detail: 'backend/api.py:3' });
-      expect(match(graph, 'help').map((row) => row.kind + ' ' + row.name)).toEqual(['symbol helper', 'file api_helpers.py', 'symbol fmt']);
-      // Files with more functions come first among equal matches; case does not matter.
-      expect(match(graph, 'API').slice(0, 2).map((row) => row.id)).toEqual(['app:backend/api.py', 'app:backend/api_helpers.py']);
-      expect(match(graph, 'API')[0].detail).toBe('backend/api.py · 2 functions and classes');
-      expect(match(graph, 'a', 2)).toHaveLength(2);
-      expect(match(graph, 'nothing-like-this')).toEqual([]);
+      const map = codeMap();
+      const symbols = window.QualityDashboard.symbolGraph(map).nodes;
+      const match = (query, limit) => window.QualityDashboard.matchNames(symbols, map.files, query, limit);
+      expect(match('  ')).toEqual([]);
+      expect(match('serve')[0]).toEqual({ kind: 'symbol', id: 'app:backend/api.py:serve@3', name: 'serve', detail: 'backend/api.py:3' });
+      expect(match('help').map((row) => row.kind + ' ' + row.name)).toEqual(['symbol helper', 'file api_helpers.py', 'symbol fmt']);
+      // Longer files come first among equal matches; case does not matter. A file without functions is found too.
+      expect(match('API').slice(0, 2).map((row) => row.id)).toEqual(['app:backend/api.py', 'app:backend/api_helpers.py']);
+      expect(match('API')[0].detail).toBe('backend/api.py · 400 lines');
+      expect(match('ui.js')[0]).toMatchObject({ kind: 'file', id: 'app:static/js/ui.js' });
+      expect(match('a', 2)).toHaveLength(2);
+      expect(match('nothing-like-this')).toEqual([]);
     });
 
     test('names show from the largest dot down, never over another name, and a selection is always named', () => {
-      const node = (id, users, name) => ({ id, name: name || id, users });
+      const node = (id, users, name) => ({ id, name: name || id, size: window.QualityDashboard.symbolSize(users) });
       const map = {
         graph: { nodes: [node('big', 25, 'big_name'), node('near', 9, 'near_name'), node('far', 9), node('small', 0)] },
         positions: { big: { x: 0, y: 0 }, near: { x: 0, y: -40 }, far: { x: 500, y: 0 }, small: { x: 900, y: 0 } }
@@ -368,7 +451,7 @@ describe('QualityDashboard', () => {
     });
 
     test('region names come first, 12 pixels tall on top of their circle, and dot names go around them', () => {
-      const node = (id, users, name) => ({ id, name: name || id, users });
+      const node = (id, users, name) => ({ id, name: name || id, size: window.QualityDashboard.symbolSize(users) });
       const measure = (label, size) => label.length * size * 0.6;
       const places = window.QualityDashboard.labelPlaces;
       const map = {
@@ -391,96 +474,47 @@ describe('QualityDashboard', () => {
     function pageHtml() {
       return `
         <div id="qualityDashboard" data-api-url="/api/quality">
-          <dl id="qualitySummary"></dl>
-          <div id="qualityWarning" hidden><span id="qualityWarningText"></span></div>
-          <div id="qualityUnavailable" hidden></div>
+          <div id="qualityUnavailable" hidden><p id="qualityUnavailableText"></p></div>
           <div id="qualityContent" hidden>
+            <span id="qualityRunEyebrow"></span><h2 id="qualityRunTitle"></h2><p id="qualityWarning" hidden></p><span id="qualityRunStatus"></span>
+            <dl id="qualitySummary"></dl>
+            <div id="qualityFigures"></div>
             <section id="qualityMapSection">
               <div class="quality-workspace">
-                <span id="qualityBreadcrumb"></span>
-                <button data-view-toggle="modules"></button><button data-view-toggle="files"></button><button data-view-toggle="symbols"></button>
-                <div id="qualityColorBy"><button data-color-by="module" hidden></button><button data-color-by="criticality"></button><button data-color-by="coverage"></button></div>
+                <button data-level="modules"></button><button data-level="files"></button><button data-level="symbols"></button>
+                <div id="qualityColorBy"><button data-color-by="module"></button><button data-color-by="criticality"></button><button data-color-by="coverage"></button></div>
                 <button id="qualityPanelToggle" aria-pressed="true"></button>
                 <button id="qualityFullscreen" aria-pressed="false"><i class="fas fa-expand"></i><span class="quality-tool__text">Expand</span></button>
-                <aside id="qualityExplorer" hidden>
+                <aside id="qualityExplorer">
                   <input type="search" id="qualitySearch"><ul id="qualitySearchResults" hidden></ul>
                   <input type="checkbox" id="qualityEdgesToggle" checked><input type="checkbox" id="qualityLabelsToggle" checked>
-                  <button id="qualityExplorerReset" data-symbol-reset></button><ul id="qualityExplorerModules"></ul>
+                  <span id="qualityExplorerUnit"></span><button id="qualityExplorerReset" data-reset></button><ul id="qualityExplorerModules"></ul>
                 </aside>
                 <div class="quality-map-stage">
-                  <div id="qualityMap"></div><div id="qualityTooltip" hidden></div><div id="qualityZoomHint"></div>
+                  <div id="qualityMap"></div><span id="qualityBreadcrumb"></span><div id="qualityTooltip" hidden></div><div id="qualityZoomHint"></div>
                   <button id="qualityFit"></button>
                 </div>
                 <aside id="qualityPanel"></aside>
                 <ul id="qualityLegend"></ul>
               </div>
             </section>
-            <section id="qualityFindingsSection"><div id="qualityFindings"></div></section>
-            <section id="qualityBlindSpotsSection"><div id="qualityBlindSpots"></div></section>
-            <table><tbody id="qualityTable"></tbody></table>
-            <div id="qualityChecks"></div>
+            <div id="qualityCleanup"></div>
+            <div id="qualityFindings"></div>
+            <div id="qualityBlindSpots"></div>
+            <section data-needs-report><table id="qualityTable"></table></section>
+            <section data-needs-report><div id="qualityChecks"></div></section>
           </div>
         </div>`;
-    }
-
-    function fakeCytoscape() {
-      const collection = () => {
-        const items = [];
-        return Object.assign(items, {
-          remove: jest.fn(), removeClass: jest.fn(), unselect: jest.fn(), forEach: Array.prototype.forEach.bind(items), length: 0
-        });
-      };
-      const instance = {
-        elements: jest.fn(collection), nodes: jest.fn(collection), add: jest.fn(), on: jest.fn(), fit: jest.fn(),
-        getElementById: jest.fn(collection), layout: jest.fn(() => ({ run: jest.fn() }))
-      };
-      window.cytoscape = jest.fn(() => instance);
-      return instance;
     }
 
     function respond(data) {
       global.fetch = jest.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(data) }));
     }
 
-    beforeEach(() => {
-      document.body.innerHTML = pageHtml();
-    });
-
-    afterEach(() => {
-      delete global.fetch;
-      delete window.cytoscape;
-    });
-
-    test('renders the summary, findings, table and preset module layout', async () => {
-      const cy = fakeCytoscape();
-      respond({ available: true, warning: null, run_url: 'https://ci/run', source_urls: { app: 'https://github.com/x/app/blob/sha/' }, report: report(), code_map: codeMap() });
-      await window.QualityDashboard.init(document.getElementById('qualityDashboard'));
-
-      expect(document.getElementById('qualityContent').hidden).toBe(false);
-      expect(document.getElementById('qualitySummary').textContent).toContain('1 of 2 passed');
-      expect(document.querySelector('#qualitySummary a[href="https://github.com/x/app/commit/' + 'a'.repeat(40) + '"]')).not.toBeNull();
-      expect(document.getElementById('qualityFindings').textContent).toContain('_private');
-      const spots = document.getElementById('qualityBlindSpots').textContent;
-      expect(spots).toContain('/api/missing');
-      expect(spots).toContain('/api/old');
-      expect(spots).toContain('config.url');
-      expect(spots).toContain('Static reading only.');
-      expect(document.querySelectorAll('#qualityTable tr')).toHaveLength(2);
-      expect(document.getElementById('qualityTable').textContent).toContain('87.5%');
-      expect(document.getElementById('qualityPanel').textContent).toContain('How to read the map');
-      expect(cy.layout).toHaveBeenCalledWith(expect.objectContaining({ name: 'preset' }));
-      const added = cy.add.mock.calls[0][0];
-      expect(added.find((item) => item.data.id === 'link:app.api>app.import').classes).toBe('undeclared');
-      expect(added.find((item) => item.data.id === 'link:app.import>app.ui').classes).toBe('unused');
-    });
-
-    test('a stale report shows its warning', async () => {
-      fakeCytoscape();
-      respond({ available: true, warning: 'Measured on an older commit.', report: report(), code_map: codeMap() });
-      await window.QualityDashboard.init(document.getElementById('qualityDashboard'));
-      expect(document.getElementById('qualityWarning').hidden).toBe(false);
-      expect(document.getElementById('qualityWarningText').textContent).toBe('Measured on an older commit.');
-    });
+    const results = (extra) => Object.assign({
+      available: true, revision: 'a'.repeat(40), source: 'ci', run_url: 'https://ci/run',
+      source_urls: { app: 'https://github.com/x/app/blob/sha/' }, report: report(), code_map: codeMap()
+    }, extra);
 
     /** A Cytoscape stand-in that keeps the added elements, their classes and the selection. */
     function graphCytoscape() {
@@ -521,7 +555,9 @@ describe('QualityDashboard', () => {
           nodes: () => collection(list.filter((item) => item.isNode())),
           edges: () => collection(list.filter((item) => !item.isNode())),
           union: (other) => collection(Array.from(new Set(list.concat(other.list)))),
-          not: (other) => collection(list.filter((item) => !ids(other).has(item.id()))),
+          not: (other) => collection(list.filter((item) => (typeof other === 'string' ? !matches(item, other) || !/\./.test(other) : !ids(other).has(item.id())))),
+          renderedBoundingBox: () => ({ x1: 0, x2: 10, y1: 0, y2: 10 }),
+          connectedNodes: () => collection(items.filter((item) => item.isNode() && list.some((edge) => [edge.data('source'), edge.data('target')].includes(item.id())))),
           ancestors: () => collection([]),
           descendants: () => collection([]),
           connectedEdges: () => collection(items.filter((item) => !item.isNode() && list.some((end) => [item.data('source'), item.data('target')].includes(end.id())))),
@@ -540,7 +576,7 @@ describe('QualityDashboard', () => {
         edges: (selector) => collection(items.filter((item) => !item.isNode() && matches(item, selector))),
         $: () => collection(items.filter((item) => item.selected)),
         getElementById: (id) => collection(items.filter((item) => item.id() === id)),
-        on: jest.fn(), fit: jest.fn(), resize: jest.fn(), center: jest.fn(), animate: jest.fn(),
+        on: jest.fn(), fit: jest.fn(), resize: jest.fn(), center: jest.fn(), animate: jest.fn(), width: () => 800,
         zoom: jest.fn(() => 1), batch: (fn) => fn(), layout: jest.fn(() => ({ run: jest.fn() }))
       };
       window.cytoscape = jest.fn(() => instance);
@@ -550,247 +586,355 @@ describe('QualityDashboard', () => {
     const nextFrame = () => new Promise((resolve) => window.requestAnimationFrame(resolve));
     const click = (selector) => document.querySelector(selector).dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
-    describe('functions map', () => {
-      let getContext;
-      beforeEach(() => {
-        // JSDOM has no canvas: label widths fall back to an estimate.
-        getContext = HTMLCanvasElement.prototype.getContext;
-        HTMLCanvasElement.prototype.getContext = () => null;
-      });
-      afterEach(() => {
-        HTMLCanvasElement.prototype.getContext = getContext;
-      });
+    let getContext;
+    beforeEach(() => {
+      document.body.innerHTML = pageHtml();
+      // JSDOM has no canvas: label widths fall back to an estimate. It cannot scroll either.
+      getContext = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = () => null;
+      Element.prototype.scrollIntoView = jest.fn();
+    });
 
-      async function openFunctions() {
-        const cy = graphCytoscape();
-        respond({ available: true, report: report(), code_map: codeMap() });
-        await window.QualityDashboard.init(document.getElementById('qualityDashboard'));
-        click('[data-view-toggle="symbols"]');
+    afterEach(() => {
+      HTMLCanvasElement.prototype.getContext = getContext;
+      delete Element.prototype.scrollIntoView;
+      delete global.fetch;
+      delete window.cytoscape;
+    });
+
+    async function open(level, data) {
+      const cy = graphCytoscape();
+      respond(data || results());
+      await window.QualityDashboard.init(document.getElementById('qualityDashboard'));
+      if (level) {
+        click('[data-level="' + level + '"]');
         await nextFrame();
-        return cy;
       }
+      return cy;
+    }
+    const handler = (cy, event, selector) => cy.on.mock.calls.find((call) => call[0] === event && (selector === undefined ? typeof call[1] === 'function' : call[1] === selector)).slice(-1)[0];
+    const searchFor = (text) => {
+      const search = document.getElementById('qualitySearch');
+      search.value = text;
+      search.dispatchEvent(new Event('input'));
+      search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    };
+    const escape = () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    const pressed = (selector) => document.querySelector(selector).getAttribute('aria-pressed');
+    const panel = () => document.getElementById('qualityPanel').textContent;
 
-      test('draws every function coloured by module, with the module list and its own controls', async () => {
-        const cy = await openFunctions();
-        const symbols = cy.nodes('.symbol');
-        expect(symbols.length).toBe(4);
-        expect(cy.edges('.symbol-link').length).toBe(3);
-        expect(cy.getElementById('app:backend/api.py:serve@3').data('color')).toBe('#2a78d6');
-        expect(document.getElementById('qualityExplorer').hidden).toBe(false);
-        expect(cy.resize).toHaveBeenCalled();
-        const modules = document.querySelectorAll('[data-symbol-module]');
-        expect(Array.from(modules).map((button) => button.textContent)).toEqual(['api3', 'import1']);
-        expect(document.querySelector('[data-view-toggle="symbols"]').getAttribute('aria-pressed')).toBe('true');
-        expect(document.querySelector('[data-color-by="module"]').hidden).toBe(false);
-        expect(document.querySelector('[data-color-by="module"]').getAttribute('aria-pressed')).toBe('true');
-        expect(document.getElementById('qualityPanel').textContent).toContain('How to read the functions map');
-        expect(document.getElementById('qualityLegend').textContent).toContain('Dot size');
-        expect(document.getElementById('qualityBreadcrumb').textContent).toContain('All functions');
+    test('shows the CI results of the running commit, the findings, the cleanup candidates and the module circles', async () => {
+      const cy = await open();
+      expect(document.getElementById('qualityContent').hidden).toBe(false);
+      expect(document.getElementById('qualityRunTitle').textContent).toBe('CI results for commit aaaaaaa');
+      expect(document.getElementById('qualityWarning').hidden).toBe(true);
+      expect(document.getElementById('qualityRunStatus').textContent).toBe('Checks failed');
+      expect(document.getElementById('qualitySummary').textContent).toContain('1 of 2 passed');
+      expect(document.querySelector('#qualitySummary a[href="https://github.com/x/app/commit/' + 'a'.repeat(40) + '"]')).not.toBeNull();
+      expect(document.querySelector('#qualitySummary a[href="https://ci/run"]')).not.toBeNull();
+      expect(document.getElementById('qualityFigures').textContent).toContain('Functions nothing mentions');
+      expect(document.getElementById('qualityFindings').textContent).toContain('_private');
+      const tidy = document.getElementById('qualityCleanup').textContent;
+      expect(tidy).toContain('run');
+      expect(tidy).toContain('api.py ⇄ importer.py');
+      expect(tidy).toContain('1,200 lines');
+      const spots = document.getElementById('qualityBlindSpots').textContent;
+      expect(spots).toContain('/api/missing');
+      expect(spots).toContain('/api/old');
+      expect(spots).toContain('config.url');
+      expect(spots).toContain('Static reading only.');
+      expect(document.querySelectorAll('#qualityTable tbody tr')).toHaveLength(2);
+      expect(document.querySelectorAll('#qualityTable thead th')).toHaveLength(7);
+      expect(document.getElementById('qualityTable').textContent).toContain('87.5%');
+      expect(document.querySelector('#qualityTable .quality-meter span').style.width).toBe('87.5%');
+      expect(panel()).toContain('How to read the modules');
+      expect(cy.layout).toHaveBeenCalledWith(expect.objectContaining({ name: 'preset', fit: true }));
+      expect(cy.nodes('.module').length).toBe(4);
+      expect(cy.getElementById('link:app.api>app.import').hasClass('undeclared')).toBe(true);
+      expect(cy.getElementById('link:app.import>app.ui').hasClass('unused')).toBe(true);
+      expect(cy.getElementById('region-label:app.api').hasClass('labelled')).toBe(true);
+      expect(pressed('[data-level="modules"]')).toBe('true');
+      expect(pressed('[data-color-by="module"]')).toBe('true');
+      // The list counts lines on this level and is the colour key.
+      expect(document.getElementById('qualityExplorerUnit').textContent).toBe('lines');
+      expect(Array.from(document.querySelectorAll('[data-explorer-module]')).map((button) => button.textContent)).toEqual(['core1,200', 'import900', 'api500', 'ui50']);
+      expect(document.getElementById('qualityLegend').textContent).toContain('Circle size: lines of code');
+    });
 
-        document.getElementById('qualityEdgesToggle').checked = false;
-        document.getElementById('qualityEdgesToggle').dispatchEvent(new Event('change'));
-        expect(cy.edges('.symbol-link.hidden').length).toBe(3);
-        document.getElementById('qualityLabelsToggle').checked = false;
-        document.getElementById('qualityLabelsToggle').dispatchEvent(new Event('change'));
-        expect(cy.nodes('.symbol.unlabelled').length).toBe(4);
+    test('a local run says so, and a map without a report hides the result tables', async () => {
+      await open(null, results({ source: 'local', revision: null, run_url: null, report: null }));
+      expect(document.getElementById('qualityRunEyebrow').textContent).toBe('Measured on this computer');
+      expect(document.getElementById('qualityRunTitle').textContent).toBe('Local run');
+      expect(document.getElementById('qualityWarning').hidden).toBe(false);
+      expect(document.getElementById('qualityRunStatus').textContent).toBe('Map only');
+      expect(document.getElementById('qualitySummary').textContent).toBe('');
+      document.querySelectorAll('[data-needs-report]').forEach((section) => expect(section.hidden).toBe(true));
+      expect(document.getElementById('qualityCleanup').textContent).toContain('run');
+    });
 
-        click('[data-color-by="criticality"]');
-        expect(cy.getElementById('app:backend/api.py:serve@3').data('color')).toBe('#617db5');
-        click('[data-view-toggle="modules"]');
-        await nextFrame();
-        expect(document.getElementById('qualityExplorer').hidden).toBe(true);
-        expect(document.querySelector('[data-color-by="module"]').hidden).toBe(true);
-        expect(document.querySelector('[data-color-by="criticality"]').getAttribute('aria-pressed')).toBe('true');
-      });
+    test('missing results say why, and are never shown as content', async () => {
+      const text = () => document.getElementById('qualityUnavailableText').textContent;
+      respond({ available: false, revision: 'c'.repeat(40), reason: 'no_results' });
+      await window.QualityDashboard.init(document.getElementById('qualityDashboard'));
+      expect(document.getElementById('qualityUnavailable').hidden).toBe(false);
+      expect(text()).toContain('No CI results for commit ccccccc yet');
+      document.body.innerHTML = pageHtml();
+      respond({ available: false, revision: null, reason: 'unknown_commit' });
+      await window.QualityDashboard.init(document.getElementById('qualityDashboard'));
+      expect(text()).toContain('does not know which commit it runs');
+      document.body.innerHTML = pageHtml();
+      global.fetch = jest.fn(() => Promise.reject(new Error('offline')));
+      await window.QualityDashboard.init(document.getElementById('qualityDashboard'));
+      expect(document.getElementById('qualityUnavailable').hidden).toBe(false);
+      expect(text()).toContain('could not be loaded');
+      expect(document.getElementById('qualityContent').hidden).toBe(true);
+    });
 
-      test('a module picked from the list is drawn alone, fitted, until it is picked again', async () => {
-        const cy = await openFunctions();
-        cy.layout.mockClear();
-        click('[data-symbol-module="app.api"]');
-        expect(document.querySelector('[data-symbol-module="app.api"]').getAttribute('aria-pressed')).toBe('true');
-        expect(cy.nodes('.symbol').map((node) => node.id()).sort()).toEqual(['app:backend/api.py:helper@10', 'app:backend/api.py:serve@3', 'app:backend/api_helpers.py:fmt@2']);
-        expect(cy.edges('.symbol-link').length).toBe(2);
-        expect(cy.layout).toHaveBeenCalledWith(expect.objectContaining({ name: 'preset', fit: true }));
-        expect(cy.nodes('.symbol.faded').length).toBe(0);
-        expect(document.getElementById('qualityPanel').textContent).toContain('Serve data.');
-        expect(document.getElementById('qualityBreadcrumb').textContent).toMatch(/All functions.*api/);
-        // The module list still counts every module's functions.
-        expect(document.querySelectorAll('[data-symbol-module]')).toHaveLength(2);
-        click('[data-symbol-module="app.api"]');
-        expect(cy.nodes('.symbol').length).toBe(4);
-        expect(document.getElementById('qualityPanel').textContent).toContain('How to read the functions map');
-        // All functions in the breadcrumb, Reset and Esc each show every function again.
-        click('[data-symbol-module="app.import"]');
-        click('#qualityBreadcrumb [data-symbol-reset]');
-        expect(cy.nodes('.symbol').length).toBe(4);
-        click('[data-symbol-module="app.import"]');
-        click('#qualityExplorerReset');
-        expect(cy.nodes('.symbol').length).toBe(4);
-        click('[data-symbol-module="app.import"]');
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-        expect(cy.nodes('.symbol').length).toBe(4);
-      });
+    test('Files draws every file in its module\'s circle, with the copies, and its own guide and counts', async () => {
+      const cy = await open('files');
+      expect(cy.nodes('.dot').length).toBe(5);
+      expect(cy.nodes('.region').map((node) => node.id()).sort()).toEqual(['region:app.api', 'region:app.import', 'region:app.ui', 'region:engine.core']);
+      expect(cy.edges('.dot-link').length).toBe(4);
+      expect(cy.edges('.clone').length).toBe(1);
+      expect(cy.nodes('.dot.large').map((node) => node.id())).toEqual(['engine:src/core.py']);
+      expect(pressed('[data-level="files"]')).toBe('true');
+      expect(panel()).toContain('How to read the files');
+      expect(document.getElementById('qualityBreadcrumb').textContent).toContain('All files');
+      expect(document.getElementById('qualityExplorerUnit').textContent).toBe('files');
+      expect(document.getElementById('qualityLegend').textContent).toContain('Copied code');
+      // Colouring by coverage paints each file with its own.
+      click('[data-color-by="coverage"]');
+      expect(cy.getElementById('app:backend/api.py').data('color')).toBe('#174092');
+      expect(cy.getElementById('app:static/js/ui.js').data('color')).toBe('#e9ecef');
+      expect(pressed('[data-color-by="coverage"]')).toBe('true');
+      // A file's panel has its coverage, its copies and the way to its functions.
+      handler(cy, 'tap')({ target: cy.getElementById('app:backend/api.py') });
+      expect(panel()).toContain('90% branch coverage');
+      expect(panel()).toContain('Lines 30–43');
+      expect(panel()).toContain('Its functions');
+      // The copy itself can be selected.
+      handler(cy, 'tap')({ target: cy.getElementById('clone:0') });
+      expect(panel()).toContain('14 lines found twice');
+    });
 
-      test('modules, and files of a module drawn alone, are circles: a click passes through, a double-click goes in', async () => {
-        const cy = await openFunctions();
-        const handler = (event, selector) => cy.on.mock.calls.find((call) => call[0] === event && (selector === undefined ? typeof call[1] === 'function' : call[1] === selector)).slice(-1)[0];
-        expect(cy.nodes('.symbol-region').map((node) => node.id()).sort()).toEqual(['region:app.api', 'region:app.import']);
-        expect(cy.getElementById('region-label:app.api').data('label')).toBe('api');
-        expect(document.getElementById('qualityLegend').textContent).toContain('Circle: a module');
-        // Clicking inside a circle is clicking the background: it clears the selection.
-        const search = document.getElementById('qualitySearch');
-        search.value = 'serve';
-        search.dispatchEvent(new Event('input'));
-        search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-        expect(cy.$(':selected').length).toBe(1);
-        handler('tap')({ target: cy.getElementById('region:app.api') });
-        expect(cy.$(':selected').length).toBe(0);
-        // Double-clicking a module's circle draws it alone, with a circle for each file.
-        handler('dbltap', 'node.symbol-region')({ target: cy.getElementById('region:app.api') });
-        expect(document.querySelector('[data-symbol-module="app.api"]').getAttribute('aria-pressed')).toBe('true');
-        expect(cy.nodes('.symbol-region').map((node) => node.id()).sort()).toEqual(['region:app:backend/api.py', 'region:app:backend/api_helpers.py']);
-        expect(cy.getElementById('region-label:app:backend/api.py').data('label')).toBe('api.py');
-        expect(document.getElementById('qualityLegend').textContent).toContain('Circle: a file');
-        // Double-clicking a file's circle opens its functions.
-        handler('dbltap', 'node.symbol-region')({ target: cy.getElementById('region:app:backend/api.py') });
-        await nextFrame();
-        expect(document.getElementById('qualityBreadcrumb').textContent).toMatch(/api functions.*api\.py/);
-      });
+    test('Functions draws every function coloured by module, hollow when nothing mentions it, with the switches', async () => {
+      const cy = await open('symbols');
+      expect(cy.nodes('.dot').length).toBe(4);
+      expect(cy.edges('.dot-link').length).toBe(3);
+      expect(cy.nodes('.dot.unused').map((node) => node.id())).toEqual(['app:backend/importer.py:run@5']);
+      expect(cy.getElementById('app:backend/api.py:serve@3').data('color')).toBe('#2a78d6');
+      expect(Array.from(document.querySelectorAll('[data-explorer-module]')).map((button) => button.textContent)).toEqual(['api3', 'import1', 'ui0', 'core0']);
+      expect(panel()).toContain('How to read the functions');
+      expect(document.getElementById('qualityLegend').textContent).toContain('Nothing mentions it');
+      expect(document.getElementById('qualityBreadcrumb').textContent).toContain('All functions');
 
-      test('the panel of a module drawn alone hides with its ×, and the map keeps the module', async () => {
-        const cy = await openFunctions();
-        click('[data-symbol-module="app.api"]');
-        click('#qualityPanel [data-hide-panel]');
-        expect(document.querySelector('.quality-workspace').classList.contains('is-panel-hidden')).toBe(true);
-        expect(cy.nodes('.symbol').length).toBe(3);
-        // Its link to itself in a function's panel goes back to the module's details without drawing it again.
-        click('#qualityPanelToggle');
-        const search = document.getElementById('qualitySearch');
-        search.value = 'serve';
-        search.dispatchEvent(new Event('input'));
-        search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-        const added = cy.add.mock.calls.length;
-        click('#qualityPanel [data-select-module="app.api"]');
-        expect(cy.add.mock.calls.length).toBe(added);
-        expect(cy.$(':selected').length).toBe(0);
-        expect(document.getElementById('qualityPanel').textContent).toContain('Serve data.');
-      });
+      document.getElementById('qualityEdgesToggle').checked = false;
+      document.getElementById('qualityEdgesToggle').dispatchEvent(new Event('change'));
+      expect(cy.edges('.dot-link.hidden').length).toBe(3);
+      document.getElementById('qualityLabelsToggle').checked = false;
+      document.getElementById('qualityLabelsToggle').dispatchEvent(new Event('change'));
+      expect(cy.nodes('.dot.unlabelled').length).toBe(4);
 
-      test('while one module is drawn, a match in another module draws that module', async () => {
-        const cy = await openFunctions();
-        click('[data-symbol-module="app.api"]');
-        const search = document.getElementById('qualitySearch');
-        search.value = 'run';
-        search.dispatchEvent(new Event('input'));
-        search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-        expect(document.querySelector('[data-symbol-module="app.import"]').getAttribute('aria-pressed')).toBe('true');
-        expect(cy.nodes('.symbol').map((node) => node.id())).toEqual(['app:backend/importer.py:run@5']);
-        expect(cy.$(':selected').id()).toBe('app:backend/importer.py:run@5');
-        search.value = 'api_helpers';
-        search.dispatchEvent(new Event('input'));
-        click('#qualitySearchOption0');
-        expect(document.querySelector('[data-symbol-module="app.api"]').getAttribute('aria-pressed')).toBe('true');
-        expect(cy.$(':selected').map((node) => node.id())).toEqual(['app:backend/api_helpers.py:fmt@2']);
-      });
+      click('[data-color-by="criticality"]');
+      expect(cy.getElementById('app:backend/api.py:serve@3').data('color')).toBe('#617db5');
+      // The colour encoding stays when the level changes.
+      click('[data-level="modules"]');
+      await nextFrame();
+      expect(cy.getElementById('app.api').data('color')).toBe('#617db5');
+      expect(pressed('[data-color-by="criticality"]')).toBe('true');
+    });
 
-      test('the details panel hides to widen the map and opens again on a selection', async () => {
-        const cy = await openFunctions();
-        const workspace = document.querySelector('.quality-workspace');
-        const toggle = document.getElementById('qualityPanelToggle');
-        cy.resize.mockClear();
-        click('#qualityPanelToggle');
-        expect(workspace.classList.contains('is-panel-hidden')).toBe(true);
-        expect(toggle.getAttribute('aria-pressed')).toBe('false');
-        expect(toggle.title).toBe('Show the details panel');
-        expect(cy.resize).toHaveBeenCalledTimes(1);
-        const search = document.getElementById('qualitySearch');
-        search.value = 'serv';
-        search.dispatchEvent(new Event('input'));
-        search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-        expect(workspace.classList.contains('is-panel-hidden')).toBe(false);
-        expect(toggle.getAttribute('aria-pressed')).toBe('true');
-        expect(document.getElementById('qualityPanel').textContent).toContain('Open file functions');
-      });
+    test('the module in focus is selected on Modules, lit on Files, drawn alone on Functions, and survives the change of level', async () => {
+      const cy = await open();
+      click('[data-explorer-module="app.api"]');
+      expect(pressed('[data-explorer-module="app.api"]')).toBe('true');
+      expect(cy.$(':selected').id()).toBe('app.api');
+      expect(cy.getElementById('engine.core').hasClass('faded')).toBe(true);
+      expect(cy.getElementById('link:app.import>app.api').hasClass('lit')).toBe(true);
+      expect(panel()).toContain('Serve data.');
+      expect(panel()).toContain('To clean up');
+      expect(document.getElementById('qualityBreadcrumb').textContent).toMatch(/All modules.*api/);
 
-      test('the guide hides the panel back into the Details button, which opens it again', async () => {
-        await openFunctions();
-        const workspace = document.querySelector('.quality-workspace');
-        const toggle = document.getElementById('qualityPanelToggle');
-        const panel = document.getElementById('qualityPanel');
-        expect(panel.textContent).toContain('How to read the functions map');
-        click('#qualityPanel [data-hide-panel]');
-        expect(workspace.classList.contains('is-panel-hidden')).toBe(true);
-        expect(toggle.getAttribute('aria-pressed')).toBe('false');
-        expect(toggle.classList.contains('is-nudged')).toBe(true);
-        expect(document.activeElement).toBe(toggle);
-        click('#qualityPanelToggle');
-        expect(workspace.classList.contains('is-panel-hidden')).toBe(false);
-        expect(toggle.classList.contains('is-nudged')).toBe(false);
-        expect(panel.classList.contains('is-opening')).toBe(true);
-      });
+      cy.fit.mockClear();
+      click('[data-level="files"]');
+      await nextFrame();
+      expect(pressed('[data-explorer-module="app.api"]')).toBe('true');
+      // Its circle fills the map; its files stay lit and the lines stay faint.
+      expect(cy.fit.mock.calls[0][0].id()).toBe('region:app.api');
+      expect(cy.nodes('.dot.faded').map((node) => node.id()).sort()).toEqual(['app:backend/importer.py', 'app:static/js/ui.js', 'engine:src/core.py']);
+      expect(cy.edges('.lit').length).toBe(0);
+      expect(panel()).toContain('Serve data.');
+      // Selecting one of its files lights that file's lines; clearing it comes back to the module.
+      handler(cy, 'tap')({ target: cy.getElementById('app:backend/api_helpers.py') });
+      expect(cy.edges('.lit').map((edge) => edge.id())).toEqual(['dot-link:app:backend/api.py>app:backend/api_helpers.py']);
+      escape();
+      expect(cy.$(':selected').length).toBe(0);
+      expect(panel()).toContain('Serve data.');
 
-      test('search selects the match and shows its callers and callees; Esc then clears it', async () => {
-        const cy = await openFunctions();
-        const search = document.getElementById('qualitySearch');
-        search.value = 'serv';
-        search.dispatchEvent(new Event('input'));
-        const results = document.getElementById('qualitySearchResults');
-        expect(results.hidden).toBe(false);
-        expect(results.querySelector('[role="option"]').textContent).toContain('serve');
-        expect(search.getAttribute('aria-activedescendant')).toBe('qualitySearchOption0');
-        search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-        expect(results.hidden).toBe(true);
-        expect(cy.$(':selected').id()).toBe('app:backend/api.py:serve@3');
-        expect(cy.animate).toHaveBeenCalled();
-        const panel = document.getElementById('qualityPanel').textContent;
-        expect(panel).toContain('Open file functions');
-        expect(panel).toContain('run');
-        expect(cy.nodes('.symbol.faded').length).toBe(0);
-        expect(cy.nodes('.symbol.named').length).toBeGreaterThan(0);
-        // The first Esc empties the box, the next one clears the selection.
-        search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-        expect(search.value).toBe('');
-        expect(cy.$(':selected').length).toBe(1);
-        search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-        expect(cy.$(':selected').length).toBe(0);
-      });
+      click('[data-level="symbols"]');
+      await nextFrame();
+      expect(cy.nodes('.dot').map((node) => node.id()).sort()).toEqual(['app:backend/api.py:helper@10', 'app:backend/api.py:serve@3', 'app:backend/api_helpers.py:fmt@2']);
+      expect(cy.nodes('.region').map((node) => node.id()).sort()).toEqual(['region:app:backend/api.py', 'region:app:backend/api_helpers.py']);
+      expect(document.getElementById('qualityLegend').textContent).toContain('Circle: a file');
+      expect(document.getElementById('qualityBreadcrumb').textContent).toMatch(/All functions.*api/);
+      // The breadcrumb, Reset, the module itself and Esc each give up the focus.
+      click('#qualityBreadcrumb [data-reset]');
+      expect(cy.nodes('.dot').length).toBe(4);
+      click('[data-explorer-module="app.import"]');
+      expect(cy.nodes('.dot').length).toBe(1);
+      click('#qualityExplorerReset');
+      expect(cy.nodes('.dot').length).toBe(4);
+      click('[data-explorer-module="app.import"]');
+      click('[data-explorer-module="app.import"]');
+      expect(cy.nodes('.dot').length).toBe(4);
+      click('[data-explorer-module="app.import"]');
+      escape();
+      expect(cy.nodes('.dot').length).toBe(4);
+      expect(panel()).toContain('How to read the functions');
+    });
 
-      test('a file found by search selects all its functions', async () => {
-        const cy = await openFunctions();
-        const search = document.getElementById('qualitySearch');
-        search.value = 'api.py';
-        search.dispatchEvent(new Event('input'));
-        click('#qualitySearchOption0');
-        expect(cy.$(':selected').map((node) => node.id()).sort()).toEqual(['app:backend/api.py:helper@10', 'app:backend/api.py:serve@3']);
-        expect(document.getElementById('qualityPanel').textContent).toContain('Open file functions');
-      });
+    test('a double-click goes one level in; a click on a circle of dots is a click on the background', async () => {
+      const cy = await open();
+      handler(cy, 'dbltap', 'node.module')({ target: cy.getElementById('app.api') });
+      await nextFrame();
+      expect(pressed('[data-level="files"]')).toBe('true');
+      expect(pressed('[data-explorer-module="app.api"]')).toBe('true');
+      // A click inside a circle clears the selection, then the focus.
+      handler(cy, 'tap')({ target: cy.getElementById('app:backend/api.py') });
+      expect(cy.$(':selected').length).toBe(1);
+      handler(cy, 'tap')({ target: cy.getElementById('region:app.api') });
+      expect(cy.$(':selected').length).toBe(0);
+      expect(pressed('[data-explorer-module="app.api"]')).toBe('true');
+      handler(cy, 'tap')({ target: cy.getElementById('region:app.api') });
+      expect(pressed('[data-explorer-module="app.api"]')).toBe('false');
+      // A file's double-click draws its module's functions, with the file's own selected.
+      handler(cy, 'dbltap', 'node.dot')({ target: cy.getElementById('app:backend/api.py') });
+      await nextFrame();
+      expect(pressed('[data-level="symbols"]')).toBe('true');
+      expect(pressed('[data-explorer-module="app.api"]')).toBe('true');
+      expect(cy.$(':selected').map((node) => node.id()).sort()).toEqual(['app:backend/api.py:helper@10', 'app:backend/api.py:serve@3']);
+      expect(panel()).toContain('api.py');
+      // On Functions a module's circle draws it alone, and a click on the background leaves it drawn.
+      click('#qualityExplorerReset');
+      handler(cy, 'dbltap', 'node.region')({ target: cy.getElementById('region:app.import') });
+      expect(cy.nodes('.dot').length).toBe(1);
+      handler(cy, 'tap')({ target: cy });
+      expect(cy.nodes('.dot').length).toBe(1);
+      // A module's circle on Files goes to its functions.
+      click('[data-level="files"]');
+      await nextFrame();
+      handler(cy, 'dbltap', 'node.region')({ target: cy.getElementById('region:app.api') });
+      await nextFrame();
+      expect(pressed('[data-level="symbols"]')).toBe('true');
+      expect(cy.nodes('.dot').length).toBe(3);
+    });
 
-      test('opening a function\'s file from the map goes back to the map with Esc', async () => {
-        await openFunctions();
-        click('[data-symbol-module="app.import"]');
-        click('[data-symbol-module="app.import"]');
-        const search = document.getElementById('qualitySearch');
-        search.value = 'run';
-        search.dispatchEvent(new Event('input'));
-        search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-        click('#qualityPanel [data-open-file]');
-        await nextFrame();
-        expect(document.getElementById('qualityBreadcrumb').textContent).toContain('All functions');
-        expect(document.querySelector('[data-view-toggle="symbols"]').getAttribute('aria-pressed')).toBe('true');
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-        await nextFrame();
-        expect(document.getElementById('qualityExplorer').hidden).toBe(false);
-      });
+    test('search opens a function on Functions and a file on Files, and Esc steps back', async () => {
+      const cy = await open();
+      const search = document.getElementById('qualitySearch');
+      search.value = 'serv';
+      search.dispatchEvent(new Event('input'));
+      const list = document.getElementById('qualitySearchResults');
+      expect(list.hidden).toBe(false);
+      expect(list.querySelector('[role="option"]').textContent).toContain('serve');
+      expect(search.getAttribute('aria-activedescendant')).toBe('qualitySearchOption0');
+      search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await nextFrame();
+      expect(list.hidden).toBe(true);
+      expect(pressed('[data-level="symbols"]')).toBe('true');
+      expect(cy.$(':selected').id()).toBe('app:backend/api.py:serve@3');
+      expect(cy.animate).toHaveBeenCalled();
+      expect(panel()).toContain('run');
+      expect(cy.nodes('.dot.named').length).toBeGreaterThan(0);
+      // While one module is drawn, a match in another module draws that one.
+      searchFor('run');
+      expect(pressed('[data-explorer-module="app.import"]')).toBe('true');
+      expect(cy.$(':selected').id()).toBe('app:backend/importer.py:run@5');
+      expect(panel()).toContain('probably unused');
+      // The first Esc empties the box, the next clears the selection, the next the module.
+      search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      expect(search.value).toBe('');
+      expect(cy.$(':selected').length).toBe(1);
+      escape();
+      expect(cy.$(':selected').length).toBe(0);
+      expect(cy.nodes('.dot').length).toBe(1);
+      escape();
+      expect(cy.nodes('.dot').length).toBe(4);
+      // A file is found by name and selected among the files.
+      search.value = 'api_helpers';
+      search.dispatchEvent(new Event('input'));
+      click('#qualitySearchOption0');
+      await nextFrame();
+      expect(pressed('[data-level="files"]')).toBe('true');
+      expect(cy.$(':selected').id()).toBe('app:backend/api_helpers.py');
+      expect(panel()).toContain('40% of lines covered');
+    });
+
+    test('a row of the page opens its place on the map', async () => {
+      const cy = await open('symbols');
+      click('#qualityCleanup [data-select-clone="0"]');
+      await nextFrame();
+      expect(pressed('[data-level="files"]')).toBe('true');
+      expect(cy.$(':selected').id()).toBe('clone:0');
+      expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
+      click('#qualityCleanup [data-select-function]');
+      await nextFrame();
+      expect(pressed('[data-level="symbols"]')).toBe('true');
+      expect(cy.$(':selected').id()).toBe('app:backend/importer.py:run@5');
+      click('#qualityFindings [data-select-link="app.api>app.import"]');
+      await nextFrame();
+      expect(pressed('[data-level="modules"]')).toBe('true');
+      expect(cy.$(':selected').id()).toBe('link:app.api>app.import');
+      expect(panel()).toContain('does not declare this dependency');
+      click('#qualityTable [data-select-module="app.import"]');
+      expect(cy.$(':selected').id()).toBe('app.import');
+      // A module named in the panel takes the focus on the level shown.
+      click('#qualityPanel [data-go-level="symbols"]');
+      await nextFrame();
+      expect(cy.nodes('.dot').length).toBe(1);
+      click('#qualityPanel [data-select-module="app.api"]');
+      expect(cy.nodes('.dot').length).toBe(3);
+    });
+
+    test('the details panel hides to widen the map and opens again on a selection', async () => {
+      const cy = await open('symbols');
+      const workspace = document.querySelector('.quality-workspace');
+      const toggle = document.getElementById('qualityPanelToggle');
+      cy.resize.mockClear();
+      click('#qualityPanelToggle');
+      expect(workspace.classList.contains('is-panel-hidden')).toBe(true);
+      expect(toggle.getAttribute('aria-pressed')).toBe('false');
+      expect(toggle.title).toBe('Show the details panel');
+      expect(cy.resize).toHaveBeenCalledTimes(1);
+      searchFor('serv');
+      expect(workspace.classList.contains('is-panel-hidden')).toBe(false);
+      expect(toggle.getAttribute('aria-pressed')).toBe('true');
+      expect(panel()).toContain('serve');
+    });
+
+    test('the guide, and a module drawn alone, hide the panel back into the Details button', async () => {
+      const cy = await open('symbols');
+      const workspace = document.querySelector('.quality-workspace');
+      const toggle = document.getElementById('qualityPanelToggle');
+      click('#qualityPanel [data-hide-panel]');
+      expect(workspace.classList.contains('is-panel-hidden')).toBe(true);
+      expect(toggle.classList.contains('is-nudged')).toBe(true);
+      expect(document.activeElement).toBe(toggle);
+      click('#qualityPanelToggle');
+      expect(workspace.classList.contains('is-panel-hidden')).toBe(false);
+      expect(toggle.classList.contains('is-nudged')).toBe(false);
+      expect(document.getElementById('qualityPanel').classList.contains('is-opening')).toBe(true);
+      click('[data-explorer-module="app.api"]');
+      click('#qualityPanel [data-hide-panel]');
+      expect(workspace.classList.contains('is-panel-hidden')).toBe(true);
+      expect(cy.nodes('.dot').length).toBe(3);
     });
 
     test('the expand button fills the window below the navbar and Esc returns to the page', async () => {
-      const cy = fakeCytoscape();
-      cy.resize = jest.fn();
-      respond({ available: true, report: report(), code_map: codeMap() });
-      await window.QualityDashboard.init(document.getElementById('qualityDashboard'));
+      const cy = await open();
       const workspace = document.querySelector('.quality-workspace');
       const button = document.getElementById('qualityFullscreen');
+      cy.fit.mockClear();
       click('#qualityFullscreen');
       expect(workspace.classList.contains('is-expanded')).toBe(true);
       expect(workspace.style.getPropertyValue('--quality-expanded-top')).toBe('0px');
@@ -801,7 +945,7 @@ describe('QualityDashboard', () => {
       expect(button.textContent).toBe('Exit');
       expect(cy.resize).toHaveBeenCalledTimes(1);
       expect(cy.fit).toHaveBeenCalled();
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      escape();
       expect(workspace.classList.contains('is-expanded')).toBe(false);
       expect(document.documentElement.classList.contains('quality-scroll-locked')).toBe(false);
       expect(button.getAttribute('aria-pressed')).toBe('false');
@@ -812,17 +956,6 @@ describe('QualityDashboard', () => {
       click('#qualityFullscreen');
       expect(workspace.classList.contains('is-expanded')).toBe(false);
       expect(cy.resize).toHaveBeenCalledTimes(4);
-    });
-
-    test('missing evidence or a failed request is shown as unavailable', async () => {
-      respond({ available: false });
-      await window.QualityDashboard.init(document.getElementById('qualityDashboard'));
-      expect(document.getElementById('qualityUnavailable').hidden).toBe(false);
-      document.body.innerHTML = pageHtml();
-      global.fetch = jest.fn(() => Promise.reject(new Error('offline')));
-      await window.QualityDashboard.init(document.getElementById('qualityDashboard'));
-      expect(document.getElementById('qualityUnavailable').hidden).toBe(false);
-      expect(document.getElementById('qualityContent').hidden).toBe(true);
     });
   });
 });

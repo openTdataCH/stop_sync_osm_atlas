@@ -45,6 +45,16 @@ def _restore_model_indexes():
         table.indexes.update(indexes)
 
 
+@pytest.fixture(autouse=True)
+def _no_quality_download(monkeypatch):
+    """No test reaches GitHub for quality evidence, and none sees what another test loaded."""
+    from backend.services import quality_report
+
+    monkeypatch.setattr(quality_report, 'download', lambda revision: None)
+    monkeypatch.setattr(quality_report, '_loaded', {})
+    monkeypatch.setattr(quality_report, '_missed', {})
+
+
 @pytest.fixture
 def app():
     """Create Flask application configured for testing, on the in-memory SQLite set above."""

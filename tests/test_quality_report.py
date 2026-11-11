@@ -1,158 +1,176 @@
+"""The dashboard's evidence: this code's commit, a local run first, then what CI published, never a guess."""
 import json
-import os
-from copy import deepcopy
-from datetime import datetime, timezone
-from types import SimpleNamespace
 
 import pytest
 
+from backend import version
 from backend.services import quality_report
+from backend.services.quality_report import EvidenceUnavailable, load_evidence
+from backend.services.quality_report import download as real_download
 
-
+SHA = 'a' * 40
 CODE_MAP = {'schema_version': 1, 'modules': [], 'contracts': [], 'files': [], 'links': [], 'interface': {}}
 
 
 def _example_report():
-    return {'schema_version': 1, 'generated_at': datetime.now(timezone.utc).isoformat(), 'completeness': 'partial',
-            'fingerprints': {'app': 'current', 'engine': 'before'}, 'revision': {'app': 'sha', 'engine': 'sha'},
+    return {'schema_version': 1, 'generated_at': '2026-11-11T10:00:00+00:00', 'completeness': 'complete',
+            'revision': {'app': SHA, 'engine': 'b' * 40}, 'checks': [{'name': 'python-lint', 'status': 'pass'}], 'files': {}, 'tools': {},
             'modules': {'app.test': {
                 'criticality': 'high', 'tests': {'status': 'pass'}, 'coverage': {'status': 'measured', 'branches': 99},
-                'mutation': {'status': 'not_measured'}, 'duplication': {'status': 'pass'}, 'dead_code': {'status': 'pass'},
-                'docs': {'status': 'pass', 'satisfied': 4, 'required': 4}, 'architecture': {'status': 'pass'}}}}
+                'duplication': {'status': 'pass'}, 'docs': {'status': 'pass', 'satisfied': 4, 'required': 4}, 'architecture': {'status': 'pass'}}}}
 
 
-def _publish(root, report, fingerprint=None, engine='sha'):
-    """Write a published report as `make deploy-report` does, matching the code under ``root`` by default."""
-    (root / 'engine.ref').write_text(engine + '\n')
-    (root / 'backend').mkdir(exist_ok=True)
-    (root / 'backend/app.py').write_text('app = 1\n')
-    published = root / quality_report.PUBLISHED
-    published.mkdir(parents=True, exist_ok=True)
-    if fingerprint is None:
-        fingerprint = quality_report.shipped_fingerprint(quality_report.shipped_files(root))
-    (published / 'latest.json').write_text(json.dumps(report))
-    (published / 'code-map.json').write_text(json.dumps(CODE_MAP))
-    (published / 'publication.json').write_text(json.dumps({
-        'app_revision': 'sha', 'run_url': 'https://github.com/example/actions/runs/1', 'shipped_fingerprint': fingerprint}))
+def _evidence(report=True, code_map=CODE_MAP):
+    return {'schema_version': 1, 'report': _example_report() if report is True else report, 'code_map': code_map}
 
 
-def _render(root):
-    return quality_report.replace_quality_placeholder('{{CODE_QUALITY_REPORT}}', root)
+@pytest.fixture
+def at_commit(monkeypatch):
+    """The app runs at SHA, as the server's administrator sets it."""
+    monkeypatch.setenv('APP_REVISION', SHA)
 
 
-def test_missing_and_invalid_report_are_explicit(tmp_path):
-    assert 'unavailable' in _render(tmp_path)
-    _publish(tmp_path, _example_report())
-    (tmp_path / quality_report.PUBLISHED / 'latest.json').write_text('not JSON')
-    assert 'unavailable' in _render(tmp_path)
-    _publish(tmp_path, _example_report())
-    (tmp_path / quality_report.PUBLISHED / 'publication.json').unlink()
-    assert 'unavailable' in _render(tmp_path)
+@pytest.fixture
+def published(monkeypatch):
+    """What GitHub holds, by commit; ``asked`` lists every download."""
+    files, asked = {}, []
+
+    def download(revision):
+        asked.append(revision)
+        return files.get(revision)
+
+    monkeypatch.setattr(quality_report, 'download', download)
+    files[SHA] = json.dumps(_evidence()).encode()
+    return files, asked
 
 
-@pytest.mark.parametrize('field,value', [('tools', []), ('checks', [None]), ('artifacts', [False]),
-                                        ('modules', {'app.test': None}), ('modules', {'app.test': []})])
-def test_malformed_artifact_shapes_render_unavailable(tmp_path, field, value):
-    report = _example_report()
-    report[field] = value
-    _publish(tmp_path, report)
-    assert 'unavailable' in _render(tmp_path)
+def test_commit_comes_from_the_environment_then_a_file_then_the_checkout(tmp_path, monkeypatch):
+    monkeypatch.setattr(version, 'APP_ROOT', tmp_path)
+    monkeypatch.delenv('APP_REVISION', raising=False)
+    assert version.app_revision() is None
+    git = tmp_path / '.git'
+    (git / 'refs/heads').mkdir(parents=True)
+    (git / 'HEAD').write_text('ref: refs/heads/main\n')
+    (git / 'packed-refs').write_text(f"# pack-refs with: peeled\n{'c' * 40} refs/heads/main\n")
+    assert version.app_revision() == 'c' * 40
+    (git / 'refs/heads/main').write_text('d' * 40 + '\n')
+    assert version.app_revision() == 'd' * 40
+    (git / 'HEAD').write_text('E' * 40 + '\n')
+    assert version.app_revision() == 'e' * 40
+    (tmp_path / 'REVISION').write_text('f' * 40 + '\n')
+    assert version.app_revision() == 'f' * 40
+    monkeypatch.setenv('APP_REVISION', SHA)
+    assert version.app_revision() == SHA
+    monkeypatch.setenv('APP_REVISION', 'not a commit')
+    assert version.app_revision() is None
 
 
-@pytest.mark.parametrize('lane', ['coverage', 'docs', 'tests', 'mutation'])
-def test_malformed_measurement_does_not_crash_documentation(tmp_path, lane):
-    report = deepcopy(_example_report())
-    report['modules']['app.test'][lane] = None
-    _publish(tmp_path, report)
-    assert 'unavailable' in _render(tmp_path)
+def test_commit_of_a_linked_worktree_is_read_from_the_shared_folder(tmp_path, monkeypatch):
+    monkeypatch.delenv('APP_REVISION', raising=False)
+    main, tree = tmp_path / 'main/.git', tmp_path / 'tree'
+    (main / 'worktrees/tree').mkdir(parents=True)
+    (main / 'refs/heads').mkdir(parents=True)
+    (main / 'refs/heads/topic').write_text('c' * 40 + '\n')
+    (main / 'worktrees/tree/HEAD').write_text('ref: refs/heads/topic\n')
+    (main / 'worktrees/tree/commondir').write_text('../..\n')
+    tree.mkdir()
+    (tree / '.git').write_text(f"gitdir: {main / 'worktrees/tree'}\n")
+    monkeypatch.setattr(version, 'APP_ROOT', tree)
+    assert version.app_revision() == 'c' * 40
 
 
-def test_report_for_the_running_code_shows_results_and_links_the_ci_run(tmp_path):
-    report = _example_report()
-    report['checks'] = [{'name': 'app-python-tests', 'status': 'pass'}]
-    _publish(tmp_path, report)
-    text = _render(tmp_path)
-    assert '[!WARNING]' not in text
-    assert '99%' in text
-    assert '**app-python-tests**: pass' in text
-    assert '[CI run](https://github.com/example/actions/runs/1)' in text
+def test_an_unknown_commit_has_no_evidence_and_asks_nobody(tmp_path, monkeypatch, published):
+    monkeypatch.setattr(quality_report, 'app_revision', lambda: None)
+    with pytest.raises(EvidenceUnavailable) as error:
+        load_evidence(tmp_path)
+    assert (error.value.reason, error.value.revision) == ('unknown_commit', None)
+    assert published[1] == []
 
 
-def test_report_for_previous_code_warns_and_cannot_display_pass(tmp_path):
-    report = _example_report()
-    report['checks'] = [{'name': 'app-python-tests', 'status': 'pass'}]
-    _publish(tmp_path, report)
-    (tmp_path / 'backend/app.py').write_text('app = 2\n')
-    text = _render(tmp_path)
-    assert text.startswith('> [!WARNING]')
-    assert 'measured on app commit `sha`' in text and 'the application code' in text
-    assert '**stale**' in text
-    assert '99%' not in text
-    assert '| pass |' not in text
-    assert '**app-python-tests**: stale' in text
+def test_ci_evidence_is_downloaded_once_and_then_read_from_the_cache(tmp_path, at_commit, published, monkeypatch):
+    evidence, source, revision = load_evidence(tmp_path)
+    assert (source, revision) == ('ci', SHA)
+    assert evidence['report']['modules']['app.test']['coverage']['branches'] == 99
+    assert json.loads((tmp_path / '.cache/quality' / f'{SHA}.json').read_text()) == evidence
+    assert list((tmp_path / '.cache/quality').iterdir()) == [tmp_path / '.cache/quality' / f'{SHA}.json']
+    assert load_evidence(tmp_path)[0] == evidence
+    # Another worker, or the app after a restart, finds the file and does not ask GitHub.
+    monkeypatch.setattr(quality_report, '_loaded', {})
+    assert load_evidence(tmp_path)[0] == evidence
+    assert published[1] == [SHA]
 
 
-def test_report_for_another_engine_pin_warns(tmp_path):
-    _publish(tmp_path, _example_report(), engine='newer')
-    text = _render(tmp_path)
-    assert 'the pinned engine' in text and 'the application code' not in text
+def test_a_commit_without_results_is_asked_for_again_only_after_a_while(tmp_path, at_commit, published, monkeypatch):
+    files, asked = published
+    del files[SHA]
+    clock = [1000.0]
+    monkeypatch.setattr(quality_report.time, 'monotonic', lambda: clock[0])
+    for _ in range(3):
+        with pytest.raises(EvidenceUnavailable) as error:
+            load_evidence(tmp_path)
+        assert (error.value.reason, error.value.revision) == ('no_results', SHA)
+    assert asked == [SHA]
+    # CI finishes; the next question after the pause gets the evidence.
+    files[SHA] = json.dumps(_evidence()).encode()
+    clock[0] += quality_report.RETRY_SECONDS
+    assert load_evidence(tmp_path)[1] == 'ci'
+    assert asked == [SHA, SHA]
 
 
-def test_shipped_fingerprint_ignores_the_report_tests_generated_and_local_only_files(tmp_path):
-    _publish(tmp_path, _example_report())
-    for name in ('quality/published/report.md', 'tests/test_new.py', 'backend/__pycache__/app.cpython-313.pyc',
-                 'static/.DS_Store', 'documentation/generated/docs.pdf', 'documentation/Documentation style guide.md'):
-        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
-        (tmp_path / name).write_text('generated')
-    assert '[!WARNING]' not in _render(tmp_path)
+@pytest.mark.parametrize('body', [
+    b'not JSON', b'null', b'{}', json.dumps({'schema_version': 2, 'report': None, 'code_map': CODE_MAP}).encode(),
+    json.dumps(_evidence(code_map={'schema_version': 1})).encode(),
+    json.dumps(_evidence(report={'modules': []})).encode(),
+    json.dumps(_evidence(report={**_example_report(), 'modules': {'app.test': 'pass'}})).encode(),
+])
+def test_a_published_file_of_another_shape_is_no_evidence_and_is_not_kept(tmp_path, at_commit, published, body):
+    published[0][SHA] = body
+    with pytest.raises(EvidenceUnavailable, match='no_results'):
+        load_evidence(tmp_path)
+    assert not (tmp_path / '.cache/quality' / f'{SHA}.json').exists()
 
 
-def test_export_can_list_artifacts_without_creating_broken_local_links():
-    report = _example_report()
-    report['artifacts'] = ['raw/checks.json']
-    text = quality_report.render_report(report, None)
-    assert '- `raw/checks.json`' in text
-    assert '](' not in text.split('Raw evidence:')[1]
+def test_a_local_run_wins_and_needs_neither_commit_nor_github(tmp_path, monkeypatch, published):
+    monkeypatch.setattr(quality_report, 'app_revision', lambda: None)
+    (tmp_path / 'quality').mkdir()
+    (tmp_path / 'quality/evidence.json').write_text(json.dumps(_evidence(report=None)))
+    evidence, source, revision = load_evidence(tmp_path)
+    assert (source, revision, evidence['report']) == ('local', None, None)
+    assert evidence['code_map'] == CODE_MAP
+    assert published[1] == []
 
 
-def test_ordinary_document_does_not_read_artifacts(monkeypatch):
-    monkeypatch.setattr(quality_report, 'shipped_files', lambda root: (_ for _ in ()).throw(AssertionError('should not run')))
-    assert quality_report.replace_quality_placeholder('Ordinary documentation', '.') == 'Ordinary documentation'
+def test_a_broken_local_file_falls_back_to_the_ci_evidence(tmp_path, at_commit, published):
+    (tmp_path / 'quality').mkdir()
+    (tmp_path / 'quality/evidence.json').write_text('{"schema_version": 1}')
+    assert load_evidence(tmp_path)[1] == 'ci'
 
 
-def test_pdf_export_expands_quality_evidence(tmp_path, monkeypatch):
-    from documentation.pdf_generator import build_docs_pdf
+def test_download_reads_the_release_asset_of_the_commit_and_survives_github_being_away(monkeypatch):
+    asked = []
 
-    document = 'documentation/4.3 Code quality.md'
-    # Read the evidence from an empty folder; the rest of the bundle uses the real checkout.
-    monkeypatch.setattr(build_docs_pdf, 'replace_quality_placeholder',
-                        lambda text, root: quality_report.replace_quality_placeholder(text, tmp_path))
-    markdown = build_docs_pdf._prepare_document([document], include_cover=False)
-    assert '{{CODE_QUALITY_REPORT}}' not in markdown
-    assert 'Quality evidence unavailable' in markdown
+    class Response:
+        status_code = 200
 
+        def iter_content(self, size):
+            return iter([b'{"a":', b' 1}'])
 
-@pytest.mark.parametrize('dependency', ['quality/published/publication.json', 'backend/services/quality_report.py'])
-def test_pdf_cache_refreshes_when_quality_evidence_or_renderer_changes(tmp_path, monkeypatch, dependency):
-    from backend.blueprints import docs
+    def get(url, **options):
+        asked.append((url, options['timeout']))
+        return Response()
 
-    for name in ('documentation/generated/stop_sync_osm_atlas_documentation.pdf',
-                 'documentation/pdf_generator/build_docs_pdf.py', dependency):
-        path = tmp_path / name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text('fixture')
-        os.utime(path, (100, 100))
-    monkeypatch.setattr(docs, 'APP_ROOT', tmp_path)
-    monkeypatch.setattr(docs, 'docs_dirs', lambda: {'app': str(tmp_path / 'documentation')})
-    generated = []
+    monkeypatch.setattr(quality_report, 'download', real_download)
+    monkeypatch.setattr(quality_report.requests, 'get', get)
+    assert quality_report.download(SHA) == b'{"a": 1}'
+    assert asked == [(f'https://github.com/openTdataCH/stop_sync_osm_atlas/releases/download/quality-data/quality-{SHA}.json', 10)]
+    Response.status_code = 404
+    assert quality_report.download(SHA) is None
+    Response.status_code = 200
+    monkeypatch.setattr(quality_report, 'MAX_BYTES', 4)
+    assert quality_report.download(SHA) is None
 
-    def generate(command, **kwargs):
-        generated.append(command)
-        return SimpleNamespace(returncode=0)
+    def unreachable(url, **options):
+        raise quality_report.requests.ConnectionError('no route')
 
-    monkeypatch.setattr(docs.subprocess, 'run', generate)
-    assert docs.ensure_docs_pdf_generated()
-    assert generated == []
-    os.utime(tmp_path / dependency, (200, 200))
-    assert docs.ensure_docs_pdf_generated()
-    assert len(generated) == 1
+    monkeypatch.setattr(quality_report.requests, 'get', unreachable)
+    assert quality_report.download(SHA) is None

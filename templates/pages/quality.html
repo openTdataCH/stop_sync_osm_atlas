@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 
 {% block title %}Code quality | {{ review_config.title }}{% endblock %}
-{% block meta_description %}How the engine and review application modules depend on each other, and the latest test, coverage and structural evidence for each.{% endblock %}
+{% block meta_description %}How the engine and review application modules depend on each other, what there is to clean up, and the test and coverage results of the running commit.{% endblock %}
 
 {% block head_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/quality.css') }}">
@@ -14,26 +14,26 @@
       <h1>Code quality</h1>
       <p>
         The module catalog divides both repositories into modules, each with one responsibility. The map shows how
-        their code depends on each other; the tables show the evidence from the CI run of the deployed commit.
+        their code depends on each other and what there is to clean up; the tables show what CI measured on the
+        commit running here.
         <a class="quality-header__link" href="{{ url_for('docs.docs_page', page='code_quality') }}">How this is measured <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
       </p>
     </header>
 
     <div class="quality-banner" id="qualityUnavailable" hidden>
       <i class="fas fa-info-circle" aria-hidden="true"></i>
-      <p><strong>Quality evidence unavailable.</strong> Run <code>make deploy-report</code> once CI has passed on the latest commit.
-      Missing evidence is not a passing result.</p>
+      <p id="qualityUnavailableText"></p>
     </div>
 
     <div id="qualityContent" hidden>
       <section class="quality-run" aria-labelledby="qualityRunTitle">
         <div class="quality-run__head">
           <div>
-            <div class="quality-eyebrow">CI evidence</div>
-            <h2 class="quality-run__title" id="qualityRunTitle">Latest published report</h2>
+            <div class="quality-eyebrow" id="qualityRunEyebrow">Measured by CI</div>
+            <h2 class="quality-run__title" id="qualityRunTitle">CI results</h2>
             <p class="quality-run__warning" id="qualityWarning" role="alert" hidden>
-              <i class="fas fa-history" aria-hidden="true"></i>
-              <span><span id="qualityWarningText"></span> Every result below is marked stale.</span>
+              <i class="fas fa-laptop-code" aria-hidden="true"></i>
+              <span>This comes from <code>quality/evidence.json</code>, written by a run of the checks on this computer. It is not the CI result of a commit.</span>
             </p>
           </div>
           <span class="quality-pill" id="qualityRunStatus"></span>
@@ -44,19 +44,19 @@
       <div class="quality-figures" id="qualityFigures"></div>
 
       <section id="qualityMapSection" aria-labelledby="qualityMapTitle">
-        <h2 class="quality-section-title" id="qualityMapTitle">Module map</h2>
+        <h2 class="quality-section-title" id="qualityMapTitle">Code map</h2>
         <div class="quality-workspace">
           <div class="quality-toolbar">
-            <div class="quality-segmented" role="group" aria-label="Map view">
-              <button type="button" class="quality-segmented__option is-active" data-view-toggle="modules" aria-pressed="true">Modules</button>
-              <button type="button" class="quality-segmented__option" data-view-toggle="files" aria-pressed="false">Files</button>
-              <button type="button" class="quality-segmented__option" data-view-toggle="symbols" aria-pressed="false">Functions</button>
+            <div class="quality-segmented" role="group" aria-label="Map level">
+              <button type="button" class="quality-segmented__option is-active" data-level="modules" aria-pressed="true">Modules</button>
+              <button type="button" class="quality-segmented__option" data-level="files" aria-pressed="false">Files</button>
+              <button type="button" class="quality-segmented__option" data-level="symbols" aria-pressed="false">Functions</button>
             </div>
             <div class="quality-toolbar__group">
               <span class="quality-toolbar__label" id="qualityColorByLabel">Colour by</span>
               <div class="quality-segmented" role="group" aria-labelledby="qualityColorByLabel" id="qualityColorBy">
-                <button type="button" class="quality-segmented__option" data-color-by="module" aria-pressed="false" hidden>Module</button>
-                <button type="button" class="quality-segmented__option is-active" data-color-by="criticality" aria-pressed="true">Criticality</button>
+                <button type="button" class="quality-segmented__option is-active" data-color-by="module" aria-pressed="true">Module</button>
+                <button type="button" class="quality-segmented__option" data-color-by="criticality" aria-pressed="false">Criticality</button>
                 <button type="button" class="quality-segmented__option" data-color-by="coverage" aria-pressed="false">Branch coverage</button>
                 <button type="button" class="quality-segmented__option" data-color-by="repository" aria-pressed="false">Repository</button>
               </div>
@@ -72,7 +72,7 @@
           </div>
           <div class="quality-workspace__body">
             <div class="quality-map-wrap" data-bs-theme="light">
-              <aside class="quality-explorer" id="qualityExplorer" aria-label="Functions map: search and modules" hidden>
+              <aside class="quality-explorer" id="qualityExplorer" data-shows="modules" aria-label="Search and modules">
                 <div class="quality-search">
                   <i class="fas fa-search quality-search__icon" aria-hidden="true"></i>
                   <input type="search" class="quality-search__input" id="qualitySearch" placeholder="Search functions and files" autocomplete="off" spellcheck="false"
@@ -92,14 +92,14 @@
                   </label>
                 </div>
                 <div class="quality-explorer__head">
-                  <h3 class="quality-explorer__title">Modules</h3>
-                  <button type="button" class="quality-explorer__reset" id="qualityExplorerReset" data-symbol-reset>Reset</button>
+                  <h3 class="quality-explorer__title">Modules <span class="quality-explorer__unit" id="qualityExplorerUnit"></span></h3>
+                  <button type="button" class="quality-explorer__reset" id="qualityExplorerReset" data-reset>Reset</button>
                 </div>
                 <ul class="quality-explorer__modules" id="qualityExplorerModules"></ul>
               </aside>
               <div class="quality-map-stage">
-                <div class="quality-map" id="qualityMap" role="img" aria-label="Code map. The findings and module table below list the module dependencies as text."></div>
-                <nav class="quality-crumbs" id="qualityBreadcrumb" aria-label="Map level"></nav>
+                <div class="quality-map" id="qualityMap" role="img" aria-label="Code map. The sections below list the module dependencies and the cleanup candidates as text."></div>
+                <nav class="quality-crumbs" id="qualityBreadcrumb" aria-label="Module in focus"></nav>
                 <div class="quality-zoom" role="group" aria-label="Zoom">
                   <button type="button" data-zoom="in" title="Zoom in" aria-label="Zoom in"><i class="fas fa-plus" aria-hidden="true"></i></button>
                   <button type="button" data-zoom="out" title="Zoom out" aria-label="Zoom out"><i class="fas fa-minus" aria-hidden="true"></i></button>
@@ -115,6 +115,15 @@
         </div>
       </section>
 
+      <section id="qualityCleanupSection" aria-labelledby="qualityCleanupTitle">
+        <h2 class="quality-section-title" id="qualityCleanupTitle">Cleanup candidates</h2>
+        <p class="quality-lead">
+          What the map points at: code that looks unused, code that exists twice and files that grew long. These are
+          places to look, not failures. Each row opens its place on the map.
+        </p>
+        <div class="quality-findings" id="qualityCleanup"></div>
+      </section>
+
       <section id="qualityFindingsSection" aria-labelledby="qualityFindingsTitle">
         <h2 class="quality-section-title" id="qualityFindingsTitle">Module boundaries</h2>
         <div class="quality-findings" id="qualityFindings"></div>
@@ -124,41 +133,26 @@
         <h2 class="quality-section-title" id="qualityBlindSpotsTitle">What the map cannot see</h2>
         <p class="quality-lead">
           The map links code by reading it, without running it. These are the places where reading is not enough, so a
-          missing arrow there does not prove that two modules are independent.
+          missing line there does not prove that two modules are independent.
         </p>
         <div class="quality-findings" id="qualityBlindSpots"></div>
       </section>
 
-      <section aria-labelledby="qualityTableTitle">
-        <h2 class="quality-section-title" id="qualityTableTitle">Evidence by module</h2>
+      <section aria-labelledby="qualityTableTitle" data-needs-report>
+        <h2 class="quality-section-title" id="qualityTableTitle">CI results by module</h2>
         <div class="quality-block">
           <p class="quality-lead">
             Criticality is declared in the catalog from the impact of a failure, not measured. Duplicated blocks are code
-            clones of at least 10 lines; Python dead code is Vulture's certain findings. For both, the status says whether
-            any is new since the reviewed baseline. There is no combined quality score.
+            clones of at least 10 lines; the status says whether any is new since the reviewed baseline. There is no
+            combined quality score. For the coverage of each file, colour the map by branch coverage on <strong>Files</strong>.
           </p>
           <div class="quality-table-wrap">
-            <table class="quality-table">
-              <thead>
-                <tr>
-                  <th scope="col">Module</th>
-                  <th scope="col">Criticality</th>
-                  <th scope="col">Tests</th>
-                  <th scope="col">Branch coverage</th>
-                  <th scope="col">Mutation</th>
-                  <th scope="col">Duplicated blocks</th>
-                  <th scope="col">Python dead code</th>
-                  <th scope="col">Docs</th>
-                  <th scope="col">Architecture</th>
-                </tr>
-              </thead>
-              <tbody id="qualityTable"></tbody>
-            </table>
+            <table class="quality-table" id="qualityTable"></table>
           </div>
         </div>
       </section>
 
-      <section aria-labelledby="qualityChecksTitle">
+      <section aria-labelledby="qualityChecksTitle" data-needs-report>
         <h2 class="quality-section-title" id="qualityChecksTitle">Required checks</h2>
         <div class="quality-block">
           <div id="qualityChecks"></div>

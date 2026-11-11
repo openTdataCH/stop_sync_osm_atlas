@@ -1,22 +1,19 @@
-"""The dashboard serves only the published evidence, and marks it stale when the running code changed."""
+"""The dashboard page and its data: the evidence of the running commit, or a plain statement that there is none."""
 import json
 
 import pytest
 
 from backend.blueprints import quality
 from backend.services import quality_report
-from tests.test_quality_report import CODE_MAP, _example_report, _publish
+from tests.test_quality_report import CODE_MAP, SHA, _evidence
 
 
 @pytest.fixture
-def published(tmp_path, monkeypatch):
+def checkout(tmp_path, monkeypatch):
+    """An empty checkout at commit SHA, for which GitHub has nothing."""
     monkeypatch.setattr(quality, '_repo_root', lambda: str(tmp_path))
+    monkeypatch.setenv('APP_REVISION', SHA)
     return tmp_path
-
-
-def _publish_with_map(root, report=None, code_map=CODE_MAP):
-    _publish(root, report or _example_report())
-    (root / quality_report.PUBLISHED / 'code-map.json').write_text(json.dumps(code_map))
 
 
 def test_page_loads_the_graph_library_and_dashboard(client):
@@ -29,46 +26,45 @@ def test_page_loads_the_graph_library_and_dashboard(client):
     assert 'nav-link active' in html.split('>Docs</a>')[0].rsplit('<a', 1)[1]
 
 
-def test_page_offers_modules_files_and_functions_with_the_functions_controls(client):
+def test_page_offers_the_three_levels_with_the_search_the_module_list_and_the_result_sections(client):
     html = client.get('/quality').get_data(as_text=True)
-    toggles = [part.split('"', 1)[0] for part in html.split('data-view-toggle="')[1:]]
-    assert toggles == ['modules', 'files', 'symbols']
+    levels = [part.split('"', 1)[0] for part in html.split('data-level="')[1:]]
+    assert levels == ['modules', 'files', 'symbols']
     assert '>Functions</button>' in html
-    for control in ('id="qualityExplorer"', 'id="qualitySearch"', 'id="qualityEdgesToggle"', 'id="qualityLabelsToggle"', 'data-color-by="module"'):
+    for control in ('id="qualityExplorer"', 'id="qualitySearch"', 'id="qualityEdgesToggle"', 'id="qualityLabelsToggle"', 'data-color-by="module"',
+                    'data-color-by="coverage"', 'id="qualityCleanup"', 'id="qualityFindings"', 'id="qualityBlindSpots"', 'id="qualityTable"'):
         assert control in html
+    # The result tables are hidden when a local map has no report.
+    assert html.count('data-needs-report') == 2
     # The expand button is a class on the workspace, not the browser's full screen.
     assert 'id="qualityFullscreen" title="Expand the map to the window"' in html
 
 
-def test_missing_evidence_is_unavailable(client, published):
-    assert client.get('/api/quality').get_json() == {'available': False}
+def test_a_commit_without_published_results_is_unavailable_and_named(client, checkout):
+    assert client.get('/api/quality').get_json() == {'available': False, 'revision': SHA, 'reason': 'no_results'}
 
 
-def test_malformed_code_map_is_unavailable(client, published):
-    _publish_with_map(published, code_map={'schema_version': 2})
-    assert client.get('/api/quality').get_json() == {'available': False}
+def test_an_unknown_commit_is_unavailable(client, checkout, monkeypatch):
+    monkeypatch.setattr(quality_report, 'app_revision', lambda: None)
+    assert client.get('/api/quality').get_json() == {'available': False, 'revision': None, 'reason': 'unknown_commit'}
 
 
-def test_serves_report_map_and_measured_source_links(client, published):
-    _publish_with_map(published)
+def test_serves_the_ci_evidence_of_the_running_commit_with_links_to_what_was_measured(client, checkout, monkeypatch):
+    monkeypatch.setattr(quality_report, 'download', lambda revision: json.dumps(_evidence()).encode())
     data = client.get('/api/quality').get_json()
-    assert data['available'] and data['warning'] is None
+    assert (data['available'], data['source'], data['revision']) == (True, 'ci', SHA)
     assert data['code_map'] == CODE_MAP
     assert data['report']['modules']['app.test']['coverage']['status'] == 'measured'
-    assert data['run_url'] == 'https://github.com/example/actions/runs/1'
-    assert data['source_urls']['app'].endswith('/blob/sha/')
+    assert data['run_url'] == f'https://github.com/openTdataCH/stop_sync_osm_atlas/commit/{SHA}/checks'
+    assert data['source_urls'] == {'app': f'https://github.com/openTdataCH/stop_sync_osm_atlas/blob/{SHA}/',
+                                   'engine': f"https://github.com/openTdataCH/osm-public-transport-matcher/blob/{'b' * 40}/"}
 
 
-def test_report_published_without_a_map_is_unavailable(client, published):
-    _publish(published, _example_report())
-    (published / quality_report.PUBLISHED / 'code-map.json').unlink()
-    assert client.get('/api/quality').get_json() == {'available': False}
-
-
-def test_changed_code_marks_every_result_stale(client, published):
-    _publish_with_map(published)
-    (published / 'backend/app.py').write_text('app = 2\n')
+def test_serves_a_local_map_without_a_report_and_links_to_this_checkout(client, checkout):
+    (checkout / 'quality').mkdir()
+    (checkout / 'quality/evidence.json').write_text(json.dumps(_evidence(report=None)))
     data = client.get('/api/quality').get_json()
-    assert 'the application code' in data['warning']
-    assert data['report']['completeness'] == 'stale'
-    assert data['report']['modules']['app.test']['tests']['status'] == 'stale'
+    assert (data['available'], data['source'], data['report'], data['run_url']) == (True, 'local', None, None)
+    assert data['code_map'] == CODE_MAP
+    assert data['source_urls']['app'].endswith(f'/blob/{SHA}/')
+    assert data['source_urls']['engine'] == quality.engine_blob_base()

@@ -28,7 +28,6 @@ from backend.services.docs_stats import (
     load_stats_for_docs, replace_stats_placeholders, convert_github_alerts_to_html, get_canonical_palette_html,
     heading_slug,
 )
-from backend.services.quality_report import replace_quality_placeholder
 
 
 DOCS_DIR = REPO_ROOT / 'documentation'
@@ -441,7 +440,6 @@ def _prepare_document(doc_ids: list[str], include_cover: bool = True) -> str:
                          flags=re.DOTALL | re.MULTILINE)
         content = re.sub(r'(?<!`)(`+)(?!`).+?(?<!`)\1(?!`)', save_code, content)
         content = replace_stats_placeholders(content, stats, html_escape=True)
-        content = replace_quality_placeholder(content, REPO_ROOT)
         if '[[canonical_palette]]' in content:
             content = content.replace('[[canonical_palette]]', get_canonical_palette_html())
         content = _rewrite_same_page_links(content, doc_anchor)

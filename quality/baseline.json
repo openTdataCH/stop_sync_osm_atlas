@@ -1,590 +1,117 @@
 {
-  "analyzed_python_files": [
-    "app:backend/__init__.py",
-    "app:backend/app.py",
-    "app:backend/blueprints/data.py",
-    "app:backend/blueprints/docs.py",
-    "app:backend/blueprints/problems.py",
-    "app:backend/blueprints/quality.py",
-    "app:backend/blueprints/reports.py",
-    "app:backend/blueprints/routes.py",
-    "app:backend/blueprints/search.py",
-    "app:backend/blueprints/seo.py",
-    "app:backend/blueprints/stats.py",
-    "app:backend/blueprints/system.py",
-    "app:backend/db_errors.py",
-    "app:backend/extensions.py",
-    "app:backend/importing/__init__.py",
-    "app:backend/importing/bulk.py",
-    "app:backend/importing/bundle.py",
-    "app:backend/importing/helpers.py",
-    "app:backend/importing/importer.py",
-    "app:backend/importing/init.py",
-    "app:backend/importing/progress.py",
-    "app:backend/importing/projection.py",
-    "app:backend/importing/publication.py",
-    "app:backend/importing/session.py",
-    "app:backend/importing/timing.py",
-    "app:backend/jobs/__init__.py",
-    "app:backend/jobs/job_runner.py",
-    "app:backend/jobs/job_types.py",
-    "app:backend/jobs/service.py",
-    "app:backend/models.py",
-    "app:backend/pages/__init__.py",
-    "app:backend/pages/main.py",
-    "app:backend/pages/operators.py",
-    "app:backend/pages/routes.py",
-    "app:backend/queries/helpers.py",
-    "app:backend/query_builder.py",
-    "app:backend/serializers/__init__.py",
-    "app:backend/serializers/stops.py",
-    "app:backend/services/__init__.py",
-    "app:backend/services/async_export.py",
-    "app:backend/services/async_export_state_store.py",
-    "app:backend/services/data_meta.py",
-    "app:backend/services/dataset_stats.py",
-    "app:backend/services/docs_order.py",
-    "app:backend/services/docs_stats.py",
-    "app:backend/services/global_stats.py",
-    "app:backend/services/gtfs_stop_id_sloid.py",
-    "app:backend/services/json_files.py",
-    "app:backend/services/matching_rules.py",
-    "app:backend/services/operator_coverage.py",
-    "app:backend/services/pipeline_progress.py",
-    "app:backend/services/pipeline_state_store.py",
-    "app:backend/services/pipeline_status.py",
-    "app:backend/services/quality_report.py",
-    "app:backend/services/repo_scanner.py",
-    "app:backend/services/request_payload.py",
-    "app:backend/services/route_comparison.py",
-    "app:backend/services/route_listing.py",
-    "app:backend/services/site_url.py",
-    "app:backend/services/source_config.py",
-    "app:backend/services/stats_export.py",
-    "app:backend/services/stop_lookup.py",
-    "app:backend/services/time_utils.py",
-    "app:backend/services/transport_routes.py",
-    "app:backend/services/url_query.py",
-    "app:backend/services/validators.py",
-    "app:backend/version.py",
-    "app:documentation/diagrams/build.py",
-    "app:documentation/diagrams/catalog.py",
-    "app:documentation/diagrams/kit.py",
-    "app:documentation/pdf_generator/build_docs_pdf.py",
-    "app:documentation/pdf_generator/build_single_markdown_pdf.py",
-    "app:scripts/deploy_report.py",
-    "app:scripts/quality.py",
-    "app:scripts/regenerate_stats.py",
-    "app:scripts/run_quality.py",
-    "engine:benchmarks/gtfs.py",
-    "engine:quality/check.py",
-    "engine:quality/mutation_report.py",
-    "engine:src/osm_public_transport_matcher/__init__.py",
-    "engine:src/osm_public_transport_matcher/__main__.py",
-    "engine:src/osm_public_transport_matcher/acquisition/__init__.py",
-    "engine:src/osm_public_transport_matcher/acquisition/overpass.py",
-    "engine:src/osm_public_transport_matcher/adapters/__init__.py",
-    "engine:src/osm_public_transport_matcher/adapters/acquisition.py",
-    "engine:src/osm_public_transport_matcher/adapters/atlas.py",
-    "engine:src/osm_public_transport_matcher/adapters/base.py",
-    "engine:src/osm_public_transport_matcher/adapters/geo_utils.py",
-    "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py",
-    "engine:src/osm_public_transport_matcher/adapters/get_atlas_gtfs.py",
-    "engine:src/osm_public_transport_matcher/adapters/gtfs.py",
-    "engine:src/osm_public_transport_matcher/adapters/gtfs_columnar.py",
-    "engine:src/osm_public_transport_matcher/adapters/metadata.py",
-    "engine:src/osm_public_transport_matcher/adapters/osm.py",
-    "engine:src/osm_public_transport_matcher/adapters/osm_routes.py",
-    "engine:src/osm_public_transport_matcher/adapters/route_products.py",
-    "engine:src/osm_public_transport_matcher/adapters/source_freshness.py",
-    "engine:src/osm_public_transport_matcher/api.py",
-    "engine:src/osm_public_transport_matcher/cli.py",
-    "engine:src/osm_public_transport_matcher/core/__init__.py",
-    "engine:src/osm_public_transport_matcher/core/models.py",
-    "engine:src/osm_public_transport_matcher/core/osm_tags.py",
-    "engine:src/osm_public_transport_matcher/core/pipeline.py",
-    "engine:src/osm_public_transport_matcher/core/predicates/__init__.py",
-    "engine:src/osm_public_transport_matcher/core/predicates/distance_matching.py",
-    "engine:src/osm_public_transport_matcher/core/predicates/gtfs_route_matching.py",
-    "engine:src/osm_public_transport_matcher/core/predicates/name_matching.py",
-    "engine:src/osm_public_transport_matcher/core/predicates/reference_matching.py",
-    "engine:src/osm_public_transport_matcher/core/predicates/two_sided_stop_matching.py",
-    "engine:src/osm_public_transport_matcher/core/problem_detection/__init__.py",
-    "engine:src/osm_public_transport_matcher/core/problem_detection/context.py",
-    "engine:src/osm_public_transport_matcher/core/problem_detection/pipeline.py",
-    "engine:src/osm_public_transport_matcher/core/problem_detection/result.py",
-    "engine:src/osm_public_transport_matcher/core/problem_detection/stop_predicates/__init__.py",
-    "engine:src/osm_public_transport_matcher/core/problem_detection/stop_predicates/attributes.py",
-    "engine:src/osm_public_transport_matcher/core/problem_detection/stop_predicates/contradicts_route_matching.py",
-    "engine:src/osm_public_transport_matcher/core/problem_detection/stop_predicates/distance.py",
-    "engine:src/osm_public_transport_matcher/core/problem_detection/stop_predicates/disused.py",
-    "engine:src/osm_public_transport_matcher/core/problem_detection/stop_predicates/duplicates.py",
-    "engine:src/osm_public_transport_matcher/core/problem_detection/stop_predicates/unmatched.py",
-    "engine:src/osm_public_transport_matcher/core/profile.py",
-    "engine:src/osm_public_transport_matcher/core/route_state.py",
-    "engine:src/osm_public_transport_matcher/core/state.py",
-    "engine:src/osm_public_transport_matcher/core/utils/__init__.py",
-    "engine:src/osm_public_transport_matcher/core/utils/common.py",
-    "engine:src/osm_public_transport_matcher/core/utils/route_matching.py",
-    "engine:src/osm_public_transport_matcher/core/utils/spatial_index.py",
-    "engine:src/osm_public_transport_matcher/integrations/__init__.py",
-    "engine:src/osm_public_transport_matcher/integrations/swiss/__init__.py",
-    "engine:src/osm_public_transport_matcher/profiles/__init__.py",
-    "engine:src/osm_public_transport_matcher/profiles/switzerland.py",
-    "engine:src/osm_public_transport_matcher/progress.py",
-    "engine:src/osm_public_transport_matcher/results/__init__.py",
-    "engine:src/osm_public_transport_matcher/results/bundle.py",
-    "engine:src/osm_public_transport_matcher/results/validation.py",
-    "engine:src/osm_public_transport_matcher/routes.py",
-    "engine:src/osm_public_transport_matcher/statistics.py",
-    "engine:src/osm_public_transport_matcher/swiss.py",
-    "engine:src/osm_public_transport_matcher/timing.py",
-    "engine:src/osm_public_transport_matcher/version.py"
-  ],
   "findings": [
     {
       "files": [
         "engine:src/osm_public_transport_matcher/adapters/osm.py",
         "engine:src/osm_public_transport_matcher/core/state.py"
       ],
-      "fingerprint": "2a0dc3243b4186982dd4ec4472da63685fc594a5e0e07a55f7da737b419707ff",
-      "fragment": "def _str(v):\n        return str(v).strip() if v is not None else None\n\n    tags = entry.get('tags', {})\n    return OsmNode(\n        node_id=str(entry['node_id']),\n        lat=float(entry['lat']),\n        lon=float(entry['lon']),\n        local_ref=_str(entry.get('local_ref')),\n        name=_str(tags.get('name')),\n        uic_name=_str(tags.get('uic_name')),\n        uic_ref=_str(tags.get('uic_ref')),\n        network=_str(tags.get('network', '')),\n        operator=_str(tags.get('operator', '')),\n        public_transport=_str(tags.get('public_transport')),\n        railway=_str(tags.get('railway')),\n        amenity=_str(tags.get('amenity')),\n        aerialway=_str(tags.get('aerialway')),\n        tags=tags\n    )",
       "id": "0c0f8b080e0feb442bb31c835b19e539465e557a69510684579fe3b767e9c01c",
-      "kind": "clone",
-      "lines": 20,
-      "locations": [
-        {
-          "end": 259,
-          "end_column": 6,
-          "file": "engine:src/osm_public_transport_matcher/adapters/osm.py",
-          "start": 240,
-          "start_column": 5
-        },
-        {
-          "end": 135,
-          "end_column": 23,
-          "file": "engine:src/osm_public_transport_matcher/core/state.py",
-          "start": 117,
-          "start_column": 9
-        }
-      ],
-      "modules": [
-        "engine.core-matching",
-        "engine.integrations"
-      ],
-      "occurrence": 1
+      "kind": "clone"
     },
     {
       "files": [
         "app:static/js/components/map-popup-controller.js",
         "app:static/js/components/map-viewport-loader.js"
       ],
-      "fingerprint": "ef596b606e3250446d3c9cf49263ca41ff7bc382481e65770dc14c002fd1f928",
-      "fragment": ";\n    }\n\n    function makeAbortController() {\n        if (typeof global.AbortController === 'function') {\n            return new global.AbortController();\n        }\n        return {\n            signal: undefined,\n            abort: function () {}\n        };\n    }\n\n    function isAbort(error, controller) {\n        return !!(\n            (error && error.name === 'AbortError') ||\n            (controller && controller.signal && controller.signal.aborted)\n        );\n    }\n\n    function validateMarker",
       "id": "15d5dd7b3c496501c3cccbfac0233957bce024781d0019764a6dfe7af781ab47",
-      "kind": "clone",
-      "lines": 21,
-      "locations": [
-        {
-          "end": 43,
-          "end_column": 28,
-          "file": "app:static/js/components/map-popup-controller.js",
-          "start": 23,
-          "start_column": 25
-        },
-        {
-          "end": 37,
-          "end_column": 20,
-          "file": "app:static/js/components/map-viewport-loader.js",
-          "start": 17,
-          "start_column": 80
-        }
-      ],
-      "modules": [
-        "app.review-ui"
-      ],
-      "occurrence": 1
+      "kind": "clone"
     },
     {
       "files": [
         "app:backend/importing/bundle.py",
         "engine:src/osm_public_transport_matcher/results/validation.py"
       ],
-      "fingerprint": "35b8356d68ea63f7032036a6f643c198dd86968c381d2fc5503cd8baf39a5325",
-      "fragment": "def _problem(row):\n    _require(isinstance(row, dict), 'Problem must be an object')\n    _require(isinstance(row.get('problem_type'), str) and row['problem_type'], 'Missing problem type')\n    _require(type(row.get('priority')) is int and row['priority'] in (1, 2, 3), 'Invalid problem priority')\n\n\ndef _rows_by_id(rows, label):\n    result = {}\n    for row in rows:\n        _require(isinstance(row, dict), f'Invalid {label} row')\n        key = row.get('id')\n        _require(type(key) is int and key > 0 and key not in result, f'Missing or duplicate {label} ID')\n        result[key] = row\n    return result\n\n\ndef _validate_routes(routes, source_keys):\n    families = _rows_by_id(routes.get('line_families', []), 'route family')\n    itineraries = _rows_by_id(routes.get('itineraries', []), 'itinerary')\n    calls = _rows_by_id(routes.get('stop_calls', []), 'stop call')\n    family_matches = _rows_by_id(routes.get('line_family_matches', []), 'route family match')\n    itinerary_matches = _rows_by_id(routes.get('itinerary_matches', []), 'itinerary match')\n    for row in itineraries.values():\n        _require(row.get('line_family_id') in families, 'Itinerary references unknown route family')\n    for row in families.values():\n        _require(row.get('side') in ('source', 'osm'), 'Route family has an unknown side')\n    for row in itineraries.values():\n        _require(row.get('side') in ('source', 'osm'), 'Itinerary has an unknown side')\n    for row in calls.values():\n        _require(row.get('itinerary_id') in itineraries, 'Stop call references unknown itinerary')\n        source_key = row.get('source_stop_key')\n        _require(source_key is None or source_key in source_keys, 'Stop call references unknown source stop')\n        variants = row.get('source_stop_key_variants') or []\n        if isinstance(variants, str):\n            try:\n                variants = json.loads(variants)\n            except ValueError as exc:\n                raise InvalidBundle",
       "id": "4e93f16af9216cbb555c5584207dc22b1ef94b3679818db5e56bd352051c9220",
-      "kind": "clone",
-      "lines": 38,
-      "locations": [
-        {
-          "end": 85,
-          "end_column": 36,
-          "file": "app:backend/importing/bundle.py",
-          "start": 48,
-          "start_column": 1
-        },
-        {
-          "end": 70,
-          "end_column": 36,
-          "file": "engine:src/osm_public_transport_matcher/results/validation.py",
-          "start": 33,
-          "start_column": 1
-        }
-      ],
-      "modules": [
-        "app.snapshot-publication",
-        "engine.result-producer"
-      ],
-      "occurrence": 1
+      "kind": "clone"
     },
     {
       "files": [
         "app:backend/importing/bundle.py",
         "engine:src/osm_public_transport_matcher/results/validation.py"
       ],
-      "fingerprint": "d5a00103df6075f2b7171d4d60e656b9fc9edc6d1aad9c350025aee5626deea6",
-      "fragment": "('Invalid source variants in stop call') from exc\n        _require(isinstance(variants, list) and set(variants) <= source_keys, 'Stop call variants reference unknown source stop')\n        # Raw OSM members and unresolved timetable stops can legitimately be outside\n        # the selected stop extract. Only resolved source references are FKs.\n    for row in family_matches.values():\n        left, right = row.get('source_line_family_id'), row.get('osm_line_family_id')\n        _require(left in families and right in families, 'Route match references unknown family')\n        _require(families[left]['side'] == 'source' and families[right]['side'] == 'osm', 'Route match has incompatible sides')\n    for row in itinerary_matches.values():\n        parent = family_matches.get(row.get('line_family_match_id'))\n        left, right = itineraries.get(row.get('source_itinerary_id')), itineraries.get(row.get('osm_itinerary_id'))\n        _require(parent is not None and left is not None and right is not None, 'Itinerary match references unknown entities')\n        _require(left['line_family_id'] == parent['source_line_family_id'] and right['line_family_id'] == parent['osm_line_family_id'], 'Itinerary match belongs to another route family')\n\n\ndef _validate_records",
       "id": "4f4bf907772e365382eaf82992f143de983776276c2fcf53204dbef37c85dd8e",
-      "kind": "clone",
-      "lines": 16,
-      "locations": [
-        {
-          "end": 100,
-          "end_column": 22,
-          "file": "app:backend/importing/bundle.py",
-          "start": 85,
-          "start_column": 36
-        },
-        {
-          "end": 85,
-          "end_column": 21,
-          "file": "engine:src/osm_public_transport_matcher/results/validation.py",
-          "start": 70,
-          "start_column": 36
-        }
-      ],
-      "modules": [
-        "app.snapshot-publication",
-        "engine.result-producer"
-      ],
-      "occurrence": 1
+      "kind": "clone"
     },
     {
       "files": [
         "app:backend/services/async_export_state_store.py",
         "app:backend/services/pipeline_state_store.py"
       ],
-      "fingerprint": "523f0a13f588522744647b9b5d84ca42c528a4a21993cfa087e0467cf3584ab4",
-      "fragment": "(value: Any) -> datetime | None:\n    if not value or not isinstance(value, str):\n        return None\n    try:\n        parsed = datetime.fromisoformat(value)\n    except ValueError:\n        try:\n            parsed = parsedate_to_datetime(value)\n        except (TypeError, ValueError):\n            return None\n    if parsed.tzinfo is None:\n        parsed = parsed.replace(tzinfo=timezone.utc)\n    return parsed.astimezone(timezone.utc)\n\n\ndef parse_created_at",
       "id": "52006a9f751307cd06ea80a76b3b8aea12d10e1224753635991f35d9c8421469",
-      "kind": "clone",
-      "lines": 16,
-      "locations": [
-        {
-          "end": 78,
-          "end_column": 21,
-          "file": "app:backend/services/async_export_state_store.py",
-          "start": 63,
-          "start_column": 25
-        },
-        {
-          "end": 72,
-          "end_column": 23,
-          "file": "app:backend/services/pipeline_state_store.py",
-          "start": 57,
-          "start_column": 18
-        }
-      ],
-      "modules": [
-        "app.pipeline-orchestration",
-        "app.query-api"
-      ],
-      "occurrence": 1
+      "kind": "clone"
     },
     {
       "files": [
         "app:static/js/components/popup-renderer.js",
         "app:static/js/components/popup-renderer.js"
       ],
-      "fingerprint": "cdda048406bc40a04b8f78cafb023721f687087b7ba5f9cc8975439211c5e8b3",
-      "fragment": "return {\n            id: stop.id,\n            osm_node_id: stop.osm_node_id,\n            uic_ref: stop.uic_ref,\n            osm_name: stop.osm_name,\n            osm_uic_name: stop.osm_uic_name,\n            osm_uic_ref: stop.osm_uic_ref,\n            osm_local_ref: stop.osm_local_ref,\n            osm_network: stop.osm_network,\n            osm_operator: stop.osm_operator,\n            osm_operator_wikidata: stop.osm_operator_wikidata,\n            osm_network_wikidata: stop.osm_network_wikidata,\n            osm_public_transport: stop.osm_public_transport,\n            osm_amenity: stop.osm_amenity,\n            osm_aerialway: stop.osm_aerialway,\n            osm_railway: stop.osm_railway,\n            osm_lat: stop.osm_lat,\n            osm_lon: stop.osm_lon,\n            distance_m: stop",
       "id": "58e40bfa92a4016cec35aee576156594eb9b06bacc6f8ce3314108e482dabc64",
-      "kind": "clone",
-      "lines": 19,
-      "locations": [
-        {
-          "end": 495,
-          "end_column": 29,
-          "file": "app:static/js/components/popup-renderer.js",
-          "start": 477,
-          "start_column": 9
-        },
-        {
-          "end": 438,
-          "end_column": 39,
-          "file": "app:static/js/components/popup-renderer.js",
-          "start": 420,
-          "start_column": 13
-        }
-      ],
-      "modules": [
-        "app.review-ui"
-      ],
-      "occurrence": 1
+      "kind": "clone"
     },
     {
       "files": [
         "app:backend/importing/timing.py",
         "engine:src/osm_public_transport_matcher/timing.py"
       ],
-      "fingerprint": "540007859fc76e232268d5a334dd8e3f9a7df888a08430b2fc07ef4e4954ec8a",
-      "fragment": "\"\"\"Structured wall/CPU timings with a heartbeat for long-running stages.\"\"\"\nfrom contextlib import contextmanager\nimport json\nimport threading\nimport time\n\n\n@contextmanager\ndef stage(name, **details):\n    started, cpu = time.perf_counter(), time.process_time()\n    done = threading.Event()\n\n    def emit(event, **extra):\n        print(json.dumps({\"event\": event, \"stage\": name,\n                          \"seconds\": round(time.perf_counter() - started, 3),\n                          **details, **extra}), flush=True)\n\n    def heartbeat():\n        while not done.wait(30):\n            emit(\"stage_progress\")\n\n    emit(\"stage_started\")\n    worker = threading.Thread(target=heartbeat, daemon=True)\n    worker.start()\n    try:\n        yield\n    except BaseException:",
       "id": "668efc69f23ecb7b7fe64c8f835cdbb0932ab0ce6ee1fdd4fa74925ec70b5a87",
-      "kind": "clone",
-      "lines": 27,
-      "locations": [
-        {
-          "end": 27,
-          "end_column": 26,
-          "file": "app:backend/importing/timing.py",
-          "start": 1,
-          "start_column": 1
-        },
-        {
-          "end": 27,
-          "end_column": 28,
-          "file": "engine:src/osm_public_transport_matcher/timing.py",
-          "start": 1,
-          "start_column": 1
-        }
-      ],
-      "modules": [
-        "app.snapshot-publication",
-        "engine.core-matching"
-      ],
-      "occurrence": 1
+      "kind": "clone"
     },
     {
       "files": [
         "app:backend/importing/importer.py",
         "app:backend/importing/importer.py"
       ],
-      "fingerprint": "48770246a2339ba092cfd0c9b375a39bc739bb4b3f53fc3976b0494b09d0e738",
-      "fragment": ",\n            'geom': geom_wkt,\n        })\n\n        for p in problems:\n            problem_rows.append((stop_idx, p.problem_type, p.priority))\n\n        if sloid and sloid not in processed_sloids:\n            dup_group = duplicate_sloid_map.get(str(sloid))\n            rep_sloid = None\n            if dup_group and str(sloid) != dup_group[0]:\n                rep_sloid = dup_group[0]\n            _remember_atlas_operator(atlas_operator_rows_by_abbr, atlas_node",
       "id": "76d0e3793fc61316951bdd3100f1f2dc85f8c9c652dd60bbf08108953a963a0a",
-      "kind": "clone",
-      "lines": 13,
-      "locations": [
-        {
-          "end": 416,
-          "end_column": 77,
-          "file": "app:backend/importing/importer.py",
-          "start": 404,
-          "start_column": 35
-        },
-        {
-          "end": 357,
-          "end_column": 80,
-          "file": "app:backend/importing/importer.py",
-          "start": 345,
-          "start_column": 50
-        }
-      ],
-      "modules": [
-        "app.snapshot-publication"
-      ],
-      "occurrence": 1
+      "kind": "clone"
     },
     {
       "files": [
         "app:templates/reports/report.html",
         "app:templates/reports/report.html"
       ],
-      "fingerprint": "ed57ee4be808eedc282d0d56609a055d5bdf7453f4e9d9aa1da81c36ba1035e9",
-      "fragment": ">\n                <th class=\"col-sloid\">ATLAS Sloid</th>\n                <th>Official Designation</th>\n                <th class=\"col-operator\">ATLAS Operator</th>\n                <th class=\"col-osm-id\">OSM Node ID</th>\n                <th class=\"col-distance\">Distance (m)</th>\n                <th class=\"col-method\">Matching Method</th>\n                {% if include_fields and 'atlas_coords' in include_fields %}\n                <th>Atlas Lat</th>\n                <th>Atlas Lon</th>\n                {% endif %}\n                {% if include_fields and 'osm_coords' in include_fields %}\n                <th>OSM Lat</th>\n                <th>OSM Lon</th>\n                {% endif %}\n            </tr>\n            {% endif",
       "id": "9c66e2d8cc811d33291ad6c7112d4751c6c47143fe61f0ed527395cd64bd98f1",
-      "kind": "clone",
-      "lines": 17,
-      "locations": [
-        {
-          "end": 108,
-          "end_column": 21,
-          "file": "app:templates/reports/report.html",
-          "start": 92,
-          "start_column": 16
-        },
-        {
-          "end": 91,
-          "end_column": 20,
-          "file": "app:templates/reports/report.html",
-          "start": 75,
-          "start_column": 54
-        }
-      ],
-      "modules": [
-        "app.query-api"
-      ],
-      "occurrence": 1
+      "kind": "clone"
     },
     {
       "files": [
         "app:backend/importing/bundle.py",
         "engine:src/osm_public_transport_matcher/results/validation.py"
       ],
-      "fingerprint": "4f9d28d7c9b6a99befd46b0c852dfc68461de7e15ad983fa2b9d44311d9aad18",
-      "fragment": ")\n        source[key] = namespace\n    for row in records['osm_nodes']:\n        key, kind, node_id = row.get('key'), row.get('element_type'), row.get('node_id')\n        _require(kind in ('node', 'way', 'relation') and isinstance(node_id, str) and node_id, 'Invalid OSM identity')\n        _require(kind == 'node' or node_id.startswith(f'{kind}_'), 'OSM non-node identity needs its type prefix')\n        _require(kind != 'node' or not node_id.startswith(('way_', 'relation_')), 'Conflicting OSM type prefix')\n        _require(key == f\"osm:{kind}:{node_id.removeprefix(f'{kind}_')}\", 'Inconsistent OSM key')\n        _require(key not in osm and node_id not in osm_by_id and _position(row), 'Duplicate OSM identity or invalid coordinates')\n        osm[key], osm_by_id[node_id] = node_id, key\n        if row.get('lifecycle'):\n            retired.add(node_id)\n    _require(source or osm, 'Refusing an empty result bundle')\n    matched_source, matched_osm, pairs, expected_match_problems = set(), set(), set(), set()\n    for row in records['matches']:\n        left, right = row.get('source_key'), row.get('osm_key')\n        _require(left in source and right in osm, 'Match references unknown entity')\n        _require((left, right) not in pairs, 'Duplicate match pair')\n        _require(isinstance(row.get('method'), str) and row['method'], 'Missing matching method')\n        distance = row.get('distance_m')\n        _require(type(distance) in (int, float) and math.isfinite(distance) and distance >= 0, 'Invalid match distance')\n        _require(isinstance(row.get('evidence'), dict), 'Missing structured match evidence')\n        pairs.add((left, right))\n        matched_source.add(left)\n        matched_osm.add(right)\n        for problem in row.get('problems', []):\n            _problem(problem)\n            expected_match_problems.add((problem['problem_type'], problem['priority'], left, osm[right]))\n    unmatched = {'source': set(), 'osm': set()}\n    effective, disused = set(), set()\n    for row in records['unmatched']:\n        side, key = row.get('side'), row.get('key')\n        _require(side in unmatched and key in (source if side == 'source' else osm), 'Unknown unmatched entity')\n        _require(key not in unmatched[side], 'Duplicate unmatched entity')\n        _require(type(row.get('isolated')) is bool, 'Unmatched entity needs an isolation status')\n        unmatched[side].add(key)\n        if side == 'osm':\n            _require(type(row.get('effectively_matched')) is bool, 'OSM unmatched entity needs effective-match status')\n            if row['effectively_matched']:\n                effective.add(osm[key])\n            # Optional for bundles written before disused elements were reported.\n            _require(type(row.get('disused', False)) is bool, 'OSM unmatched entity needs a boolean disused status')\n            if row.get('disused', False):\n                _require(not row['effectively_matched'], 'A disused OSM element cannot be effectively matched')\n                disused.add(osm[key])\n    _require(not matched_source & unmatched['source'] and not matched_osm & unmatched['osm'], 'Entity marked both matched and unmatched')\n    _require(matched_source | unmatched['source'] == set(source), 'Source match coverage is incomplete')\n    _require(matched_osm | unmatched['osm'] == set(osm), 'OSM match coverage is incomplete')\n    _require(disused == retired, 'Disused status disagrees with lifecycle tags')\n    grouped_source, grouped_osm, valid_effective = set(), set(), set()\n    matched_osm_ids = {osm[key] for key in matched_osm}\n    for row in records['groups']:\n        if row.get('side') == 'source':\n            members = row.get('members', [])\n            _require(len(members) >= 2 and len(members) == len(set(members)), 'Source duplicate group needs distinct members')\n            _require(set(members) <= source.keys() and row.get('key') in members, 'Unknown source group member')\n            _require(len({source[key] for key in members}) == 1, 'Source group crosses dataset namespaces')\n            _require(not grouped_source.intersection(members), 'Overlapping source groups')\n            grouped_source.update(members)\n        elif row.get('side') == 'osm':\n            members = row.get('members', [])\n            member_ids = [member.get('node_id') for member in members]\n            roles = [member.get('member_role') for member in members]\n            kind = row.get('stop_kind')\n            expected_roles = {'single': ['single'], 'pair': ['pair_a', 'pair_b'], 'two_sided_stop': ['middle', 'side', 'side']}\n            _require(kind in expected_roles and sorted(roles) == sorted(expected_roles[kind]), 'Invalid OSM stop-unit roles')\n            _require(set",
       "id": "a9772d94711525b4fc8354240461c842ba95c8de165f7d1fbd38f2a719e40855",
-      "kind": "clone",
-      "lines": 67,
-      "locations": [
-        {
-          "end": 174,
-          "end_column": 25,
-          "file": "app:backend/importing/bundle.py",
-          "start": 108,
-          "start_column": 71
-        },
-        {
-          "end": 158,
-          "end_column": 25,
-          "file": "engine:src/osm_public_transport_matcher/results/validation.py",
-          "start": 92,
-          "start_column": 101
-        }
-      ],
-      "modules": [
-        "app.snapshot-publication",
-        "engine.result-producer"
-      ],
-      "occurrence": 1
+      "kind": "clone"
     },
     {
       "files": [
         "app:backend/blueprints/reports.py",
         "app:backend/blueprints/reports.py"
       ],
-      "fingerprint": "55dccb7982c388409d6997d2a3401cb9f727c97cd48479cbd50b5bdbed6b9a93",
-      "fragment": "]\n            if 'atlas_coords' in include_fields:\n                row.extend([\n                    '{:.6f}'.format(stop.atlas_lat) if stop.atlas_lat is not None else 'N/A',\n                    '{:.6f}'.format(stop.atlas_lon) if stop.atlas_lon is not None else 'N/A'\n                ])\n            if 'osm_coords' in include_fields:\n                row.extend([\n                    '{:.6f}'.format(stop.osm_lat) if stop.osm_lat is not None else 'N/A',\n                    '{:.6f}'.format(stop.osm_lon) if stop.osm_lon is not None else 'N/A'\n                ])\n            writer.writerow(row)\n\n    return",
       "id": "bc883fdbd8630d168ca22166fb32c7eacb96ec5fa99694fcdcef84dc9d9849fa",
-      "kind": "clone",
-      "lines": 14,
-      "locations": [
-        {
-          "end": 174,
-          "end_column": 11,
-          "file": "app:backend/blueprints/reports.py",
-          "start": 161,
-          "start_column": 13
-        },
-        {
-          "end": 114,
-          "end_column": 9,
-          "file": "app:backend/blueprints/reports.py",
-          "start": 101,
-          "start_column": 13
-        }
-      ],
-      "modules": [
-        "app.query-api"
-      ],
-      "occurrence": 1
+      "kind": "clone"
     },
     {
       "files": [
         "app:backend/importing/bundle.py",
         "engine:src/osm_public_transport_matcher/results/validation.py"
       ],
-      "fingerprint": "187c7c85d3aa565b629346a4ba1b8a54f8c6768b6bc2264675ee540288f24847",
-      "fragment": "('Unknown group side')\n    _require(grouped_osm == set(osm_by_id), 'OSM stop-unit coverage is incomplete')\n    _require(effective == valid_effective, 'Effective-match status disagrees with two-sided stop side matches')\n    problem_ids, actual_match_problems = set(), set()\n    source_unmatched_problems, osm_unmatched_problems = set(), set()\n    for row in records['problems']:\n        _problem(row)\n        key, left, right = row.get('problem_id'), row.get('source_keys', []), row.get('osm_ids', [])\n        _require(isinstance(key, str) and key and key not in problem_ids, 'Missing or duplicate problem ID')\n        _require((left or right) and set(left) <= source.keys() and set(right) <= osm_by_id.keys(), 'Problem references unknown entities')\n        problem_ids.add(key)\n        actual_match_problems.update((row['problem_type'], row['priority'], source_key, osm_id) for source_key in left for osm_id in right)\n        if row['problem_type'] == 'unmatched':\n            source_unmatched_problems.update(left)\n            osm_unmatched_problems.update(right)\n        if row['problem_type'] == 'disused':\n            _require(not left and set(right) <= disused, 'Disused problem references an active element')\n    _require(expected_match_problems <= actual_match_problems, 'Matched problem is absent from complete detection results')\n    _require(source_unmatched_problems == unmatched['source'], 'Source unmatched detection coverage is incomplete')\n    _require(osm_unmatched_problems == {osm[key] for key in unmatched['osm']} - effective - disused, 'OSM unmatched detection coverage is incomplete')\n    for section in ('routes', 'extensions'):\n        values = {}\n        for row in records[section]:\n            key = row.get('kind')\n            _require(isinstance(key, str) and key and key not in values, f'Invalid {section} entry')\n            _require",
       "id": "d28a7e8fb07f219dfd764e47e4279cff9b2c7e3879554f30514b88883b4f77fb",
-      "kind": "clone",
-      "lines": 26,
-      "locations": [
-        {
-          "end": 209,
-          "end_column": 21,
-          "file": "app:backend/importing/bundle.py",
-          "start": 184,
-          "start_column": 32
-        },
-        {
-          "end": 192,
-          "end_column": 19,
-          "file": "engine:src/osm_public_transport_matcher/results/validation.py",
-          "start": 167,
-          "start_column": 32
-        }
-      ],
-      "modules": [
-        "app.snapshot-publication",
-        "engine.result-producer"
-      ],
-      "occurrence": 1
+      "kind": "clone"
     },
     {
       "files": [
         "app:backend/importing/bundle.py",
         "engine:src/osm_public_transport_matcher/results/validation.py"
       ],
-      "fingerprint": "37ae262819007611956ea71dc66867e96dc6a70ebadf383393c68fde1c7d6bd4",
-      "fragment": "evidence = values.get('route_evidence') or {}\n            _require(set(evidence.get('source', {})) <= source.keys(), 'Route evidence references unknown source stop')\n            _require(set(evidence.get('osm', {})) <= osm_by_id.keys(), 'Route evidence references unknown OSM stop')\n            duplicates = values.get('duplicate_osm_group_map') or {}\n            for key, members in duplicates.items():\n                _require(key in members and len(set(members)) >= 2 and set(members) <= osm_by_id.keys(), 'Unknown OSM discrepancy group member')\n    for row in records['diagnostics']:\n        _require(isinstance(row, dict) and isinstance(row.get('code'), str), 'Diagnostic needs a stable code')\n\n\n\ndef validate_records",
       "id": "d8e34dbe47b9d82757e9dc84f0119f0fc715ca006817d8ae836778ceb177c4c7",
-      "kind": "clone",
-      "lines": 12,
-      "locations": [
-        {
-          "end": 229,
-          "end_column": 21,
-          "file": "app:backend/importing/bundle.py",
-          "start": 218,
-          "start_column": 13
-        },
-        {
-          "end": 206,
-          "end_column": 20,
-          "file": "engine:src/osm_public_transport_matcher/results/validation.py",
-          "start": 196,
-          "start_column": 13
-        }
-      ],
-      "modules": [
-        "app.snapshot-publication",
-        "engine.result-producer"
-      ],
-      "occurrence": 1
+      "kind": "clone"
     },
     {
       "files": [
         "app:backend/blueprints/problems.py",
         "app:backend/blueprints/problems.py"
       ],
-      "fingerprint": "9637fe40c826021af9a2f3ee086eb83406c90173964bf925556e6bbf824f68b8",
-      "fragment": "= key\n                member_payloads = []\n                centroid_lat = []\n                centroid_lon = []\n                priorities = []\n                for pr in members.values():\n                    st = pr.stop\n                    formatted = format_stop_data(\n                        st,\n                        problem_type='duplicates',\n                        include_routes=include_routes,\n                        atlas_routes=atlas_routes_by_sloid.get(str(st.sloid), []),\n                        osm_routes=osm_routes_by_node_id.get(str(st.osm_node_id), []),\n                    )\n                    formatted.update({\n                        'priority': pr.priority,\n                        'stop_id': st.id\n                    })\n                    member_payloads.append(formatted)\n                    if st.atlas_lat",
       "id": "410d34c41ca0f7b5d1d54a03aac0b814ae238ba955abd9ee6eef902b23ecf3a7",
-      "kind": "clone",
-      "lines": 20,
-      "locations": [
-        {
-          "end": 364,
-          "end_column": 36,
-          "file": "app:backend/blueprints/problems.py",
-          "start": 345,
-          "start_column": 43
-        },
-        {
-          "end": 305,
-          "end_column": 34,
-          "file": "app:backend/blueprints/problems.py",
-          "start": 286,
-          "start_column": 36
-        }
-      ],
-      "modules": [
-        "app.query-api"
-      ],
-      "occurrence": 1
+      "kind": "clone"
     }
   ],
-  "generated_at": "2026-11-06T11:42:31.885573+00:00",
   "schema_version": 1
 }

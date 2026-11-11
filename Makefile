@@ -1,7 +1,7 @@
 PYTHON ?= python3
 QUALITY_COMPOSE = docker compose -p osm-atlas-quality -f compose.quality.yml
 
-.PHONY: dev quality-fast quality quality-fast-container quality-down deploy-report
+.PHONY: dev quality-fast quality quality-fast-container quality-down
 
 # Reconcile bind mounts with this checkout and enable Flask's source reloader.
 dev:
@@ -23,7 +23,3 @@ quality-fast-container:
 
 quality-down:
 	$(QUALITY_COMPOSE) down --volumes
-
-# Before asking for a deployment: commit and push the passing CI report of the pushed HEAD.
-deploy-report:
-	$(PYTHON) scripts/deploy_report.py

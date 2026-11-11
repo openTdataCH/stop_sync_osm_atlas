@@ -7,5 +7,4 @@ beautifulsoup4>=4.12,<5.0
 hypothesis==6.168.0
 jsonschema==4.26.0
 ruff==0.15.7
-vulture==2.15
 PyYAML==6.0.3

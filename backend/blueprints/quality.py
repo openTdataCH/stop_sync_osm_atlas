@@ -1,10 +1,10 @@
-"""Code quality dashboard: the published report and code map, drawn as an interactive module graph."""
+"""Code quality dashboard: the evidence of this code's commit and its code map, drawn as an interactive map."""
 import os
 
 from flask import Blueprint, jsonify, render_template
 
-from backend.services.quality_report import load_published, stale_warning
-from backend.version import ENGINE_REPOSITORY_URL
+from backend.services.quality_report import EvidenceUnavailable, load_evidence
+from backend.version import ENGINE_REPOSITORY_URL, engine_blob_base
 
 quality_bp = Blueprint('quality', __name__)
 
@@ -24,18 +24,20 @@ def quality_dashboard():
 def quality_data():
     """Everything the dashboard draws. Missing evidence is reported as unavailable, never as a pass."""
     try:
-        report, code_map, publication, changed = load_published(_repo_root())
-    except (OSError, ValueError, KeyError, TypeError, AttributeError):
-        return jsonify(available=False)
-    revisions = report.get('revision', {})
+        evidence, source, revision = load_evidence(_repo_root())
+    except EvidenceUnavailable as error:
+        return jsonify(available=False, revision=error.revision, reason=error.reason)
+    # Source links go to the commits that were measured; a map built alone was read from this checkout.
+    measured = (evidence['report'] or {}).get('revision', {})
     return jsonify(
         available=True,
-        warning=stale_warning(report, changed) if changed else None,
-        run_url=publication.get('run_url'),
+        revision=revision,
+        source=source,
+        run_url=f'{APP_REPOSITORY_URL}/commit/{revision}/checks' if source == 'ci' else None,
         source_urls={
-            'app': f"{APP_REPOSITORY_URL}/blob/{revisions.get('app') or 'main'}/",
-            'engine': f"{ENGINE_REPOSITORY_URL}/blob/{revisions.get('engine') or 'main'}/",
+            'app': f"{APP_REPOSITORY_URL}/blob/{measured.get('app') or revision or 'main'}/",
+            'engine': f"{ENGINE_REPOSITORY_URL}/blob/{measured['engine']}/" if measured.get('engine') else engine_blob_base(),
         },
-        report=report,
-        code_map=code_map,
+        report=evidence['report'],
+        code_map=evidence['code_map'],
     )

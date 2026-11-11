@@ -81,9 +81,7 @@ _PDF_GENERATOR = 'documentation/pdf_generator/build_docs_pdf.py'
 # What the whole-documentation PDF is made from, besides the pages and their images.
 _PDF_INPUTS = (
     'data/stats.json',
-    'quality/published/publication.json',
     'backend/services/docs_*.py',
-    'backend/services/quality_report.py',
     'documentation/pdf_generator/*',
 )
 _PAGE_SUFFIXES = {'.md', '.svg', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.pdf'}
@@ -94,7 +92,7 @@ def _docs_pdf_path() -> Path:
 
 
 def _newest_pdf_input() -> float:
-    """When the newest page, image, statistic, quality artifact, print style or renderer changed."""
+    """When the newest page, image, statistic, print style or renderer changed."""
     paths = [path for pattern in _PDF_INPUTS for path in APP_ROOT.glob(pattern)]
     for directory in docs_dirs().values():
         for root, child_dirs, files in os.walk(directory):

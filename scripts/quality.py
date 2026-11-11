@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Small, local quality catalog, evidence and navigation CLI. No service required."""
+"""The quality catalog check, the evidence of a run and the code map. No service required."""
 from __future__ import annotations
 
 import argparse
 import ast
+from collections import Counter
 from datetime import date, datetime, timezone
 import fnmatch
 import hashlib
@@ -40,9 +41,19 @@ def revision(root):
 
 
 def repository_fingerprint(root):
-    """Hash tracked and new nonignored inputs, so dirty runs cannot reuse old evidence."""
-    from backend.services.quality_report import source_fingerprint
-    return source_fingerprint(root)
+    """Hash Git's tracked and new nonignored inputs, so a run cannot reuse evidence measured on other source."""
+    root = Path(root)
+    listed = git(root, 'ls-files', '--cached', '--others', '--exclude-standard', '-z')
+    if listed is None:
+        return None
+    digest = hashlib.sha256()
+    for name in sorted(set(listed.rstrip('\0').split('\0'))):
+        if not name or name == 'quality/evidence.json' or name.startswith(('quality/raw/', 'documentation/generated/')):
+            continue
+        path = root / name
+        if path.is_file() and not path.is_symlink():
+            digest.update(name.encode() + b'\0' + path.read_bytes() + b'\0')
+    return digest.hexdigest()
 
 
 def matches(path, pattern):
@@ -74,6 +85,15 @@ def source_files(root, catalog, exclusions):
     return sorted(path for path in result if not excluded(path, exclusions + catalog.get('exclusions', [])))
 
 
+def owners_of(path, modules):
+    """The modules whose pattern for ``path`` has the longest fixed start: a file named in full beats the pattern of
+    its directory, and a deeper directory beats a shallower one. Anything but one owner is an error."""
+    fixed = {module['id']: max((len(glob.split('*', 1)[0]) for glob in module['paths']['source'] if matches(path, glob)), default=None)
+             for module in modules}
+    longest = max((length for length in fixed.values() if length is not None), default=None)
+    return [mid for mid, length in fixed.items() if length is not None and length == longest]
+
+
 def load_catalogs(engine_root=None):
     roots = {'app': ROOT}
     if engine_root:
@@ -87,7 +107,7 @@ def load_catalogs(engine_root=None):
         schema_validate(catalog, ROOT / 'quality/modules.schema.json')
         catalogs[repo] = catalog
         for path in source_files(root, catalog, exclusions):
-            owners = [module['id'] for module in catalog['modules'] if any(matches(path, glob) for glob in module['paths']['source'])]
+            owners = owners_of(path, catalog['modules'])
             if len(owners) != 1:
                 raise ValueError(f'{repo}:{path} needs exactly one owner, found {owners}')
             ownership[(repo, path)] = owners[0]
@@ -172,17 +192,6 @@ def module_items(catalogs):
     return [(repo, module) for repo, catalog in catalogs.items() for module in catalog['modules']]
 
 
-def active_exceptions(module_ids):
-    exceptions = read_json(ROOT / 'quality/exceptions.json', [])
-    for item in exceptions:
-        required = {'module', 'finding', 'owner', 'reason', 'expires'}
-        if not required <= item.keys() or any(not item[key] for key in required):
-            raise ValueError('Exceptions need module, finding, owner, reason and expires')
-        if item['module'] not in module_ids or date.fromisoformat(item['expires']) < date.today():
-            raise ValueError(f'Unknown module or expired exception: {item}')
-    return exceptions
-
-
 def check(roots, catalogs, ownership):
     items = module_items(catalogs)
     ids = [module['id'] for _, module in items]
@@ -219,7 +228,6 @@ def check(roots, catalogs, ownership):
             for path in contract['docs'] + contract['tests']:
                 if not (roots[repo] / path).exists():
                     raise ValueError(f"Missing contract evidence: {path}")
-    active_exceptions(ids)
     violations = architecture(roots, ownership)
     if violations:
         raise ValueError('Forbidden dependencies: ' + json.dumps(violations))
@@ -328,77 +336,15 @@ def test_results(path, javascript=False, root=None):
              'skipped': int(row.find('skipped') is not None), 'count': 1} for row in ET.parse(path).iter('testcase')]
 
 
-def changed_lines(root, base):
-    if not base:
-        return None
-    diff = git(root, 'diff', '--unified=0', base, '--')
-    if diff is None:
-        raise ValueError(f'Cannot resolve coverage comparison base {base!r} in {root}')
-    result, current = {}, None
-    for line in diff.splitlines():
-        if line.startswith('+++ b/'):
-            current = line[6:]
-        elif current and line.startswith('@@'):
-            match = re.search(r'\+(\d+)(?:,(\d+))?', line)
-            start, count = int(match[1]), int(match[2] or 1)
-            result.setdefault(current, set()).update(range(start, start + count))
-    # Local impact checks must include new files before the user stages them.
-    untracked = git(root, 'ls-files', '--others', '--exclude-standard', '-z') or ''
-    for name in untracked.rstrip('\0').split('\0'):
-        path = root / name
-        if name and path.suffix in CODE_SUFFIXES and path.is_file():
-            result[name] = set(range(1, len(path.read_text().splitlines()) + 1))
-    return result
-
-
-def mutation_evidence(path, engine_root):
-    if engine_root is None or not path.exists():
-        return {'status': 'not_measured'}
-    try:
-        data = read_json(path)
-        if not isinstance(data, dict) or data.get('schema_version') != 1:
-            raise ValueError('Unsupported mutation evidence')
-        if not isinstance(data.get('source_path'), str) or not isinstance(data.get('tests_sha256'), dict) or not data['tests_sha256']:
-            raise ValueError('Missing mutation source/test provenance')
-        scope = data.get('scope')
-        if not isinstance(scope, str) or not scope.startswith('osm_public_transport_matcher.results.validation.'):
-            raise ValueError('Mutation evidence belongs to another module')
-        expected = {data['source_path']: data.get('source_sha256'), **data['tests_sha256']}
-        if len(expected) != 1 + len(data['tests_sha256']) or any(not isinstance(name, str) or not name or not isinstance(digest, str) or not re.fullmatch(r'[0-9a-f]{64}', digest) for name, digest in expected.items()):
-            raise ValueError('Invalid mutation source/test digests')
-        age = (datetime.now(timezone.utc) - datetime.fromisoformat(data['started_at'])).total_seconds()
-        fresh = -300 <= age <= 7 * 86400
-        for name, digest in expected.items():
-            file = (engine_root / name).resolve()
-            if not file.is_relative_to(engine_root.resolve()):
-                raise ValueError('Mutation evidence path escapes checkout')
-            fresh &= hashlib.sha256(file.read_bytes()).hexdigest() == digest
-        total, counts = data['total_mutants'], data['counts']
-        if type(total) is not int or total <= 0 or not isinstance(counts, dict) or any(type(value) is not int or value < 0 for value in counts.values()):
-            raise ValueError('Invalid mutation totals')
-        killed = counts.get('killed', 0)
-        if sum(counts.values()) != total or killed > total:
-            raise ValueError('Invalid mutation totals')
-    except (OSError, KeyError, TypeError, ValueError):
-        return {'status': 'invalid', 'artifact': 'raw/engine-mutation.json'}
-    return {'status': 'measured' if fresh else 'stale', 'scope': scope, 'killed': killed,
-            'total': total, 'score': percent(killed, total), 'artifact': 'raw/engine-mutation.json'}
-
-
-def report(roots, catalogs, ownership, base=None):
+def report(roots, catalogs, ownership):
+    """The evidence of the run recorded in quality/raw, by module. Evidence of other source is refused, never shown."""
     raw_dir = ROOT / 'quality/raw'
     manifest = read_json(raw_dir / 'checks.json', {})
     revisions = {repo: revision(roots.get(repo)) for repo in ('app', 'engine')}
-    fingerprints = {repo: repository_fingerprint(root) for repo, root in roots.items()}
-    try:
-        age = (datetime.now(timezone.utc) - datetime.fromisoformat(manifest['generated_at'])).total_seconds()
-        timely = -300 <= age <= 7 * 86400
-    except (KeyError, ValueError, TypeError):
-        timely = False
-    fresh = bool(manifest) and timely and manifest.get('fingerprints') == fingerprints and manifest.get('revision') == revisions
+    if manifest.get('fingerprints') != {repo: repository_fingerprint(root) for repo, root in roots.items()} or manifest.get('revision') != revisions:
+        raise ValueError('quality/raw holds no evidence of the current source; run make quality, or `map` for the code map alone')
     all_files, invalid = {}, []
-    reports = [('app', 'app-python-coverage.json', False), ('engine', 'engine-python-coverage.json', False), ('app', 'javascript-coverage.json', True)]
-    for repo, name, js in reports:
+    for repo, name, js in [('app', 'app-python-coverage.json', False), ('engine', 'engine-python-coverage.json', False), ('app', 'javascript-coverage.json', True)]:
         data = read_json(raw_dir / name)
         if data and repo in roots:
             try:
@@ -409,12 +355,10 @@ def report(roots, catalogs, ownership, base=None):
             except (ValueError, KeyError, TypeError) as error:
                 invalid.append(f'{name}: {error}')
     debt = read_json(raw_dir / 'debt.json', {})
-    baseline = read_json(ROOT / 'quality/baseline.json', {})
-    exceptions = active_exceptions({module['id'] for _, module in module_items(catalogs)})
+    accepted = {finding['id'] for finding in read_json(ROOT / 'quality/baseline.json', {}).get('findings', [])}
     violations = architecture(roots, ownership)
     tests = {repo: test_results(raw_dir / f'{repo}-tests.xml', root=roots[repo]) for repo in roots}
     tests['app'] += test_results(raw_dir / 'javascript-tests.json', True)
-    changes = {repo: changed_lines(root, base if repo == 'app' else None) for repo, root in roots.items()}
     modules = {}
     for repo, module in module_items(catalogs):
         mid = module['id']
@@ -424,65 +368,45 @@ def report(roots, catalogs, ownership, base=None):
         measured = [all_files[(repo, path)] for path in executable if (repo, path) in all_files]
         cov = {'status': 'not_measured'}
         if measured:
-            cov = {'status': 'stale' if not fresh else 'invalid' if missing or invalid else 'measured',
+            cov = {'status': 'invalid' if missing or invalid else 'measured',
                    'lines': percent(sum(row['covered_lines'] for row in measured), sum(row['lines'] for row in measured)),
                    'branches': percent(sum(row['covered_branches'] for row in measured), sum(row['branches'] for row in measured)),
-                   'missing_files': missing, 'errors': invalid, 'artifacts': [f'raw/{name}' for r, name, _ in reports if r == repo and (raw_dir / name).exists()]}
+                   'missing_files': missing, 'errors': invalid}
         if not executable:
             cov = {'status': 'not_applicable'}
         cases = [row for row in tests[repo] if any(matches(relative_report_path(row['file'], roots[repo]) or '', pattern) for pattern in module['paths']['tests'])]
         expected_tests = {path.relative_to(roots[repo]).as_posix() for pattern in module['paths']['tests'] for path in roots[repo].glob(pattern)}
         missing_tests = sorted(expected_tests - {relative_report_path(row['file'], roots[repo]) for row in cases})
-        test_status = 'not_measured' if not cases else 'stale' if not fresh else 'fail' if any(row['failed'] for row in cases) else 'attention' if any(row['skipped'] for row in cases) else 'pass'
-        if missing_tests and test_status == 'pass':
-            test_status = 'attention'
+        test_status = 'not_measured' if not cases else 'fail' if any(row['failed'] for row in cases) else 'attention' if any(row['skipped'] for row in cases) or missing_tests else 'pass'
         slots = ['owner', 'reviewed', 'invariants', 'explanation']
         if module['criticality'] == 'critical':
             slots += ['reference', 'decision']
         if module['docs'].get('operations'):
             slots += ['operations']
         satisfied = sum(bool(module.get(slot) or module['docs'].get(slot)) for slot in slots)
-        docs = {'status': 'pass' if satisfied == len(slots) else 'attention', 'satisfied': satisfied, 'required': len(slots), 'slots': slots}
-        module_findings = [finding for finding in debt.get('findings', []) if mid in finding['modules']]
-        lanes = {}
-        for lane, kind in [('duplication', 'clone'), ('dead_code', 'dead_code')]:
-            findings = [finding for finding in module_findings if finding['kind'] == kind]
-            new = [finding for finding in findings if finding['id'] not in {f['id'] for f in baseline.get('findings', [])}]
-            lanes[lane] = {'status': 'not_measured' if not debt else 'stale' if not fresh else 'attention' if new else 'pass', 'count': len(findings), 'new': len(new), 'artifact': 'raw/debt.json'}
-        python_inventory = debt.get('analyzed_python_files')
-        dead_code = lanes['dead_code']
-        dead_code.update(analyzer='Vulture', scope='Python', minimum_confidence=100)
-        if python_inventory is None:
-            dead_code['status'] = 'not_measured'
-        elif not isinstance(python_inventory, list) or any(not isinstance(path, str) for path in python_inventory):
-            dead_code['status'] = 'invalid'
-        elif not any(f'{repo}:{path}' in python_inventory for path in owned):
-            dead_code['status'] = 'not_applicable'
-        if dead_code['status'] in {'not_measured', 'invalid', 'not_applicable'}:
-            del dead_code['count'], dead_code['new']
-        changed = {'status': 'not_measured'}
-        if changes[repo] is not None:
-            total = covered = 0
-            for path in executable:
-                data = all_files.get((repo, path), {})
-                lines = changes[repo].get(path, set()) & set(data.get('measured_lines', []))
-                total += len(lines)
-                covered += len(lines & set(data.get('executed_lines', [])))
-            changed = {'status': 'stale' if not fresh else 'attention' if missing else 'measured' if total else 'not_applicable', 'lines': percent(covered, total), 'covered': covered, 'total': total, 'target': 90, 'policy': 'advisory'}
-        mutation = mutation_evidence(raw_dir / 'engine-mutation.json', roots.get('engine')) if mid == 'engine.result-producer' else {'status': 'not_measured'}
-        modules[mid] = dict(criticality=module['criticality'], tests={'status': test_status, 'count': sum(row['count'] for row in cases), 'skipped': sum(row['skipped'] for row in cases), 'missing_files': missing_tests},
-                            coverage=cov, mutation=mutation, **lanes, docs=docs,
-                            architecture={'status': 'fail' if any(row['module'] == mid for row in violations) else 'pass', 'violations': [row for row in violations if row['module'] == mid]},
-                            security={'status': 'not_measured'}, changed_coverage=changed, exceptions=[item for item in exceptions if item['module'] == mid])
-    artifact = dict(schema_version=1, revision=revisions, fingerprints=fingerprints, generated_at=datetime.now(timezone.utc).isoformat(),
-                    completeness='stale' if manifest and not fresh else 'partial' if any(row[lane]['status'] in {'not_measured', 'invalid'} for row in modules.values() for lane in ('tests', 'coverage', 'mutation', 'security')) else 'complete',
-                    checks=manifest.get('checks', []), modules=modules, artifacts=sorted(path.relative_to(ROOT / 'quality').as_posix() for path in raw_dir.rglob('*') if path.is_file() and path.suffix in {'.json', '.xml', '.txt'} and not any(part.startswith('.') for part in path.relative_to(raw_dir).parts)), tools=manifest.get('tool_versions', manifest.get('tools', {})))
-    schema_validate(artifact, ROOT / 'quality/latest.schema.json')
-    write_json(ROOT / 'quality/latest.json', artifact)
-    # Same renderer is used by the portal. The page is a projection, not a database.
-    from backend.services.quality_report import render_report
-    (ROOT / 'quality/report.md').write_text(render_report(artifact))
+        clones = [finding for finding in debt.get('findings', []) if mid in finding['modules']]
+        new = [finding for finding in clones if finding['id'] not in accepted]
+        modules[mid] = dict(
+            criticality=module['criticality'],
+            tests={'status': test_status, 'count': sum(row['count'] for row in cases), 'skipped': sum(row['skipped'] for row in cases), 'missing_files': missing_tests},
+            coverage=cov,
+            duplication={'status': 'not_measured' if not debt else 'attention' if new else 'pass', 'count': len(clones), 'new': len(new)},
+            docs={'status': 'pass' if satisfied == len(slots) else 'attention', 'satisfied': satisfied, 'required': len(slots), 'slots': slots},
+            architecture={'status': 'fail' if any(row['module'] == mid for row in violations) else 'pass', 'violations': [row for row in violations if row['module'] == mid]})
+    artifact = dict(
+        schema_version=1, revision=revisions, generated_at=datetime.now(timezone.utc).isoformat(),
+        completeness='partial' if any(row[lane]['status'] in {'not_measured', 'invalid'} for row in modules.values() for lane in ('tests', 'coverage')) else 'complete',
+        checks=manifest.get('checks', []), modules=modules, tools=manifest.get('tool_versions', {}),
+        # Each measured file on its own, so the map can colour a file by its coverage, not only by its module's.
+        files={f'{repo}:{path}': {'lines': percent(row['covered_lines'], row['lines']), 'branches': percent(row['covered_branches'], row['branches'])}
+               for (repo, path), row in all_files.items() if (repo, path) in ownership})
+    schema_validate(artifact, ROOT / 'quality/report.schema.json')
     return artifact
+
+
+def write_evidence(report, code_map):
+    """The one generated file: what the dashboard shows. A map built alone has no report."""
+    write_json(ROOT / 'quality/evidence.json', dict(schema_version=1, report=report, code_map=code_map))
 
 
 JS_FACTS = Path(__file__).resolve().parent / 'quality_js_symbols.mjs'
@@ -492,7 +416,8 @@ TEMPLATE_TAG = re.compile(r'{%-?\s*(extends|include|import|from)\s+(["\'])(.+?)\
 TEMPLATE_URL_FOR = re.compile(r'url_for\(\s*(["\'])([\w.]+)\1')
 TEMPLATE_PATH = re.compile(r'(["\'])(/[^"\'\s<>{}]+)\1')
 URL_PLACEHOLDER = '{}'
-CODE_LINK_KINDS = {'imports', 'loads', 'uses', 'calls', 'requests', 'links', 'renders', 'extends', 'includes'}
+# Names a framework calls, never the code: a migration's two steps and a JavaScript class's constructor.
+FRAMEWORK_NAMES = {'upgrade', 'downgrade', 'constructor'}
 
 
 def javascript_facts(paths):
@@ -547,41 +472,39 @@ def match_route(url, routes):
     return max(found, key=lambda route: len(re.sub(r'<[^>]+>', '', route['pattern'])), default=None)
 
 
+def runtime_routes(url, routes):
+    """Every route a URL with runtime parts can reach when it names none: each part stands for any one segment of a
+    rule, fixed or not, so ``/api/exports/{}/{}`` reaches the progress, download and cancel routes of an export."""
+    path = re.split(r'[?#]', url, maxsplit=1)[0]
+    if URL_PLACEHOLDER not in path:
+        return []
+    shape = re.compile('^' + re.escape(path).replace(re.escape(URL_PLACEHOLDER), '[^/]+') + '$')
+    return [route for route in routes if shape.match(re.sub(r'<[^>]+>', 'x', route['pattern']))]
+
+
 def unique_rows(rows):
     """Rows without repeats, in file and line order. A nested function's call is seen from its enclosing function too."""
     return sorted({json.dumps(row, sort_keys=True): row for row in rows}.values(), key=lambda row: (row['file'], row['line'], json.dumps(row, sort_keys=True)))
 
 
 def build_map(roots, catalogs, ownership):
+    """The code map the dashboard draws: modules, files, functions and the links between them, read from the source
+    without running it."""
     nodes, edges, file_ids, symbols = [], [], {}, {}
-    def edge(source, target, kind, provenance='declared', **extra):
-        edges.append(dict(source=source, target=target, kind=kind, provenance=provenance, **extra))
-    for repo, module in module_items(catalogs):
-        mid = module['id']
-        nodes.append(dict(id=mid, kind='module', repository=repo, title=module['title']))
-        for dependency in module.get('dependencies', []):
-            edge(mid, dependency, 'depends-on')
-        for kind, paths in module['docs'].items():
-            for path in paths:
-                did = f'{repo}:{path}'
-                nodes.append(dict(id=did, kind='document', path=path))
-                edge(mid, did, 'documented-by', category=kind)
-        for pattern in module['paths']['tests']:
-            for path in roots[repo].glob(pattern):
-                tid = f'{repo}:{path.relative_to(roots[repo]).as_posix()}'
-                nodes.append(dict(id=tid, kind='test', path=path.relative_to(roots[repo]).as_posix()))
-                edge(mid, tid, 'tested-by')
+    def edge(source, target, kind, **extra):
+        edges.append(dict(source=source, target=target, kind=kind, **extra))
     texts = {(repo, path): (roots[repo] / path).read_text() for repo, path in ownership}
     for (repo, path), mid in ownership.items():
         fid = f'{repo}:{path}'
-        nodes.append(dict(id=fid, kind='file', path=path, module=mid, lines=len(texts[(repo, path)].splitlines())))
-        edge(mid, fid, 'contains', 'static-exact')
+        nodes.append(dict(id=fid, kind='file', module=mid, lines=len(texts[(repo, path)].splitlines())))
         if path.endswith('.py'):
             file_ids[(repo, python_module(path))] = fid
     python, scripts, top = {}, {}, {}
     javascript = javascript_facts([roots[repo] / path for repo, path in ownership if path.endswith('.js')])
     # Route references, resolved once every route is known: (source, file, URL or endpoint, line, link kind).
     routes, urls, endpoints, rendered, unmatched, dynamic = [], [], [], [], [], []
+    # How often the production code spells each name, and the functions whose name a framework may call unseen.
+    mentions, called_unseen, templates = {'py': Counter(), 'js': Counter()}, set(), []
     def line_of(text, offset):
         return text.count('\n', 0, offset) + 1
     for (repo, path), mid in ownership.items():
@@ -595,21 +518,28 @@ def build_map(roots, catalogs, ownership):
                 if isinstance(node, DEFINITIONS):
                     sid = f'{fid}:{node.name}@{node.lineno}'
                     local.setdefault(node.name, []).append(sid)
-                    nodes.append(dict(id=sid, kind='symbol', name=node.name, path=path, line=node.lineno, module=mid, provenance='static-exact'))
-                    edge(fid, sid, 'contains', 'static-exact')
+                    nodes.append(dict(id=sid, kind='symbol', name=node.name, line=node.lineno, module=mid, language='py'))
                     symbols[sid] = node
+                    # A decorator hands the function to a framework: a route, a command, a fixture, a property.
+                    if node.decorator_list or re.fullmatch(r'__\w+__', node.name):
+                        called_unseen.add(sid)
+                elif isinstance(node, (ast.Name, ast.Attribute, ast.alias)):
+                    mentions['py'][getattr(node, 'id', None) or getattr(node, 'attr', None) or node.name.rsplit('.', 1)[-1]] += 1
+                elif isinstance(node, ast.Constant) and isinstance(node.value, str) and re.fullmatch(r'[\w.:]+', node.value):
+                    # A name handed over as text, as ``getattr(row, 'value')`` or an entry point ``package.module:main``.
+                    mentions['py'].update(re.findall(r'[A-Za-z_]\w*', node.value))
             top[fid] = {node.name: f'{fid}:{node.name}@{node.lineno}' for node in tree.body if isinstance(node, DEFINITIONS)}
             python[fid] = (repo, path, tree, local)
         elif path.endswith('.js'):
             facts = javascript[str(roots[repo] / path)]
             sids = [f"{fid}:{symbol['name']}@{symbol['line']}" for symbol in facts['symbols']]
             for symbol, sid in zip(facts['symbols'], sids):
-                nodes.append(dict(id=sid, kind='symbol', name=symbol['name'], path=path, line=symbol['line'], module=mid, provenance='static-exact'))
-                edge(fid, sid, 'contains', 'static-exact')
+                nodes.append(dict(id=sid, kind='symbol', name=symbol['name'], line=symbol['line'], module=mid, language='js'))
+            mentions['js'].update(facts['mentions'])
             # A name read inside a function or class is read by it; outside any, by the file.
             facts['sources'] = [fid if reference['symbol'] is None else sids[reference['symbol']] for reference in facts['references']]
             for item in facts['links']:
-                edge(fid if item['source'] is None else sids[item['source']], sids[item['target']], item['kind'], 'static-exact', line=item['line'])
+                edge(fid if item['source'] is None else sids[item['source']], sids[item['target']], item['kind'], line=item['line'])
             scripts[fid] = facts
             requested = {item['url'] for item in facts['requests'] if item['url']}
             for item in facts['requests']:
@@ -618,6 +548,7 @@ def build_map(roots, catalogs, ownership):
             for item in facts['strings']:
                 urls.append((fid, fid, item['value'], item['line'], item['value'] in requested))
         elif path.endswith('.html'):
+            templates.append(text)
             for match in TEMPLATE_TAG.finditer(text):
                 rendered.append((fid, fid, match[3], line_of(text, match.start()), 'extends' if match[1] == 'extends' else 'includes'))
             for match in TEMPLATE_URL_FOR.finditer(text):
@@ -633,10 +564,10 @@ def build_map(roots, catalogs, ownership):
                 # Jinja quote nesting is resolved separately below.
                 target = match[1] if match else src.removeprefix('/static/')
                 if (repo, 'static/' + target) in ownership:
-                    edge(fid, f'{repo}:static/{target}', 'loads', 'static-exact', order=order)
+                    edge(fid, f'{repo}:static/{target}', 'loads', order=order)
             for order, target in enumerate(re.findall(r'<script[^>]*filename=["\'](js/[^"\']+)', text)):
                 if (repo, 'static/' + target) in ownership:
-                    edge(fid, f'{repo}:static/{target}', 'loads', 'static-exact', order=order)
+                    edge(fid, f'{repo}:static/{target}', 'loads', order=order)
     imports = {fid: list(import_bindings(tree, import_context(path))) for fid, (repo, path, tree, _) in python.items()}
     # A package re-exports what its __init__ imports, as `results:write_bundle` does.
     exports = {fid: {**{name: top[target][attribute] for name, module, attribute, _ in imports[fid]
@@ -650,12 +581,12 @@ def build_map(roots, catalogs, ownership):
             target = submodule or file_ids.get((repo, module))
             if not target:
                 continue
-            edge(fid, target, 'imports', 'static-exact', line=line)
+            edge(fid, target, 'imports', line=line)
             if submodule or (name and not attribute):
                 bound_modules[name] = target
             elif attribute in exports[target]:
                 bound_symbols[name] = exports[target][attribute]
-                edge(fid, bound_symbols[name], 'uses', 'static-exact', line=line)
+                edge(fid, bound_symbols[name], 'uses', line=line)
         for sid in [key for values in local.values() for key in values]:
             for call in ast.walk(symbols[sid]):
                 if not isinstance(call, ast.Call):
@@ -678,7 +609,7 @@ def build_map(roots, catalogs, ownership):
                 else:
                     targets = []
                 for target in targets:
-                    edge(sid, target, 'calls', 'static-heuristic', line=call.lineno)
+                    edge(sid, target, 'calls', line=call.lineno)
     # Browser scripts share one global scope: a name a script reads but does not declare is the export of the one
     # script that shares it. A name shared by several scripts is ambiguous, so it is reported instead of linked.
     shared = {}
@@ -689,7 +620,7 @@ def build_map(roots, catalogs, ownership):
         for reference, source in zip(facts['references'], facts['sources']):
             targets = shared.get(reference['name'], [])
             if len(targets) == 1 and reference['name'] not in facts['globals']:
-                edge(source, targets[0], 'uses', 'static-exact', line=reference['line'])
+                edge(source, targets[0], 'uses', line=reference['line'])
     # Requests and links reach a view function through its URL rule or its endpoint name. Asking an API route, or
     # sending a request, uses the view's code. Any other reference to a page is a link, recorded but drawing no
     # module arrow: following a link does not use the page's code.
@@ -700,55 +631,59 @@ def build_map(roots, catalogs, ownership):
         return 'requests' if request or route['pattern'].startswith('/api/') else 'links'
     for source, fid, url, line, request in urls:
         route = match_route(url, routes)
-        if route:
-            edge(source, route['symbol'], route_kind(route, request), 'static-heuristic', line=line)
-        elif request or url.startswith('/api/'):
+        reached = [route] if route else runtime_routes(url, routes)
+        for route in reached:
+            edge(source, route['symbol'], route_kind(route, request), line=line)
+        if not reached and (request or url.startswith('/api/')):
             unmatched.append(dict(file=fid, line=line, kind='url', reference=url))
     for source, fid, endpoint, line in endpoints:
         if endpoint in by_endpoint:
-            edge(source, by_endpoint[endpoint]['symbol'], route_kind(by_endpoint[endpoint]), 'static-exact', line=line)
+            edge(source, by_endpoint[endpoint]['symbol'], route_kind(by_endpoint[endpoint]), line=line)
         else:
             unmatched.append(dict(file=fid, line=line, kind='endpoint', reference=endpoint))
     for source, fid, name, line, kind in rendered:
         repo = fid.split(':', 1)[0]
         if (repo, f'templates/{name}') in ownership:
-            edge(source, f'{repo}:templates/{name}', kind, 'static-exact', line=line)
+            edge(source, f'{repo}:templates/{name}', kind, line=line)
         elif not (roots[repo] / 'templates' / name).is_file():
             unmatched.append(dict(file=fid, line=line, kind='template', reference=name))
         # A template that exists but is no code file, as llms.txt, has no node to link to.
-    for repo, catalog in catalogs.items():
-        for contract in catalog.get('contracts', []):
-            cid = 'contract.' + contract['id']
-            nodes.append(dict(id=cid, kind='contract', title=contract.get('title', cid)))
-            for mid in contract['producers']:
-                edge(mid, cid, 'produces')
-            for mid in contract['consumers']:
-                edge(cid, mid, 'consumes')
-    graph = dict(schema_version=1, generated_at=datetime.now(timezone.utc).isoformat(),
+    # A function is unused when the production code never spells its name again, in code, in a template or as a
+    # one-word string: not called, not passed, not imported. Tests are no production code, so a function only its
+    # tests use is unused too. Routes, catalog entry points and names a framework calls are used without being spelled.
+    used_unseen = called_unseen | {route['symbol'] for route in routes}
+    declared = Counter(node['name'].rsplit('.', 1)[-1] for node in nodes if node['kind'] == 'symbol' and node['language'] == 'js')
+    template_names = set(re.findall(r'[A-Za-z_$][\w$]*', '\n'.join(templates)))
+    for node in nodes:
+        if node['kind'] != 'symbol':
+            continue
+        name = node['name'].rsplit('.', 1)[-1]
+        spelled = mentions[node['language']][name] - (declared[name] if node['language'] == 'js' else 0)
+        node['unused'] = not (spelled > 0 or name in FRAMEWORK_NAMES or node['id'] in used_unseen or name in template_names)
+    graph = dict(generated_at=datetime.now(timezone.utc).isoformat(),
                  limitations=['Python import syntax is exact; runtime resolution can differ.',
                               'Python calls resolve through local definitions and imports only; calls through objects, attributes of instances and dynamic dispatch are missing.',
                               'JavaScript is parsed with espree. A global a script reads is linked to the one script that shares it; whether both load on the same page is not checked.',
                               'JavaScript calls resolve through the names in scope only; calls through objects, such as this.render(), and methods of objects passed around are missing.',
                               'HTTP requests and page links reach a Flask route through its URL text or url_for endpoint. A URL built at runtime is listed as a blind spot, not linked.',
-                              'Shared database tables, external services and the data a view passes to its template are not links.'],
+                              'Shared database tables, external services and the data a view passes to its template are not links.',
+                              'A function is marked unused when no production code spells its name. A name shared with a used function hides an unused one; a function reached only through a name built at runtime is marked wrongly.'],
                  routes=[{key: value for key, value in route.items() if key != 'regex'} for route in routes],
                  blind_spots=dict(unmatched=unique_rows(unmatched), dynamic=unique_rows(dynamic),
                                   shared_names=[dict(name=name, symbols=sorted(sids)) for name, sids in sorted(shared.items()) if len(sids) > 1]),
                  nodes=list({node['id']: node for node in nodes}.values()), edges=list({json.dumps(item, sort_keys=True): item for item in edges}.values()))
-    write_json(ROOT / 'quality/quality-map.json', graph)
-    write_json(ROOT / 'quality/code-map.json', code_map(graph, catalogs))
-    return graph
+    return code_map(graph, catalogs)
 
 
 def code_map(graph, catalogs):
-    """Module, file and boundary view of the map: what the code-quality dashboard draws."""
+    """Module, file, function and boundary view of the graph: what the code-quality dashboard draws."""
     nodes = {node['id']: node for node in graph['nodes']}
     def file_of(node_id):
         return node_id if nodes[node_id]['kind'] == 'file' else node_id.rsplit(':', 1)[0]
     links, used_by, reexports, route_users, symbol_links = {}, {}, {}, {}, {}
     for item in graph['edges']:
         source, target = nodes.get(item['source']), nodes.get(item['target'])
-        if item['kind'] not in CODE_LINK_KINDS or not source or not target or 'module' not in source or 'module' not in target:
+        if not source or not target:
             continue
         if item['kind'] == 'uses' and source['kind'] == 'file':
             reexports.setdefault(source['id'], []).append(target['id'])
@@ -785,6 +720,10 @@ def code_map(graph, catalogs):
     for sid, users in sorted(used_by.items()):
         node = nodes[sid]
         interface[node['module']].append(dict(id=sid, name=node['name'], file=file_of(sid), line=node['line'], used_by=sorted(users)))
+    entry_points = {entry['symbol'] for module in modules for entry in module['entrypoints']}
+    known = {node['id'] for node in graph['nodes']}
+    clones = [dict(files=finding['files'], lines=finding.get('lines'), locations=[{key: place[key] for key in ('file', 'start', 'end')} for place in finding['locations']])
+              for finding in read_json(ROOT / 'quality/raw/debt.json', {}).get('findings', []) if finding['kind'] == 'clone' and set(finding['files']) <= known]
     contracts = [dict(id=contract['id'], title=contract.get('title', contract['id']), producers=contract['producers'], consumers=contract['consumers'])
                  for catalog in catalogs.values() for contract in catalog.get('contracts', [])]
     files = [dict(id=node['id'], module=node['module'], lines=node.get('lines', 0), symbols=len(symbols.get(node['id'], [])))
@@ -794,25 +733,13 @@ def code_map(graph, catalogs):
               for route in sorted(graph.get('routes', []), key=lambda route: (route['pattern'], route['endpoint']))]
     return dict(schema_version=1, generated_at=graph['generated_at'], limitations=graph['limitations'], modules=modules, contracts=contracts,
                 files=sorted(files, key=lambda row: row['id']), interface=interface, routes=routes,
-                symbols=sorted((dict(id=node['id'], name=node['name'], file=file_of(node['id']), line=node['line'])
+                symbols=sorted((dict(id=node['id'], name=node['name'], file=file_of(node['id']), line=node['line'],
+                                     **({'unused': True} if node['unused'] and node['id'] not in entry_points else {}))
                                 for node in graph['nodes'] if node['kind'] == 'symbol'), key=lambda row: (row['file'], row['line'], row['name'])),
+                clones=clones,
                 symbol_links=[dict(source=source, target=target, kind=kind, count=count) for (source, target, kind), count in sorted(symbol_links.items())],
                 blind_spots=graph.get('blind_spots', dict(unmatched=[], dynamic=[], shared_names=[])),
                 links=[dict(source=source, target=target, kind=kind, count=count) for (source, target, kind), count in sorted(links.items())])
-
-
-def context(module_id, roots, catalogs, ownership):
-    repo, module = next(((repo, module) for repo, module in module_items(catalogs) if module['id'] == module_id), (None, None))
-    if module is None:
-        raise ValueError(f'Unknown module: {module_id}')
-    graph = build_map(roots, catalogs, ownership)
-    owned = {f'{repo}:{path}' for (r, path), owner in ownership.items() if r == repo and owner == module_id}
-    neighbors = sorted({edge['target'] for edge in graph['edges'] if edge['source'] in owned and edge['kind'] == 'imports'})
-    return '\n'.join([f"Module: {module_id} ({module['criticality']})", f"Owner: {module['owner']}", f"Responsibility: {module['responsibility']}",
-                       'Invariants: ' + '; '.join(module['invariants']), 'Entrypoints: ' + ', '.join(module['entrypoints']),
-                       'Contracts: ' + json.dumps(module.get('contracts', {})), 'Dependencies: ' + ', '.join(neighbors),
-                       'Tests: ' + ', '.join(module['paths']['tests']), 'Docs: ' + ', '.join(path for paths in module['docs'].values() for path in paths),
-                       'Fast: make quality-fast', 'Full: make quality', 'Failures and exceptions: quality/latest.json and quality/exceptions.json'])
 
 
 def occurrence_findings(findings):
@@ -864,47 +791,27 @@ def debt(roots, catalogs, ownership, write_baseline=False):
                                    start_column=clone[side].get('startLoc', {}).get('column'), end_column=clone[side].get('endLoc', {}).get('column'))
                               for side, (repo, path, _) in zip(('firstFile', 'secondFile'), locations)]
         findings.append(dict(id=hashlib.sha256(identity.encode()).hexdigest(), kind='clone', modules=sorted({mid for _, _, mid in locations if mid}), files=[f'{repo}:{path}' for repo, path, _ in locations], lines=clone.get('lines'), fragment=fragment, locations=physical_locations))
-    python_files = [str(roots[repo] / path) for repo, path in files if path.endswith('.py')]
-    result = subprocess.run([sys.executable, '-m', 'vulture', *python_files, '--min-confidence', '100'], capture_output=True, text=True)
-    (raw_dir / 'vulture.txt').write_text(result.stdout + result.stderr)
-    if result.returncode not in (0, 3):
-        raise ValueError(f'Vulture failed: {result.stdout}{result.stderr}')
-    for line in result.stdout.splitlines():
-        match = re.match(r'(.+?):(\d+): (.+)', line)
-        if not match:
-            raise ValueError(f'Unrecognized Vulture finding: {line}')
-        repo, path, mid = locate(match[1])
-        source_line = (roots[repo] / path).read_text().splitlines()[int(match[2]) - 1].strip()
-        identity = f'{repo}:{path}:{match[3]}:{source_line}'
-        findings.append(dict(id=hashlib.sha256(identity.encode()).hexdigest(), kind='dead_code', modules=[mid], files=[f'{repo}:{path}'], line=int(match[2]), message=match[3], locations=[dict(file=f'{repo}:{path}', start=int(match[2]), end=int(match[2]))]))
     findings = occurrence_findings(findings)
-    evidence = dict(schema_version=1, generated_at=datetime.now(timezone.utc).isoformat(), findings=findings,
-                    analyzed_python_files=sorted(f'{repo}:{path}' for repo, path in files if path.endswith('.py')))
-    write_json(raw_dir / 'debt.json', evidence)
+    write_json(raw_dir / 'debt.json', dict(schema_version=1, generated_at=datetime.now(timezone.utc).isoformat(), findings=findings))
     baseline_path = ROOT / 'quality/baseline.json'
-    baseline = read_json(baseline_path, {})
     if write_baseline:
-        write_json(baseline_path, evidence)
+        # Only what a comparison needs: the identity of each accepted clone and, for the reviewer, its files.
+        write_json(baseline_path, dict(schema_version=1, findings=[{key: finding[key] for key in ('id', 'kind', 'files')} for finding in findings]))
         return f'Wrote reviewable baseline: {len(findings)} findings'
-    exceptions = active_exceptions({module['id'] for _, module in module_items(catalogs)})
-    allowed = {finding['id'] for finding in baseline.get('findings', [])}
-    allowed.update(item['finding'] for item in exceptions
-                   if any(finding['id'] == item['finding'] and item['module'] in finding['modules'] for finding in findings))
-    new = [finding for finding in findings if finding['id'] not in allowed]
+    baseline = read_json(baseline_path)
+    if baseline is None:
+        raise ValueError('No reviewed baseline. Run debt --write-baseline and review quality/baseline.json.')
+    accepted = {finding['id'] for finding in baseline['findings']}
+    new = [finding for finding in findings if finding['id'] not in accepted]
     if new:
-        raise ValueError(f'{len(new)} new structural findings. Inspect quality/raw/debt.json; fix them or record an expiring exception. Baseline updates require review.')
-    if not baseline:
-        raise ValueError('No reviewed structural baseline. Run debt --write-baseline and review quality/baseline.json.')
-    return f'No new structural debt ({len(findings)} existing findings)'
+        raise ValueError(f'{len(new)} new duplicated blocks. Inspect quality/raw/debt.json and remove the copies. Baseline updates require review.')
+    return f'No new duplicated blocks ({len(findings)} accepted)'
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['check', 'coverage', 'report', 'map', 'context', 'impact', 'symbol', 'debt'])
-    parser.add_argument('target', nargs='?')
+    parser.add_argument('command', choices=['check', 'coverage', 'report', 'map', 'debt'])
     parser.add_argument('--engine-dir', type=Path, help='Engine checkout (default: ENGINE_DIR, engine/ or ../engine)')
-    parser.add_argument('--base', help='App git revision for advisory changed-line coverage')
-    parser.add_argument('--depth', type=int, choices=[1, 2], default=1)
     parser.add_argument('--write-baseline', action='store_true')
     args = parser.parse_args()
     try:
@@ -913,27 +820,14 @@ def main():
             print(check(roots, catalogs, ownership))
         elif args.command == 'coverage':
             print(coverage_sanity(roots, ownership))
-        elif args.command == 'report':
-            result = report(roots, catalogs, ownership, args.base)
-            build_map(roots, catalogs, ownership)
-            print(f"quality/latest.json and quality/report.md: {result['completeness']}")
-        elif args.command == 'context':
-            print(context(args.target, roots, catalogs, ownership))
         elif args.command == 'debt':
             print(debt(roots, catalogs, ownership, args.write_baseline))
         else:
-            graph = build_map(roots, catalogs, ownership)
-            if args.command in {'symbol', 'impact'}:
-                if not args.target:
-                    raise ValueError('Supply a module, path, or symbol search term')
-                selected = {node['id'] for node in graph['nodes'] if args.target.lower() in node['id'].lower()}
-                for _ in range(args.depth):
-                    selected |= {edge[side] for edge in graph['edges'] if edge['source'] in selected or edge['target'] in selected for side in ('source', 'target')}
-                graph['nodes'] = [node for node in graph['nodes'] if node['id'] in selected]
-                graph['edges'] = [edge for edge in graph['edges'] if edge['source'] in selected and edge['target'] in selected]
-                print(json.dumps(graph, indent=2))
-            else:
-                print(f"quality/quality-map.json: {len(graph['nodes'])} nodes, {len(graph['edges'])} edges")
+            result = report(roots, catalogs, ownership) if args.command == 'report' else None
+            code = build_map(roots, catalogs, ownership)
+            write_evidence(result, code)
+            print(f"quality/evidence.json: {len(code['files'])} files, {len(code['symbols'])} functions and classes"
+                  + (f"; evidence {result['completeness']}" if result else '; no report, the code map alone'))
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
         parser.exit(1, f'Quality check failed: {error}\n')
 

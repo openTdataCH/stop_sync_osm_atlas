@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "required": ["schema_version", "revision", "generated_at", "completeness", "checks", "modules", "files", "tools"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "revision": {"type": "object", "required": ["app", "engine"], "additionalProperties": {"type": ["string", "null"]}},
+    "generated_at": {"type": "string"}, "completeness": {"enum": ["complete", "partial"]},
+    "tools": {"type": "object"}, "checks": {"type": "array"},
+    "files": {"type": "object", "additionalProperties": {"type": "object", "required": ["lines", "branches"], "additionalProperties": {"type": ["number", "null"]}}},
+    "modules": {"type": "object", "additionalProperties": {"type": "object", "required": ["criticality", "tests", "coverage", "duplication", "docs", "architecture"], "properties": {
+      "criticality": {"enum": ["critical", "high", "medium", "low"]},
+      "tests": {"$ref": "#/$defs/measurement"}, "coverage": {"$ref": "#/$defs/measurement"}, "duplication": {"$ref": "#/$defs/measurement"}, "docs": {"$ref": "#/$defs/measurement"}, "architecture": {"$ref": "#/$defs/measurement"}
+    }, "additionalProperties": false}}
+  }, "additionalProperties": false,
+  "$defs": {"measurement": {"type": "object", "required": ["status"], "properties": {"status": {"enum": ["pass", "fail", "attention", "measured", "not_measured", "not_applicable", "invalid"]}}, "additionalProperties": true}}
+}

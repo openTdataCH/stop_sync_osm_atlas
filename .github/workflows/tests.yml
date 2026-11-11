@@ -2,8 +2,6 @@ name: Quality
 on:
   push:
     branches: [main]
-    # A `make deploy-report` commit adds only the report of a commit CI already measured.
-    paths-ignore: ['quality/published/**']
   pull_request:
   workflow_dispatch:
 permissions:
@@ -13,6 +11,9 @@ jobs:
     name: Required quality
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      # To upload the evidence as a release asset; see the last step.
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,8 +31,6 @@ jobs:
       - name: Run required checks and generate evidence
         # The image and disposable PostGIS database of a local `make quality`.
         run: make quality ENGINE_DIR="$GITHUB_WORKSPACE/engine"
-        env:
-          QUALITY_BASE: ${{ github.event.pull_request.base.sha }}
       - name: Publish evidence, including failures
         if: always()
         uses: actions/upload-artifact@v4
@@ -40,3 +39,18 @@ jobs:
           path: quality/
           if-no-files-found: error
           retention-days: 30
+      - name: Publish the evidence for the code quality dashboard
+        # A site running this commit downloads the file by the commit's ID. A release asset is public; a CI
+        # artifact needs a token. Failed runs are published too: the dashboard shows what was measured.
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && hashFiles('quality/evidence.json') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp quality/evidence.json "quality-$GITHUB_SHA.json"
+          gh release view quality-data > /dev/null 2>&1 || gh release create quality-data --prerelease \
+            --title "Code quality evidence" \
+            --notes "One file for each commit of main, written by the Quality workflow and read by the code quality dashboard. Not a software release."
+          gh release upload quality-data "quality-$GITHUB_SHA.json" --clobber
+          # Keep the newest 60 commits.
+          gh release view quality-data --json assets --jq '.assets | sort_by(.createdAt) | reverse | .[60:][].name' \
+            | while read -r name; do gh release delete-asset quality-data "$name" --yes; done

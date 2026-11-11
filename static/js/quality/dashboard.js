@@ -1,9 +1,10 @@
 /**
- * Code quality dashboard: the published report and code map, drawn as an interactive module graph, with its files
- * and functions, and as a functions map of every function and class.
+ * Code quality dashboard: the code map of both repositories at three depths, with the CI results of the running commit.
  *
- * Arrows point from the code that uses to the code it uses. In the module view a module sits above the
- * modules it declares as dependencies, so an arrow pointing upwards goes against the declared layering.
+ * The three levels are one picture. A module is a circle, at the same place on Modules and Files: filled on Modules,
+ * holding its files as dots on Files. On Functions every function and class is a dot in its module's circle. A module
+ * sits above the modules it declares as dependencies, so a declared dependency arcs downwards on the outer side of its
+ * column, and an arc on the inner side goes upwards, against the declared layering.
  */
 (function (global) {
     'use strict';
@@ -33,13 +34,13 @@
         engine: { label: 'Matching engine', color: GREEN },
         app: { label: 'Review application', color: NAVY }
     };
-    // Branch coverage in steps of 10%: pale navy for little, full navy for all.
+    // Coverage in steps of 10%: pale navy for little, full navy for all.
     const COVERAGE_RAMP = Array.from({ length: 10 }, (_, step) => tint(NAVY, 0.14 + 0.86 * step / 9));
     const NOT_MEASURED_COLOR = '#e9ecef';
     // The same values as the --color-quality-* tokens.
-    const EDGE_COLORS = { declared: MUTED, undeclared: '#e08e0b', unused: '#adb5bd', internal: '#ced4da', crossing: NAVY, contract: PURPLE };
+    const EDGE_COLORS = { declared: MUTED, undeclared: '#e08e0b', unused: '#adb5bd', internal: '#ced4da', crossing: NAVY, contract: PURPLE, clone: INK };
     // The --color-quality-module-1 to -10 tokens: a categorical palette for white, in the order that keeps neighbouring
-    // regions of the functions map apart, including the last slot beside the first.
+    // modules apart, including the last slot beside the first.
     const MODULE_PALETTE = ['#2a78d6', '#eb6834', '#17a173', '#99631f', '#d6558a', '#c98500', '#6250d6', '#008300', '#0e93a8', '#e34948'];
     const LINK_KINDS = {
         imports: 'imports', uses: 'names imported or referenced', calls: 'calls', loads: 'script loads', requests: 'HTTP requests',
@@ -53,56 +54,53 @@
         fail: { label: 'Fail', icon: 'fa-times-circle', tone: 'bad' },
         attention: { label: 'Needs attention', icon: 'fa-exclamation-triangle', tone: 'warn' },
         invalid: { label: 'Invalid evidence', icon: 'fa-ban', tone: 'bad' },
-        stale: { label: 'Stale', icon: '', tone: 'muted' },
         not_measured: { label: 'Not measured', icon: '', tone: 'muted' },
         not_applicable: { label: 'Not applicable', icon: '', tone: 'muted' }
     };
-    const LANES = [
-        ['tests', 'Tests'], ['coverage', 'Branch coverage'], ['mutation', 'Mutation'], ['duplication', 'Duplicated blocks'],
-        ['dead_code', 'Python dead code'], ['docs', 'Docs'], ['architecture', 'Architecture']
-    ];
-    const LEVEL_SPACING = 150;
-    const COLUMN_SPACING = 230;
-    const REPOSITORY_GAP = 190;
-    const FILE_COLUMN_SPACING = 200;
-    const FILE_GRID_SPACING = 180;
-    const FILE_ROW_SPACING = 46;
-    const MAX_FILE_ROWS = 12;
-    const BOX_GAP = 80;
-    const FUNCTION_COLUMN_SPACING = 210;
-    const FUNCTION_ROW_SPACING = 34;
-    const MAX_FUNCTION_ROWS = 16;
-    // Below this zoom file names are too small to read, so a module opens at least this close.
-    const READABLE_ZOOM = 0.8;
-    const MODULE_ZOOM = 0.5;
+    const LANES = [['tests', 'Tests'], ['coverage', 'Branch coverage'], ['duplication', 'Duplicated blocks'], ['docs', 'Docs'], ['architecture', 'Architecture']];
+    const LEVELS = {
+        modules: { all: 'All modules', unit: 'lines' },
+        files: { all: 'All files', unit: 'files' },
+        symbols: { all: 'All functions', unit: 'functions' }
+    };
+    // Modules and Files: the space between the module circles of a column, and between the columns of the two
+    // repositories. An arc between two modules bends away from its column by ARC of its length.
+    const LAYER_GAP = 46;
+    const COLUMN_GAP = 300;
+    const ARC = 0.42;
+    // A code file longer than this is listed as large and ringed on the Files level.
+    const FILE_BUDGET = 1000;
+    const CODE_FILE = /\.(py|js|mjs|cjs|css|html)$/;
     // A tooltip waits for the cursor to rest, so sweeping across the map shows nothing.
     const HOVER_DELAY = 250;
     const TOOLTIP_GRACE = 120;
-    // Functions map: steps of the force layout, space between dots, how much larger than its dots a region's disc is,
-    // and the space between regions. Each dot keeps clear of the others by SYMBOL_ROOM of its own radius, so zooming
-    // in opens gaps where lines and names show instead of only making the dots larger.
-    const SYMBOL_TICKS = 120;
-    const SYMBOL_GAP = 1.6;
-    const SYMBOL_ROOM = 0.6;
-    const SYMBOL_SPREAD = 1.6;
+    // Dots: steps of the force layout, space between dots, how much larger than its dots a region's disc is, and the
+    // space between regions. Each dot keeps clear of the others by DOT_ROOM of its own radius, so zooming in opens
+    // gaps where lines and names show instead of only making the dots larger.
+    const LAYOUT_TICKS = 120;
+    const DOT_GAP = 1.6;
+    const DOT_ROOM = 0.6;
+    const DOT_SPREAD = 1.6;
     const REGION_GAP = 10;
     // A region's circle: this much wider than its outermost dot. Its name is REGION_LABEL_PX tall on screen.
     const REGION_MARGIN = 5;
     const REGION_LABEL_PX = 12;
     const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
     const SEARCH_LIMIT = 8;
-    // A function found by search opens at least this close, where its neighbours' names can be read.
+    // A dot found by search opens at least this close, where its neighbours' names can be read.
     const FOCUS_ZOOM = 1.6;
-    // A module picked from the list fills the map, but a small one opens no closer than this, so its dots stay dots.
+    // A module drawn alone fills the map, but a small one opens no closer than this, so its dots stay dots.
     const MODULE_MAX_ZOOM = 3;
     // Names are placed again once a zoom has rested this long: placing them on every frame made zooming stutter.
     const NAME_DELAY = 120;
-    // A name on the functions map shows once it is at least this tall on screen: at first only on the largest dots.
+    // A dot's name shows once it is at least this tall on screen: at first only on the largest dots.
     // Around a selection every name may show, at least NAMED_FONT map units tall.
     const LABEL_PX = 10;
     // The largest a name grows on screen: zoomed in, names keep this size and take less of the map, so more fit.
     const LABEL_MAX_PX = 13;
     const NAMED_FONT = 9;
+    // A findings card shows this many rows; the rest fold away, so one long list does not set the height of the page.
+    const FINDING_ROWS = 6;
 
     function escapeHtml(value) {
         const replacements = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -216,6 +214,18 @@
         };
     }
 
+    /**
+     * What the map points at for cleaning up: functions and classes whose name nothing else in the code mentions,
+     * blocks of code found twice, and code files longer than FILE_BUDGET lines, longest first.
+     */
+    function cleanup(codeMap) {
+        return {
+            unused: (codeMap.symbols || []).filter((symbol) => symbol.unused),
+            clones: codeMap.clones || [],
+            large: codeMap.files.filter((file) => CODE_FILE.test(file.id) && (file.lines || 0) > FILE_BUDGET).sort((a, b) => b.lines - a.lines || a.id.localeCompare(b.id))
+        };
+    }
+
     /** A module's level is one above its highest declared dependency in the same repository. */
     function moduleLevels(codeMap) {
         const modules = indexBy(codeMap.modules, 'id');
@@ -264,48 +274,49 @@
         return order;
     }
 
+    /** The column of each module on the Modules and Files levels: one for each repository, the largest repository first. */
+    function moduleColumns(codeMap) {
+        const columns = {};
+        repositoriesOf(codeMap).map((repository) => codeMap.modules.filter((module) => module.repository === repository).map((module) => module.id))
+            .sort((a, b) => b.length - a.length).forEach((ids, column) => ids.forEach((id) => { columns[id] = column; }));
+        return columns;
+    }
+
     /**
-     * Layered positions: each repository is a block with dependencies below their dependents and contracts in the gap
-     * between blocks. Every module of a repository gets its own column, so a vertical arrow never runs through another module.
+     * Centres for the module circles of ``radii``, by module id. Each repository is a column; in it a module sits above
+     * the modules it declares as dependencies, and modules of the same level sit side by side. The columns end at the
+     * same bottom edge, where the modules that everything else depends on are.
      */
-    function modulePositions(codeMap) {
+    function layeredCentres(codeMap, radii) {
         const levels = moduleLevels(codeMap);
-        const top = Math.max(0, ...Object.values(levels));
-        const positions = {};
-        const bounds = {};
-        let offset = 0;
-        repositoriesOf(codeMap).forEach((repository) => {
-            const ids = codeMap.modules.filter((module) => module.repository === repository).map((module) => module.id);
-            const lastInRow = {};
-            let x = offset - COLUMN_SPACING / 2;
-            moduleOrder(codeMap, ids, levels).forEach((id) => {
-                const level = levels[id];
-                x = Math.max(x + COLUMN_SPACING / 2, lastInRow[level] === undefined ? -Infinity : lastInRow[level] + COLUMN_SPACING);
-                lastInRow[level] = x;
-                positions[id] = { x, y: (top - level) * LEVEL_SPACING };
+        const columnOf = moduleColumns(codeMap);
+        const columns = [];
+        Object.keys(radii).sort().forEach((id) => {
+            const rows = columns[columnOf[id]] || (columns[columnOf[id]] = {});
+            (rows[levels[id]] = rows[levels[id]] || []).push(id);
+        });
+        const centres = {};
+        const heights = [];
+        let left = 0;
+        columns.forEach((rows, column) => {
+            const wide = (row) => row.reduce((sum, id) => sum + 2 * radii[id], 0) + (row.length - 1) * LAYER_GAP;
+            const width = Math.max(...Object.values(rows).map(wide));
+            let y = 0;
+            Object.keys(rows).map(Number).sort((a, b) => b - a).forEach((level) => {
+                const height = 2 * Math.max(...rows[level].map((id) => radii[id]));
+                let x = left + (width - wide(rows[level])) / 2;
+                rows[level].forEach((id) => {
+                    centres[id] = { x: x + radii[id], y: y + height / 2 };
+                    x += 2 * radii[id] + LAYER_GAP;
+                });
+                y += height + LAYER_GAP;
             });
-            bounds[repository] = { left: offset, right: x };
-            offset = x + REPOSITORY_GAP + COLUMN_SPACING / 2;
+            heights[column] = y - LAYER_GAP;
+            left += width + COLUMN_GAP;
         });
-        const taken = new Set();
-        (codeMap.contracts || []).forEach((contract) => {
-            const producers = contract.producers.filter((id) => positions[id]);
-            const consumers = contract.consumers.filter((id) => positions[id]);
-            const ends = producers.concat(consumers);
-            if (!ends.length) return;
-            const producerRepository = producers.length ? codeMap.modules.find((module) => module.id === producers[0]).repository : null;
-            const consumerRepository = consumers.length ? codeMap.modules.find((module) => module.id === consumers[0]).repository : null;
-            let x = ends.reduce((sum, id) => sum + positions[id].x, 0) / ends.length;
-            if (producerRepository && consumerRepository && producerRepository !== consumerRepository) {
-                const [left, right] = [bounds[producerRepository], bounds[consumerRepository]].sort((a, b) => a.left - b.left);
-                x = (left.right + right.left) / 2;
-            }
-            let y = Math.round(ends.reduce((sum, id) => sum + positions[id].y, 0) / ends.length);
-            while (taken.has(y)) y += LEVEL_SPACING / 2;
-            taken.add(y);
-            positions['contract:' + contract.id] = { x, y };
-        });
-        return positions;
+        const tallest = Math.max(...heights.filter((height) => height !== undefined));
+        Object.keys(centres).forEach((id) => { centres[id].y += tallest - heights[columnOf[id]]; });
+        return centres;
     }
 
     /** File-level links touching ``focusId`` (all links when null), summed over kinds, and the files they connect. */
@@ -333,190 +344,30 @@
         return { files: Array.from(included).sort().map((id) => files[id]), links, entries };
     }
 
-    /**
-     * One module's files in the middle, in columns by how far each is from where calls enter it; modules that use it
-     * on the left and modules it uses on the right, so the arrows crossing its border are its interface.
-     */
-    function focusPositions(codeMap, graph, focusId) {
-        const owners = fileOwners(codeMap);
-        const inside = graph.files.filter((file) => file.module === focusId).map((file) => file.id);
-        const internal = {};
-        const usedInside = new Set();
-        inside.forEach((id) => { internal[id] = []; });
-        graph.links.forEach((link) => {
-            if (!link.crossing && internal[link.source] && internal[link.target]) {
-                internal[link.source].push(link.target);
-                usedInside.add(link.target);
-            }
-        });
-        const depth = {};
-        const queue = inside.filter((id) => graph.entries.has(id) || !usedInside.has(id));
-        queue.forEach((id) => { depth[id] = 0; });
-        for (let index = 0; index < queue.length; index++) {
-            internal[queue[index]].forEach((next) => {
-                if (depth[next] === undefined) {
-                    depth[next] = depth[queue[index]] + 1;
-                    queue.push(next);
-                }
-            });
-        }
-        const columns = [];
-        inside.forEach((id) => {
-            const column = depth[id] === undefined ? 0 : depth[id];
-            (columns[column] = columns[column] || []).push(id);
-        });
-        const positions = {};
-        let x = 0;
-        let rows = 1;
-        columns.filter(Boolean).forEach((column) => {
-            for (let start = 0; start < column.length; start += MAX_FILE_ROWS) {
-                column.slice(start, start + MAX_FILE_ROWS).forEach((id, row) => { positions[id] = { x, y: row * FILE_ROW_SPACING }; });
-                rows = Math.max(rows, Math.min(column.length - start, MAX_FILE_ROWS));
-                x += FILE_COLUMN_SPACING;
-            }
-        });
-        const middle = (rows - 1) * FILE_ROW_SPACING / 2;
-        const users = new Set();
-        const used = new Set();
-        graph.links.forEach((link) => {
-            if (!link.crossing) return;
-            if (owners[link.target] === focusId) users.add(owners[link.source]);
-            else if (owners[link.source] === focusId) used.add(owners[link.target]);
-        });
-        const side = (modules, start, direction) => {
-            const boxes = Array.from(modules).sort().map((moduleId) => graph.files.filter((file) => file.module === moduleId).map((file) => file.id));
-            const height = boxes.reduce((sum, ids) => sum + Math.min(ids.length, MAX_FILE_ROWS) * FILE_ROW_SPACING, 0) + (boxes.length - 1) * BOX_GAP;
-            let y = middle - height / 2;
-            boxes.forEach((ids) => {
-                ids.forEach((id, index) => {
-                    positions[id] = { x: start + direction * Math.floor(index / MAX_FILE_ROWS) * FILE_COLUMN_SPACING, y: y + (index % MAX_FILE_ROWS) * FILE_ROW_SPACING };
-                });
-                y += Math.min(ids.length, MAX_FILE_ROWS) * FILE_ROW_SPACING + BOX_GAP;
-            });
-        };
-        side(users, -2 * FILE_COLUMN_SPACING, -1);
-        side(Array.from(used).filter((moduleId) => !users.has(moduleId)), x + FILE_COLUMN_SPACING, 1);
-        return positions;
+    /** Dot diameter of a file. The area grows with its lines, up to 3,000, so one generated file does not dwarf the rest. */
+    function fileSize(lines) {
+        return Math.round((5 + 0.9 * Math.sqrt(Math.min(lines, 3000))) * 10) / 10;
     }
 
     /**
-     * One file's functions and classes, and the functions and files at the other end of their links: those that use
-     * them (``users``) and those they use (``used``), each keyed by file. A file-level end, such as a module-level
-     * import, is the file itself and has no member.
+     * Every file as one node, sized by its lines; links join two files, summed over kinds. ``group`` is the file's
+     * folder, so the files of a folder start side by side. A link to a page draws nothing, as on the other levels.
      */
-    function functionGraph(codeMap, fileId) {
-        const owners = fileOwners(codeMap);
-        const declared = declaredDependencies(codeMap);
-        const symbols = indexBy(codeMap.symbols || [], 'id');
-        const fileOf = (id) => (symbols[id] ? symbols[id].file : id);
-        const inside = (codeMap.symbols || []).filter((symbol) => symbol.file === fileId)
-            .sort((a, b) => a.line - b.line || a.name.localeCompare(b.name)).map((symbol) => symbol.id);
-        const pairs = {};
-        (codeMap.symbol_links || []).filter(drawn).forEach((link) => {
-            if (fileOf(link.source) !== fileId && fileOf(link.target) !== fileId) return;
-            const key = link.source + '>' + link.target;
-            const sourceModule = owners[fileOf(link.source)];
-            const targetModule = owners[fileOf(link.target)];
-            const entry = pairs[key] || (pairs[key] = {
-                source: link.source, target: link.target, count: 0, kinds: {},
-                crossing: sourceModule !== targetModule, declared: sourceModule === targetModule || declared.has(sourceModule + '>' + targetModule)
-            });
-            entry.count += link.count;
-            addCount(entry.kinds, link.kind, link.count);
-        });
-        const links = Object.values(pairs);
-        const users = {};
-        const used = {};
-        const add = (side, id) => {
-            const members = side[fileOf(id)] || (side[fileOf(id)] = []);
-            if (symbols[id] && !members.includes(id)) members.push(id);
+    function fileDots(codeMap) {
+        return {
+            nodes: codeMap.files.map((file) => ({
+                id: file.id, kind: 'file', name: baseName(file.id), file: file.id, module: file.module, lines: file.lines || 0,
+                size: fileSize(file.lines || 0), group: file.id.slice(0, file.id.lastIndexOf('/') + 1),
+                large: CODE_FILE.test(file.id) && (file.lines || 0) > FILE_BUDGET
+            })),
+            links: fileGraph(codeMap, null).links
         };
-        links.forEach((link) => {
-            if (fileOf(link.target) === fileId && fileOf(link.source) !== fileId) add(users, link.source);
-        });
-        links.forEach((link) => {
-            const other = fileOf(link.target);
-            if (fileOf(link.source) !== fileId || other === fileId) return;
-            add(users[other] ? users : used, link.target);
-        });
-        [users, used].forEach((side) => Object.values(side).forEach((members) => members.sort((a, b) => symbols[a].line - symbols[b].line)));
-        const entries = new Set(links.filter((link) => link.crossing && fileOf(link.target) === fileId).map((link) => link.target));
-        return { file: fileId, inside, users, used, links, entries, symbols };
-    }
-
-    /** The opened file's functions in line order in the middle; files that use them on the left, files they use on the right. */
-    function functionPositions(graph) {
-        const positions = {};
-        const rows = Math.max(1, Math.min(graph.inside.length, MAX_FUNCTION_ROWS));
-        graph.inside.forEach((id, index) => {
-            positions[id] = { x: Math.floor(index / MAX_FUNCTION_ROWS) * FUNCTION_COLUMN_SPACING, y: (index % MAX_FUNCTION_ROWS) * FUNCTION_ROW_SPACING };
-        });
-        if (!graph.inside.length) positions[graph.file] = { x: 0, y: 0 };
-        const right = Math.max(0, Math.ceil(graph.inside.length / MAX_FUNCTION_ROWS) - 1) * FUNCTION_COLUMN_SPACING;
-        const middle = (rows - 1) * FUNCTION_ROW_SPACING / 2;
-        const side = (files, start, direction) => {
-            const boxes = Object.keys(files).sort().map((file) => [file, files[file]]);
-            const boxRows = (ids) => Math.max(1, Math.min(ids.length, MAX_FUNCTION_ROWS));
-            const height = boxes.reduce((sum, [, ids]) => sum + boxRows(ids) * FUNCTION_ROW_SPACING, 0) + Math.max(0, boxes.length - 1) * BOX_GAP;
-            let y = middle - height / 2;
-            boxes.forEach(([file, ids]) => {
-                if (!ids.length) positions[file] = { x: start, y };
-                ids.forEach((id, index) => {
-                    positions[id] = { x: start + direction * Math.floor(index / MAX_FUNCTION_ROWS) * FUNCTION_COLUMN_SPACING, y: y + (index % MAX_FUNCTION_ROWS) * FUNCTION_ROW_SPACING };
-                });
-                y += boxRows(ids) * FUNCTION_ROW_SPACING + BOX_GAP;
-            });
-        };
-        side(graph.users, -2 * FUNCTION_COLUMN_SPACING, -1);
-        side(graph.used, right + 2 * FUNCTION_COLUMN_SPACING, 1);
-        return positions;
-    }
-
-    /** Every module's files as a grid, with the modules in the layers of the module view. */
-    function allFilePositions(codeMap, graph) {
-        const levels = moduleLevels(codeMap);
-        const byModule = {};
-        graph.files.forEach((file) => (byModule[file.module] = byModule[file.module] || []).push(file.id));
-        const grid = {};
-        Object.keys(byModule).forEach((moduleId) => {
-            const count = byModule[moduleId].length;
-            const columns = Math.max(1, Math.ceil(Math.sqrt(count * 2)));
-            grid[moduleId] = { columns, rows: Math.ceil(count / columns) };
-        });
-        const rowHeight = {};
-        Object.keys(grid).forEach((moduleId) => {
-            rowHeight[levels[moduleId]] = Math.max(rowHeight[levels[moduleId]] || 0, grid[moduleId].rows * FILE_ROW_SPACING);
-        });
-        const rowTop = {};
-        let y = 0;
-        Object.keys(rowHeight).map(Number).sort((a, b) => b - a).forEach((level) => {
-            rowTop[level] = y;
-            y += rowHeight[level] + 2 * BOX_GAP;
-        });
-        const positions = {};
-        let offset = 0;
-        repositoriesOf(codeMap).forEach((repository) => {
-            const ids = codeMap.modules.filter((module) => module.repository === repository && grid[module.id]).map((module) => module.id);
-            const cursor = {};
-            moduleOrder(codeMap, ids, levels).forEach((moduleId) => {
-                const level = levels[moduleId];
-                const left = cursor[level] === undefined ? offset : cursor[level];
-                byModule[moduleId].forEach((id, index) => {
-                    positions[id] = {
-                        x: left + (index % grid[moduleId].columns) * FILE_GRID_SPACING,
-                        y: rowTop[level] + Math.floor(index / grid[moduleId].columns) * FILE_ROW_SPACING
-                    };
-                });
-                cursor[level] = left + grid[moduleId].columns * FILE_GRID_SPACING + BOX_GAP;
-            });
-            offset = Math.max(offset, ...Object.values(cursor)) + BOX_GAP;
-        });
-        return positions;
     }
 
     /**
      * Every function and class as one node. ``users`` counts the distinct functions and files that use it, ``uses`` the
-     * functions it uses; links join two functions, summed over kinds. A link to a page draws nothing, as in the other views.
+     * functions it uses, and ``size`` is its dot's diameter; links join two functions, summed over kinds. A link to a page
+     * draws nothing, as on the other levels.
      */
     function symbolGraph(codeMap) {
         const owners = fileOwners(codeMap);
@@ -546,15 +397,15 @@
         const size = (sets, id) => (sets[id] ? sets[id].size : 0);
         return {
             nodes: symbols.map((symbol) => ({
-                id: symbol.id, name: symbol.name, file: symbol.file, line: symbol.line, module: owners[symbol.file],
-                users: size(users, symbol.id), uses: size(uses, symbol.id)
+                id: symbol.id, kind: 'symbol', name: symbol.name, file: symbol.file, group: symbol.file, line: symbol.line, module: owners[symbol.file],
+                users: size(users, symbol.id), uses: size(uses, symbol.id), size: symbolSize(size(users, symbol.id)), unused: Boolean(symbol.unused)
             })),
             links: Object.values(pairs)
         };
     }
 
     /**
-     * One module's part of the functions map: its functions and the links between them. A dot keeps the size its
+     * One module's functions, to draw it alone: its functions and the links between them. A dot keeps the size its
      * users across every module give it, so it looks the same as on the whole map.
      */
     function moduleSymbolGraph(graph, moduleId) {
@@ -563,22 +414,17 @@
         return { nodes, links: graph.links.filter((link) => ids.has(link.source) && ids.has(link.target)) };
     }
 
-    /** The region a dot belongs to on the functions map: its module, or its file when one module is drawn alone. */
-    function regionKey(byFile) {
-        return byFile ? (node) => node.file : (node) => node.module;
-    }
-
-    /** Dot diameter. The area grows with the number of users, so a dot used ten times is not ten times as wide. */
+    /** Dot diameter of a function. The area grows with the number of users, so a dot used ten times is not ten times as wide. */
     function symbolSize(users) {
         return Math.round((6 + 4.5 * Math.sqrt(users)) * 10) / 10;
     }
 
     /** Font size of a dot's name, in map units: a larger dot has a larger name, which shows from further away. */
-    function symbolFont(users) {
-        return Math.round((4 + symbolSize(users) * 0.45) * 10) / 10;
+    function dotFont(size) {
+        return Math.round((4 + size * 0.45) * 10) / 10;
     }
 
-    /** The modules around the functions map, repository by repository, with connected modules side by side. */
+    /** The modules around the cloud of functions, repository by repository, with connected modules side by side. */
     function moduleRing(codeMap) {
         const levels = moduleLevels(codeMap);
         return repositoriesOf(codeMap).flatMap((repository) => moduleOrder(codeMap,
@@ -586,7 +432,7 @@
     }
 
     /**
-     * Each module's colour on the functions map: the palette in ring order, starting from the module with the most
+     * Each module's colour: the palette in ring order, starting from the module with the most
      * functions, so neighbouring regions get neighbouring slots and the largest region the first colour.
      */
     function moduleColors(codeMap) {
@@ -649,27 +495,25 @@
         return centres.map((centre) => ({ x: centre.x - middleX, y: centre.y - middleY }));
     }
 
-    /** Positions of the functions map, by node id: see ``symbolLayout``. */
-    function symbolPositions(codeMap, graph, options = {}) {
-        return symbolLayout(codeMap, graph, options).positions;
-    }
-
     /**
-     * The functions map from a small force layout, run to the end before anything is drawn: ``positions`` by node id,
-     * and ``regions``, the circle of each module or, with ``byFile``, each file, largest first.
+     * Places the dots of ``graph`` with a small force layout, run to the end before anything is drawn: ``positions`` by
+     * node id, and ``regions``, the circle around the dots of each region, largest first. ``regionOf`` gives a node's
+     * region, its module unless told otherwise, and ``place`` the centres of the regions from their ids and radii:
+     * packed into one round cloud unless told otherwise.
      *
-     * Each region is a disc: its files, largest first, on a sunflower spiral, and each file's functions on a smaller
-     * spiral around the file, so a file starts in one piece. The discs are packed into one round cloud and each is held
-     * at its place as a whole; links inside a region pull functions that use each other closer, and collisions keep
-     * the dots apart, each with SYMBOL_ROOM of its radius to spare. A last run of collisions alone parts the dots that
-     * links still hold together. No dot leaves its disc, so regions never overlap; each circle drawn is centred on its
-     * disc and just wider than its outermost dot. Collisions are found on a grid of cells as wide as the largest pair
-     * of dots, so a step costs about as much as there are dots. There is no randomness: the same code map gives the
-     * same map.
+     * Each region is a disc: its groups of dots, largest first, on a sunflower spiral, and each group's dots on a
+     * smaller spiral around the group, so the functions of a file or the files of a folder start in one piece. Each
+     * disc is held at its centre as a whole; links inside a region pull dots that use each other closer, and collisions
+     * keep the dots apart, each with DOT_ROOM of its radius to spare. A last run of collisions alone parts the dots
+     * that links still hold together. No dot leaves its disc, so regions never overlap; each circle drawn is centred on
+     * its disc and just wider than its outermost dot. Collisions are found on a grid of cells as wide as the largest
+     * pair of dots, so a step costs about as much as there are dots. There is no randomness: the same code map gives
+     * the same map.
      */
-    function symbolLayout(codeMap, graph, options = {}) {
-        const ticks = options.ticks === undefined ? SYMBOL_TICKS : options.ticks;
-        const regionOf = regionKey(options.byFile);
+    function dotLayout(graph, options = {}) {
+        const ticks = options.ticks === undefined ? LAYOUT_TICKS : options.ticks;
+        const regionOf = options.regionOf || ((node) => node.module);
+        const place = options.place || ((ids, radii) => packRegions(radii));
         // A region moves as a whole towards its anchor, so the pull does not crush it; each dot is held only lightly.
         const ANCHOR = 0.08;
         const HOLD = 0.008;
@@ -694,21 +538,21 @@
         const byRegion = {};
         graph.nodes.forEach((node, i) => {
             index[node.id] = i;
-            radius[i] = symbolSize(node.users) / 2;
-            room[i] = radius[i] * (1 + SYMBOL_ROOM) + SYMBOL_GAP;
+            radius[i] = node.size / 2;
+            room[i] = radius[i] * (1 + DOT_ROOM) + DOT_GAP;
             const files = byRegion[regionOf(node)] || (byRegion[regionOf(node)] = {});
-            (files[node.file] = files[node.file] || []).push(i);
+            (files[node.group] = files[node.group] || []).push(i);
         });
-        const footprint = (i) => Math.PI * room[i] * room[i] * SYMBOL_SPREAD;
-        // Modules in the order of the module view, so connected ones are neighbours; files by path, so a folder stays together.
-        const listed = options.byFile ? [] : moduleRing(codeMap);
+        const footprint = (i) => Math.PI * room[i] * room[i] * DOT_SPREAD;
+        // The regions of ``order`` first, as given, so connected modules are neighbours; the others by name, so a folder stays together.
+        const listed = options.order || [];
         const ring = listed.concat(Object.keys(byRegion).filter((id) => !listed.includes(id)).sort()).filter((id) => byRegion[id]);
         const discs = {};
         ring.forEach((regionId) => {
             const files = byRegion[regionId];
             let area = 0;
             Object.keys(files).sort((a, b) => files[b].length - files[a].length || a.localeCompare(b)).forEach((file, fileIndex) => {
-                const members = files[file].sort((a, b) => graph.nodes[b].users - graph.nodes[a].users || graph.nodes[a].line - graph.nodes[b].line);
+                const members = files[file].sort((a, b) => graph.nodes[b].size - graph.nodes[a].size || (graph.nodes[a].line || 0) - (graph.nodes[b].line || 0));
                 const fileArea = members.reduce((sum, i) => sum + footprint(i), 0);
                 const distance = fileIndex ? Math.sqrt((area + fileArea / 2) / Math.PI) : 0;
                 let inner = 0;
@@ -723,7 +567,7 @@
             discs[regionId] = Math.sqrt(area / Math.PI);
         });
         // The circles drawn, a margin wider than the discs, are what is packed, so neighbouring circles keep REGION_GAP apart.
-        const centres = packRegions(ring.map((regionId) => discs[regionId] + REGION_MARGIN), REGION_GAP);
+        const centres = place(ring, ring.map((regionId) => discs[regionId] + REGION_MARGIN));
         const anchorX = Float64Array.from(centres, (centre) => centre.x);
         const anchorY = Float64Array.from(centres, (centre) => centre.y);
         const discRadius = Float64Array.from(ring, (regionId) => discs[regionId]);
@@ -895,25 +739,52 @@
     }
 
     /**
-     * Functions, classes and files whose name matches ``query``, best first: the exact name, a name starting with it, a
-     * name containing it, then a path containing it. Ties go to the most used function and the file with most functions.
+     * What one level of the map draws: its dots, their positions and the circles around them, each laid out once.
+     * Modules and Files share one layout, the files in module circles placed in columns. Functions is a cloud of module
+     * circles, or, with ``moduleId``, that module alone with a circle for each file, so it fills the map.
      */
-    function matchSymbols(graph, query, limit = SEARCH_LIMIT) {
+    function mapView(context, level, moduleId) {
+        const codeMap = context.data.code_map;
+        const alone = level === 'symbols' && Boolean(moduleId);
+        const key = level !== 'symbols' ? 'files' : 'symbols:' + (moduleId || '');
+        if (!context.views[key]) {
+            let graph = context.symbolGraph;
+            let options = { order: moduleRing(codeMap) };
+            if (level !== 'symbols') {
+                graph = fileDots(codeMap);
+                options = { place: (ids, radii) => {
+                    const centres = layeredCentres(codeMap, Object.fromEntries(ids.map((id, index) => [id, radii[index]])));
+                    return ids.map((id) => centres[id]);
+                } };
+            } else if (alone) {
+                graph = moduleSymbolGraph(context.symbolGraph, moduleId);
+                options = { regionOf: (node) => node.file };
+            }
+            const { positions, regions } = dotLayout(graph, options);
+            regions.forEach((region) => Object.assign(region, { of: alone ? 'file' : 'module', label: alone ? baseName(region.id) : shortName(region.id) }));
+            context.views[key] = { graph, positions, regions };
+        }
+        return context.views[key];
+    }
+
+    /**
+     * Functions, classes and files whose name matches ``query``, best first: the exact name, a name starting with it, a
+     * name containing it, then a path containing it. Ties go to the most used function and the longest file.
+     */
+    function matchNames(symbols, files, query, limit = SEARCH_LIMIT) {
         const text = String(query || '').trim().toLowerCase();
         if (!text) return [];
         const rank = (name, path) => (name === text ? 0 : name.startsWith(text) ? 1 : name.includes(text) ? 2 : path.includes(text) ? 3 : -1);
         const matches = [];
-        const files = {};
-        graph.nodes.forEach((node) => {
+        symbols.forEach((node) => {
             const score = rank(node.name.toLowerCase(), (pathOf(node.file) + ':' + node.name).toLowerCase());
             if (score >= 0) matches.push({ kind: 'symbol', id: node.id, name: node.name, detail: pathOf(node.file) + ':' + node.line, score, weight: node.users });
-            addCount(files, node.file, 1);
         });
-        Object.keys(files).forEach((file) => {
-            const score = rank(baseName(file).toLowerCase(), pathOf(file).toLowerCase());
+        files.forEach((file) => {
+            const score = rank(baseName(file.id).toLowerCase(), pathOf(file.id).toLowerCase());
             if (score >= 0) {
-                matches.push({ kind: 'file', id: file, name: baseName(file), score, weight: files[file],
-                    detail: pathOf(file) + ' · ' + plural(files[file], 'function or class', 'functions and classes') });
+                matches.push({ kind: 'file', id: file.id, name: baseName(file.id), score, weight: file.lines || 0,
+                    detail: pathOf(file.id) + ' · ' + plural(file.lines || 0, 'line') });
             }
         });
         return matches.sort((a, b) => a.score - b.score || b.weight - a.weight || a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
@@ -921,7 +792,7 @@
     }
 
     /**
-     * The names to show on the functions map at ``zoom``: largest dots first, each name at least LABEL_PX tall on
+     * The names to show on the map at ``zoom``: largest dots first, each name at least LABEL_PX tall on
      * screen and kept only if its box, below the dot or else above it, does not overlap a name already kept. With
      * ``only``, the names of those dots whatever their size, ``first`` before the others, as for a selection and its
      * neighbours. ``measure(label, size)`` gives a label's width at a font size. A kept name has ``above`` set when it
@@ -934,14 +805,14 @@
         const measure = options.measure || ((label, size) => labelWidth(label, size, 600));
         const only = options.only || null;
         const cap = Math.round((LABEL_MAX_PX / zoom) * 10) / 10;
-        const fontOf = (node) => Math.min(cap, only ? Math.max(symbolFont(node.users), NAMED_FONT) : symbolFont(node.users));
+        const fontOf = (node) => Math.min(cap, only ? Math.max(dotFont(node.size), NAMED_FONT) : dotFont(node.size));
         const least = LABEL_PX / zoom;
         const margin = 2 / zoom;
         const cell = 80 / zoom;
         const placed = new Map();
         const kept = [];
-        const candidates = map.graph.nodes.filter((node) => (only ? only.has(node.id) : symbolFont(node.users) >= least))
-            .sort((a, b) => (b.id === options.first) - (a.id === options.first) || b.users - a.users || a.id.localeCompare(b.id));
+        const candidates = map.graph.nodes.filter((node) => (only ? only.has(node.id) : dotFont(node.size) >= least))
+            .sort((a, b) => (b.id === options.first) - (a.id === options.first) || b.size - a.size || a.id.localeCompare(b.id));
         const cellsOf = (box) => {
             const keys = [];
             for (let column = Math.floor(box.x1 / cell); column <= Math.floor(box.x2 / cell); column++) {
@@ -952,7 +823,7 @@
         const add = (box) => cellsOf(box).forEach((key) => (placed.get(key) || placed.set(key, []).get(key)).push(box));
         const body = (node) => {
             const position = map.positions[node.id];
-            const half = symbolSize(node.users) / 2;
+            const half = node.size / 2;
             return { x1: position.x - half, x2: position.x + half, y1: position.y - half, y2: position.y + half };
         };
         const free = (box) => !cellsOf(box).some((key) => (placed.get(key) || [])
@@ -971,7 +842,7 @@
             const font = fontOf(node);
             const position = map.positions[node.id];
             const width = measure(node.name, font) + 2 * margin;
-            const half = symbolSize(node.users) / 2;
+            const half = node.size / 2;
             const height = font * 1.25 + margin;
             const boxes = [false, true].map((above) => ({
                 id: node.id, above, x1: position.x - width / 2, x2: position.x + width / 2,
@@ -997,31 +868,31 @@
         return lines;
     }
 
+    /** Branch coverage of a module or a file, or its line coverage when it has no branches; null when not measured. */
+    function coverageOf(measurement) {
+        if (!measurement) return null;
+        return typeof measurement.branches === 'number' ? measurement.branches : typeof measurement.lines === 'number' ? measurement.lines : null;
+    }
+
     function coverageColor(measurement) {
-        if (!measurement || typeof measurement.branches !== 'number') return NOT_MEASURED_COLOR;
-        return COVERAGE_RAMP[Math.min(COVERAGE_RAMP.length - 1, Math.floor(measurement.branches / 10))];
+        const value = coverageOf(measurement);
+        return value === null ? NOT_MEASURED_COLOR : COVERAGE_RAMP[Math.min(COVERAGE_RAMP.length - 1, Math.floor(value / 10))];
     }
 
-    /** ``colors`` gives each module its own colour when ``colorBy`` is ``module``, as on the functions map. */
-    function nodeColor(module, report, colorBy, colors) {
-        if (colorBy === 'module') return (colors || {})[module.id] || NOT_MEASURED_COLOR;
+    /**
+     * The colour of a module, or of one of its files or functions when ``fileId`` is given. ``colors`` gives each
+     * module its own colour; coverage is the file's own when the report has it.
+     */
+    function nodeColor(module, report, colorBy, colors, fileId) {
+        if (!module) return NOT_MEASURED_COLOR;
         if (colorBy === 'repository') return (REPOSITORIES[module.repository] || {}).color || NOT_MEASURED_COLOR;
-        if (colorBy === 'coverage') return coverageColor(((report.modules || {})[module.id] || {}).coverage);
-        return (CRITICALITY[module.criticality] || {}).color || NOT_MEASURED_COLOR;
-    }
-
-    /** Fill, label and border colours of a box filled with ``color``: white text on dark fills, ink on light ones. */
-    function paint(color) {
-        const luminance = [1, 3, 5].reduce((sum, offset, index) => sum + [0.2126, 0.7152, 0.0722][index] * parseInt(color.slice(offset, offset + 2), 16) / 255, 0);
-        return {
-            color,
-            textColor: luminance < 0.55 ? '#ffffff' : INK,
-            borderColor: color === NOT_MEASURED_COLOR ? '#adb5bd' : color
-        };
+        if (colorBy === 'coverage') return coverageColor(fileId ? (report.files || {})[fileId] : ((report.modules || {})[module.id] || {}).coverage);
+        if (colorBy === 'criticality') return (CRITICALITY[module.criticality] || {}).color || NOT_MEASURED_COLOR;
+        return (colors || {})[module.id] || NOT_MEASURED_COLOR;
     }
 
     function edgeWidth(count) {
-        return Math.min(8, 1.5 + 1.3 * Math.log2(1 + count));
+        return Math.min(4.5, 1.2 + 0.55 * Math.log2(1 + count));
     }
 
     /** Plain-language value of one report lane, with its status. */
@@ -1039,10 +910,7 @@
         } else if (lane === 'coverage' && typeof item.branches === 'number') {
             text = item.branches + '%';
             detail = typeof item.lines === 'number' ? item.lines + '% of lines' : '';
-        } else if (lane === 'mutation' && typeof item.score === 'number') {
-            text = item.score + '%';
-            detail = item.killed + ' of ' + item.total + ' mutants killed';
-        } else if ((lane === 'duplication' || lane === 'dead_code') && typeof item.count === 'number') {
+        } else if (lane === 'duplication' && typeof item.count === 'number') {
             text = String(item.count);
             detail = item.new ? item.new + ' new since the reviewed baseline' : 'none new since the reviewed baseline';
         } else if (lane === 'docs' && typeof item.required === 'number') {
@@ -1054,7 +922,7 @@
         return { status, text, detail };
     }
 
-    /** A value with its status. Only pass, fail and attention get an icon; stale and missing values are muted text. */
+    /** A value with its status. Only pass, fail and attention get an icon; missing values are muted text. */
     function statusBadge(status, text) {
         const meta = STATUS[status] || STATUS.not_measured;
         return '<span class="quality-status quality-status--' + meta.tone + '"' + (meta.tone === 'muted' ? ' title="' + escapeHtml(meta.label) + '"' : '') + '>'
@@ -1073,115 +941,73 @@
         return Object.keys(LINK_KINDS).filter((kind) => kinds[kind]).map((kind) => kinds[kind] + ' ' + LINK_KINDS[kind]).join(', ');
     }
 
-    function moduleElements(codeMap, report, options) {
-        const positions = modulePositions(codeMap);
-        const lines = moduleLines(codeMap);
-        const largest = Math.max(1, ...Object.values(lines));
-        const elements = repositoriesOf(codeMap).map((repository) => ({
-            group: 'nodes', classes: 'repository',
-            data: { id: 'repository:' + repository, label: (REPOSITORIES[repository] || {}).label || repository, kind: 'repository' }
-        }));
-        codeMap.modules.forEach((module) => elements.push({
-            group: 'nodes', classes: 'module', position: positions[module.id],
-            data: Object.assign({
-                id: module.id, parent: 'repository:' + module.repository, label: shortName(module.id), kind: 'module',
-                height: Math.round(36 + 26 * Math.sqrt((lines[module.id] || 0) / largest))
-            }, paint(nodeColor(module, report, options.colorBy)))
-        }));
-        (codeMap.contracts || []).forEach((contract) => {
-            const id = 'contract:' + contract.id;
-            if (!positions[id]) return;
-            elements.push({ group: 'nodes', classes: 'contract', position: positions[id], data: { id, label: contract.title, kind: 'contract' } });
-            contract.producers.concat(contract.consumers).filter((moduleId) => positions[moduleId]).forEach((moduleId) => elements.push({
-                group: 'edges', classes: 'contract-link', data: { id: id + '~' + moduleId, source: moduleId, target: id, kind: 'contract-link' }
-            }));
-        });
-        // A declared dependency without code is always drawn: it should not exist, so it is there to be seen and removed.
-        options.moduleLinks.forEach((link) => elements.push({
-            group: 'edges',
-            classes: link.count === 0 ? 'unused' : link.declared ? 'declared' : 'undeclared',
-            data: {
-                id: 'link:' + link.source + '>' + link.target, source: link.source, target: link.target, kind: 'module-link',
-                width: link.count ? edgeWidth(link.count) : 1.5, label: link.count ? String(link.count) : ''
-            }
-        }));
-        return elements;
-    }
-
-    function fileElements(codeMap, report, options) {
-        const graph = fileGraph(codeMap, options.focus);
-        const modules = indexBy(codeMap.modules, 'id');
-        const positions = options.focus ? focusPositions(codeMap, graph, options.focus) : allFilePositions(codeMap, graph);
-        const elements = Array.from(new Set(graph.files.map((file) => file.module))).map((moduleId) => ({
-            group: 'nodes', classes: 'file-module' + (!options.focus ? ' overview' : moduleId !== options.focus ? ' outside' : ''),
-            data: { id: moduleId, label: shortName(moduleId), kind: 'module' }
-        }));
-        graph.files.forEach((file) => elements.push({
-            group: 'nodes', classes: 'file' + (graph.entries.has(file.id) ? ' entry' : ''), position: positions[file.id],
-            data: Object.assign({ id: file.id, parent: file.module, label: baseName(file.id), kind: 'file' }, paint(nodeColor(modules[file.module], report, options.colorBy)))
-        }));
-        graph.links.forEach((link) => elements.push({
-            group: 'edges', classes: !link.crossing ? 'internal' : link.declared ? 'crossing' : 'crossing undeclared',
-            data: { id: 'file-link:' + link.source + '>' + link.target, source: link.source, target: link.target, kind: 'file-link', kinds: kindsText(link.kinds), width: edgeWidth(link.count) / 1.5 }
-        }));
-        return elements;
-    }
-
-    function functionElements(codeMap, report, options) {
-        const graph = functionGraph(codeMap, options.file);
-        const positions = functionPositions(graph);
-        const modules = indexBy(codeMap.modules, 'id');
-        const owners = fileOwners(codeMap);
-        const elements = [];
-        const box = (file, outside) => elements.push({
-            group: 'nodes', classes: 'function-file' + (outside ? ' outside' : ' focus'), position: positions[file],
-            data: { id: file, label: baseName(file) + (owners[file] !== owners[graph.file] ? ' · ' + shortName(owners[file]) : ''), kind: 'function-file', module: owners[file] }
-        });
-        const member = (id, file) => elements.push({
-            group: 'nodes', classes: 'function' + (graph.entries.has(id) ? ' entry' : ''), position: positions[id],
-            data: Object.assign({ id, parent: file, label: graph.symbols[id].name, kind: 'function', module: owners[file] },
-                paint(nodeColor(modules[owners[file]], report, options.colorBy)))
-        });
-        box(graph.file, false);
-        graph.inside.forEach((id) => member(id, graph.file));
-        [graph.users, graph.used].forEach((side) => Object.keys(side).forEach((file) => {
-            box(file, true);
-            side[file].forEach((id) => member(id, file));
-        }));
-        graph.links.forEach((link) => elements.push({
-            group: 'edges', classes: !link.crossing ? 'internal' : link.declared ? 'crossing' : 'crossing undeclared',
-            data: { id: 'function-link:' + link.source + '>' + link.target, source: link.source, target: link.target, kind: 'function-link', kinds: kindsText(link.kinds), width: edgeWidth(link.count) / 1.5 }
-        }));
-        return elements;
-    }
-
     /**
-     * Every function and class as a dot, sized by its users; the name sits below, larger on a larger dot. Under the
-     * dots, a light circle for each region, a module or a file, with its name on top of the circle.
+     * The elements of one level. Modules: each module's circle, filled, the references between modules as arcs and the
+     * contracts between the repositories. Files and Functions: a light circle for each region, a module or a file,
+     * and in it a dot for each file or function with the links between dots as thin lines. Files also draws each pair
+     * of copied blocks as a dashed line between its two files.
      */
-    function symbolElements(codeMap, report, options) {
-        const map = options.symbolMap;
-        const modules = indexBy(codeMap.modules, 'id');
-        const elements = (map.regions || []).flatMap((region) => [
-            { group: 'nodes', classes: 'symbol-region', position: { x: region.x, y: region.y },
-                data: { id: 'region:' + region.id, kind: 'symbol-region', region: region.id, of: region.of, size: 2 * region.r, count: region.count } },
-            { group: 'nodes', classes: 'symbol-region-label', position: { x: region.x, y: region.y - region.r },
-                data: { id: 'region-label:' + region.id, kind: 'symbol-region-label', label: region.label } }
-        ]);
-        map.graph.nodes.forEach((node) => {
-            const size = symbolSize(node.users);
-            elements.push({
-                group: 'nodes', classes: 'symbol', position: map.positions[node.id],
-                data: {
-                    id: node.id, label: node.name, kind: 'symbol', module: node.module, size, users: node.users,
-                    font: symbolFont(node.users), color: nodeColor(modules[node.module], report, options.symbolColorBy, map.colors)
-                }
-            });
-        });
-        map.graph.links.forEach((link) => elements.push({
-            group: 'edges', classes: 'symbol-link ' + (!link.crossing ? 'internal' : link.declared ? 'crossing' : 'crossing undeclared'),
-            data: { id: 'symbol-link:' + link.source + '>' + link.target, source: link.source, target: link.target, kind: 'symbol-link', kinds: kindsText(link.kinds) }
+    function mapElements(context, state, view) {
+        const codeMap = context.data.code_map;
+        const color = (moduleId, fileId) => nodeColor(context.modules[moduleId], context.report, state.colorBy, context.colors, fileId);
+        const labels = view.regions.map((region) => ({
+            group: 'nodes', classes: 'region-label', position: { x: region.x, y: region.y - region.r },
+            data: { id: 'region-label:' + region.id, kind: 'region-label', label: region.label }
         }));
+        if (state.level === 'modules') {
+            const columns = moduleColumns(codeMap);
+            const at = indexBy(view.regions, 'id');
+            const elements = view.regions.map((region) => ({
+                group: 'nodes', classes: 'module', position: { x: region.x, y: region.y },
+                data: { id: region.id, kind: 'module', size: 2 * region.r, color: color(region.id) }
+            })).concat(labels);
+            const taken = new Set();
+            (codeMap.contracts || []).forEach((contract) => {
+                const ends = contract.producers.concat(contract.consumers).filter((id) => at[id]);
+                if (!ends.length) return;
+                const id = 'contract:' + contract.id;
+                // Between the columns it joins, and never on another contract.
+                const x = Math.round(ends.reduce((sum, end) => sum + at[end].x, 0) / ends.length);
+                let y = Math.round(ends.reduce((sum, end) => sum + at[end].y, 0) / ends.length);
+                while (taken.has(y)) y += 2 * LAYER_GAP;
+                taken.add(y);
+                elements.push({ group: 'nodes', classes: 'contract', position: { x, y }, data: { id, label: contract.title, kind: 'contract' } });
+                ends.forEach((end) => elements.push({ group: 'edges', classes: 'contract-link', data: { id: id + '~' + end, source: end, target: id, kind: 'contract-link' } }));
+            });
+            // A declared dependency without code is always drawn: it should not exist, so it is there to be seen and removed.
+            context.moduleLinks.filter((link) => at[link.source] && at[link.target]).forEach((link) => {
+                const length = Math.hypot(at[link.target].x - at[link.source].x, at[link.target].y - at[link.source].y);
+                // A positive arc bends to the right of its direction: for a reference that follows the layering, down
+                // the first column, that is outwards. One that goes against the layering bends the other way, inwards.
+                const away = columns[link.source] === columns[link.target] ? (columns[link.source] ? -1 : 1) : 0;
+                elements.push({
+                    group: 'edges', classes: 'module-link ' + (link.count === 0 ? 'unused' : link.declared ? 'declared' : 'undeclared'),
+                    data: {
+                        id: 'link:' + link.source + '>' + link.target, source: link.source, target: link.target, kind: 'module-link',
+                        width: link.count ? edgeWidth(link.count) : 1.2, arc: Math.round(away * ARC * length), label: link.count ? String(link.count) : ''
+                    }
+                });
+            });
+            return elements;
+        }
+        const elements = view.regions.map((region) => ({
+            group: 'nodes', classes: 'region', position: { x: region.x, y: region.y },
+            data: { id: 'region:' + region.id, kind: 'region', region: region.id, of: region.of, size: 2 * region.r, count: region.count }
+        })).concat(labels);
+        view.graph.nodes.forEach((node) => elements.push({
+            group: 'nodes', classes: 'dot' + (node.unused ? ' unused' : '') + (node.large ? ' large' : ''), position: view.positions[node.id],
+            data: { id: node.id, label: node.name, kind: node.kind, module: node.module, file: node.file, size: node.size, font: dotFont(node.size), color: color(node.module, node.file) }
+        }));
+        view.graph.links.forEach((link) => elements.push({
+            group: 'edges', classes: 'dot-link ' + (!link.crossing ? 'internal' : link.declared ? 'crossing' : 'crossing undeclared'),
+            data: { id: 'dot-link:' + link.source + '>' + link.target, source: link.source, target: link.target, kind: 'dot-link', kinds: kindsText(link.kinds) }
+        }));
+        if (state.level === 'files') {
+            (codeMap.clones || []).forEach((clone, index) => {
+                if (clone.files[0] === clone.files[1] || !view.positions[clone.files[0]] || !view.positions[clone.files[1]]) return;
+                elements.push({ group: 'edges', classes: 'clone', data: { id: 'clone:' + index, source: clone.files[0], target: clone.files[1], kind: 'clone', clone: index } });
+            });
+        }
         return elements;
     }
 
@@ -1207,95 +1033,66 @@
 
     const GRAPH_STYLE = [
         { selector: 'node', style: { 'font-family': FONT, color: INK, 'font-size': 12, 'transition-property': 'opacity', 'transition-duration': 150 } },
-        { selector: 'node.module, node.file', style: {
-            shape: 'round-rectangle', 'background-color': 'data(color)', 'border-width': 1, 'border-color': 'data(borderColor)',
-            label: 'data(label)', color: 'data(textColor)', 'text-valign': 'center', 'text-halign': 'center',
-            'underlay-color': NAVY, 'underlay-opacity': 0, 'underlay-padding': 5, 'underlay-shape': 'round-rectangle'
+        { selector: 'edge', style: {
+            'curve-style': 'straight', 'target-arrow-shape': 'triangle', 'arrow-scale': 0.8, 'line-color': EDGE_COLORS.declared,
+            'target-arrow-color': EDGE_COLORS.declared, 'line-opacity': 0.55, 'transition-property': 'opacity, line-opacity', 'transition-duration': 150
         } },
+        // Modules level: a filled circle for each module, and one arc for each pair of modules whose code is linked.
         { selector: 'node.module', style: {
-            width: (node) => labelWidth(node.data('label'), 14, 600) + 28, height: 'data(height)', 'corner-radius': 10,
-            'font-size': 14, 'font-weight': 600
-        } },
-        { selector: 'node.file', style: {
-            width: (node) => labelWidth(node.data('label'), 11, 500) + 16, height: 24, 'corner-radius': 6,
-            'font-size': 11, 'font-weight': 500, 'min-zoomed-font-size': 7
-        } },
-        { selector: 'node.function', style: {
-            shape: 'round-rectangle', 'background-color': 'data(color)', 'border-width': 1, 'border-color': 'data(borderColor)',
-            label: 'data(label)', color: 'data(textColor)', 'text-valign': 'center', 'text-halign': 'center',
-            width: (node) => labelWidth(node.data('label'), 11, 500) + 14, height: 22, 'corner-radius': 5,
-            'font-size': 11, 'font-weight': 500, 'min-zoomed-font-size': 7,
-            'underlay-color': NAVY, 'underlay-opacity': 0, 'underlay-padding': 5, 'underlay-shape': 'round-rectangle'
-        } },
-        { selector: 'node.file.entry, node.function.entry', style: { 'outline-width': 1.5, 'outline-color': INK, 'outline-opacity': 0.6, 'outline-offset': 2 } },
-        { selector: 'node.repository, node.file-module', style: {
-            label: 'data(label)', 'text-valign': 'top', 'text-halign': 'center', 'text-margin-y': -8, 'text-transform': 'uppercase',
-            'font-size': 12, 'font-weight': 700, color: MUTED, 'background-color': '#f8f9fa', 'background-opacity': 1,
-            'border-width': 1, 'border-color': '#e5e7eb', shape: 'round-rectangle', 'corner-radius': 14, padding: 30
-        } },
-        // File boxes are drawn small when a whole repository fits the screen; a larger name keeps them legible.
-        { selector: 'node.file-module', style: { 'font-size': 14, padding: 18 } },
-        { selector: 'node.file-module.overview', style: { 'font-size': 30, color: INK, 'text-margin-y': -12 } },
-        { selector: 'node.file-module.outside', style: { 'background-color': '#ffffff', 'border-style': 'dashed', 'border-color': '#ced4da' } },
-        { selector: 'node.function-file', style: {
-            label: 'data(label)', 'text-valign': 'top', 'text-halign': 'center', 'text-margin-y': -6,
-            'font-size': 12, 'font-weight': 600, color: MUTED, 'background-color': '#f8f9fa', 'background-opacity': 1,
-            'border-width': 1, 'border-color': '#e5e7eb', shape: 'round-rectangle', 'corner-radius': 10, padding: 14
-        } },
-        { selector: 'node.function-file.outside', style: { 'background-color': '#ffffff', 'border-style': 'dashed', 'border-color': '#ced4da' } },
-        // A file reached only at module level has no functions to hold: it is a plain box with its name inside.
-        { selector: 'node.function-file:childless', style: {
-            width: (node) => labelWidth(node.data('label'), 11, 500) + 16, height: 24, 'text-valign': 'center', 'text-margin-y': 0,
-            'font-size': 11, 'font-weight': 500, color: INK
+            shape: 'ellipse', width: 'data(size)', height: 'data(size)', 'background-color': 'data(color)', 'border-width': 0, label: '',
+            'underlay-color': NAVY, 'underlay-opacity': 0, 'underlay-padding': 8, 'underlay-shape': 'ellipse', 'z-index-compare': 'manual', 'z-index': 0
         } },
         { selector: 'node.contract', style: {
-            shape: 'diamond', width: 22, height: 22, 'background-color': PURPLE, label: 'data(label)',
-            'text-valign': 'bottom', 'text-margin-y': 6, 'text-wrap': 'wrap', 'text-max-width': 120, 'font-size': 11, 'font-weight': 600, color: PURPLE,
+            shape: 'diamond', width: 30, height: 30, 'background-color': PURPLE, label: 'data(label)',
+            'text-valign': 'bottom', 'text-margin-y': 6, 'text-wrap': 'wrap', 'text-max-width': 190, 'font-size': 22, 'font-weight': 600, color: PURPLE,
             'text-background-color': '#ffffff', 'text-background-opacity': 0.9, 'text-background-padding': 2, 'text-background-shape': 'round-rectangle'
         } },
-        { selector: 'edge', style: {
-            width: 'data(width)', 'curve-style': 'bezier', 'control-point-step-size': 36, 'target-arrow-shape': 'triangle', 'arrow-scale': 0.8,
-            'line-color': EDGE_COLORS.declared, 'target-arrow-color': EDGE_COLORS.declared, 'line-opacity': 0.55,
-            'transition-property': 'opacity, line-opacity', 'transition-duration': 150
+        { selector: 'edge.module-link', style: {
+            width: 'data(width)', 'curve-style': 'unbundled-bezier', 'control-point-distances': (edge) => edge.data('arc'), 'control-point-weights': 0.5,
+            'line-opacity': 0.7
         } },
         { selector: 'edge.unused', style: { 'line-color': EDGE_COLORS.unused, 'target-arrow-color': EDGE_COLORS.unused, 'line-style': 'dotted', 'line-opacity': 0.9 } },
-        { selector: 'edge.internal', style: { 'line-color': EDGE_COLORS.internal, 'target-arrow-color': EDGE_COLORS.internal, 'arrow-scale': 0.6, 'line-opacity': 0.8 } },
-        { selector: 'edge.crossing', style: { 'line-color': EDGE_COLORS.crossing, 'target-arrow-color': EDGE_COLORS.crossing, 'line-opacity': 0.5 } },
-        // After .crossing: an undeclared crossing edge must look undeclared.
         { selector: 'edge.undeclared', style: {
             'line-color': EDGE_COLORS.undeclared, 'target-arrow-color': EDGE_COLORS.undeclared, 'line-style': 'dashed', 'line-dash-pattern': [7, 4], 'line-opacity': 0.9
         } },
         { selector: 'edge.contract-link', style: {
-            width: 1.5, 'line-color': EDGE_COLORS.contract, 'line-style': 'dotted', 'target-arrow-shape': 'none', 'curve-style': 'straight', 'line-opacity': 0.6
+            width: 1.5, 'line-color': EDGE_COLORS.contract, 'line-style': 'dotted', 'target-arrow-shape': 'none', 'line-opacity': 0.6
         } },
-        // Functions map. Only dots marked .labelled show their name, which the script sets from the zoom (LABEL_PX), so
-        // at first only the largest dots are named and more names appear when zoomed in, at most LABEL_MAX_PX tall. Lines are thin and faint, and
-        // let clicks through to the dots.
-        { selector: 'node.symbol', style: {
+        // Files and Functions levels. Only dots marked .labelled show their name, which the script sets from the zoom
+        // (LABEL_PX), so at first only the largest dots are named and more names appear when zoomed in, at most
+        // LABEL_MAX_PX tall. Lines are thin and faint, and let clicks through to the dots.
+        { selector: 'node.dot', style: {
             shape: 'ellipse', width: 'data(size)', height: 'data(size)', 'background-color': 'data(color)', 'border-width': 0,
             label: '', 'font-size': 'data(font)', 'font-weight': 600, color: INK, 'text-valign': 'bottom', 'text-halign': 'center',
             'text-margin-y': 1, 'text-outline-color': '#ffffff', 'text-outline-width': 1.5, 'text-outline-opacity': 0.9,
-            'z-index-compare': 'manual', 'z-index': (node) => 2 + node.data('users'), 'underlay-color': NAVY, 'underlay-opacity': 0, 'underlay-padding': 3,
+            'z-index-compare': 'manual', 'z-index': (node) => 2 + Math.round(node.data('size')), 'underlay-color': NAVY, 'underlay-opacity': 0, 'underlay-padding': 3,
             'underlay-shape': 'ellipse', 'transition-duration': 0
         } },
+        // A function nothing mentions is hollow; a file over the size budget is ringed.
+        { selector: 'node.dot.unused', style: { 'background-color': '#ffffff', 'border-width': 1.4, 'border-color': 'data(color)' } },
+        { selector: 'node.dot.large', style: { 'outline-width': 1.5, 'outline-color': INK, 'outline-opacity': 0.7, 'outline-offset': 2 } },
         // A named dot is drawn above the unnamed ones, so no dot covers a name.
-        { selector: 'node.symbol.labelled', style: { label: 'data(label)', 'font-size': (node) => node.data('labelFont') || node.data('font'), 'z-index': (node) => 500 + node.data('users') } },
-        { selector: 'node.symbol.above', style: { 'text-valign': 'top', 'text-margin-y': -1 } },
-        { selector: 'node.symbol.unlabelled', style: { label: '' } },
-        { selector: 'edge.symbol-link', style: {
+        { selector: 'node.dot.labelled', style: { label: 'data(label)', 'font-size': (node) => node.data('labelFont') || node.data('font'), 'z-index': (node) => 500 + Math.round(node.data('size')) } },
+        { selector: 'node.dot.above', style: { 'text-valign': 'top', 'text-margin-y': -1 } },
+        { selector: 'node.dot.unlabelled', style: { label: '' } },
+        { selector: 'edge.dot-link', style: {
             'curve-style': 'haystack', 'haystack-radius': 0, width: 0.6, 'line-color': EDGE_COLORS.unused, 'line-style': 'solid',
             'line-opacity': 0.4, 'target-arrow-shape': 'none', events: 'no', 'transition-duration': 0, 'z-index-compare': 'manual', 'z-index': 1
         } },
-        { selector: 'edge.symbol-link.hidden', style: { display: 'none' } },
+        { selector: 'edge.dot-link.hidden', style: { display: 'none' } },
+        { selector: 'edge.clone', style: {
+            width: 1.6, 'line-color': EDGE_COLORS.clone, 'line-style': 'dashed', 'line-dash-pattern': [3, 3], 'line-opacity': 0.75,
+            'target-arrow-shape': 'none', 'z-index-compare': 'manual', 'z-index': 400
+        } },
         // Regions: a light circle under each module's or file's dots, below the lines; its name, placed like the dots'
         // names, sits on top of everything on the circle's edge.
-        { selector: 'node.symbol-region', style: {
+        { selector: 'node.region', style: {
             shape: 'ellipse', width: 'data(size)', height: 'data(size)', 'background-color': '#f8f9fa', 'background-opacity': 1,
             'border-width': 0.75, 'border-color': EDGE_COLORS.internal, label: '', 'z-index-compare': 'manual', 'z-index': 0,
             'underlay-shape': 'ellipse', 'transition-duration': 0
         } },
-        { selector: 'node.symbol-region.hover', style: { 'background-color': NOT_MEASURED_COLOR, 'border-width': 1.5, 'border-color': MUTED, 'underlay-opacity': 0 } },
-        { selector: 'node.symbol-region-label', style: {
+        { selector: 'node.region.hover', style: { 'background-color': NOT_MEASURED_COLOR, 'border-width': 1.5, 'border-color': MUTED, 'underlay-opacity': 0 } },
+        { selector: 'node.region-label', style: {
             shape: 'ellipse', width: 1, height: 1, 'background-opacity': 0, 'border-width': 0, label: '', events: 'no',
             'font-weight': 700, color: MUTED, 'text-valign': 'center', 'text-halign': 'center',
             'text-background-color': '#ffffff', 'text-background-opacity': 0.92, 'text-background-shape': 'round-rectangle',
@@ -1303,80 +1100,76 @@
             'text-border-width': (node) => (node.data('labelFont') || 4) * 0.08, 'text-border-color': EDGE_COLORS.internal, 'text-border-opacity': 1,
             'z-index-compare': 'manual', 'z-index': 2000, 'transition-duration': 0
         } },
-        { selector: 'node.symbol-region-label.labelled', style: { label: 'data(label)', 'font-size': (node) => node.data('labelFont') || 4 } },
-        // Focus, from a click: the rest of the graph steps back but stays readable.
-        { selector: '.faded', style: { opacity: 0.35 } },
+        { selector: 'node.region-label.labelled', style: { label: 'data(label)', 'font-size': (node) => node.data('labelFont') || 4 } },
+        // Focus, from a click: the rest of the map steps back but stays readable.
+        { selector: '.faded', style: { opacity: 0.3 } },
         { selector: 'edge.lit', style: { 'line-opacity': 1, 'z-index': 10 } },
         { selector: 'edge.lit[label]', style: {
             label: 'data(label)', 'font-family': FONT, 'font-size': 11, 'font-weight': 600, color: INK, 'text-rotation': 'none',
             'text-background-color': '#ffffff', 'text-background-opacity': 1, 'text-background-padding': 3, 'text-background-shape': 'round-rectangle',
             'text-border-width': 1, 'text-border-color': '#e5e7eb', 'text-border-opacity': 1
         } },
-        // Hover only marks: a darker outline on the box and thicker arrows of its own. Nothing else changes.
-        { selector: 'node.hover', style: { 'underlay-opacity': 0.14, 'border-width': 2, 'border-color': INK } },
+        // Hover only marks: a halo on the circle or dot and thicker lines of its own. Nothing else changes.
+        { selector: 'node.module.hover', style: { 'underlay-opacity': 0.16 } },
         { selector: 'edge.hover', style: { width: (edge) => (edge.data('width') || 1.5) + 1.5, 'line-opacity': 1, 'z-index': 9 } },
-        // A selected function's own lines keep their meaning: grey inside its module, navy or orange across a boundary.
-        { selector: 'edge.symbol-link.lit, edge.symbol-link.hover', style: {
+        // A selected dot's own lines keep their meaning: grey inside its module, navy or orange across a boundary.
+        { selector: 'edge.dot-link.lit, edge.dot-link.hover', style: {
             display: 'element', 'curve-style': 'straight', 'target-arrow-shape': 'triangle', 'arrow-scale': 0.5, width: 1.1,
             'line-color': EDGE_COLORS.declared, 'target-arrow-color': EDGE_COLORS.declared, 'line-opacity': 0.85, 'z-index': 10
         } },
-        { selector: 'edge.symbol-link.lit.crossing', style: { 'line-color': NAVY, 'target-arrow-color': NAVY } },
-        { selector: 'edge.symbol-link.lit.undeclared', style: {
+        { selector: 'edge.dot-link.lit.crossing', style: { 'line-color': NAVY, 'target-arrow-color': NAVY } },
+        { selector: 'edge.dot-link.lit.undeclared', style: {
             'line-color': EDGE_COLORS.undeclared, 'target-arrow-color': EDGE_COLORS.undeclared, 'line-style': 'dashed', 'line-dash-pattern': [5, 3]
         } },
         // Faded dots drop their names, so the names of the selection and its neighbours stand out.
-        { selector: 'node.symbol.faded', style: { opacity: 0.16, label: '' } },
-        { selector: 'edge.symbol-link.faded', style: { opacity: 0.08 } },
-        { selector: 'node.symbol.named', style: { label: 'data(label)', 'font-size': (node) => node.data('labelFont') || Math.max(node.data('font'), NAMED_FONT), 'z-index': 1000 } },
-        { selector: 'node.symbol.hover', style: { 'border-width': 1.5, 'border-color': INK, 'underlay-opacity': 0.18 } },
+        { selector: 'node.dot.faded', style: { opacity: 0.16, label: '' } },
+        { selector: 'edge.dot-link.faded', style: { opacity: 0.08 } },
+        { selector: 'node.dot.named', style: { label: 'data(label)', 'font-size': (node) => node.data('labelFont') || Math.max(node.data('font'), NAMED_FONT), 'z-index': 1000 } },
+        { selector: 'node.dot.hover', style: { 'border-width': 1.5, 'border-color': INK, 'underlay-opacity': 0.18 } },
         { selector: 'node:selected', style: { 'underlay-opacity': 0.3, 'underlay-padding': 6 } },
         { selector: 'edge:selected', style: { 'underlay-color': NAVY, 'underlay-opacity': 0.2, 'underlay-padding': 5 } }
     ];
-
-    /** The colour encoding the current view uses: the functions map keeps its own, by module unless changed. */
-    function colorChoice(state) {
-        return state.view === 'symbols' ? state.symbolColorBy : state.colorBy;
-    }
 
     /** One line of short keys under the map, groups set apart by a thin rule; the panel's guide says the rest. */
     function legendHtml(state) {
         const items = [];
         const swatch = (color, label) => '<li><span class="quality-swatch" style="background:' + color + '" aria-hidden="true"></span>' + label + '</li>';
-        const colorBy = colorChoice(state);
-        if (colorBy === 'module') {
-            items.push('<li>Colour: module, as in the list</li>');
-        } else if (colorBy === 'criticality') {
+        const line = (kind, label) => '<li><span class="quality-line quality-line--' + kind + '" aria-hidden="true"></span>' + label + '</li>';
+        const key = (kind, label) => '<li><span class="quality-key quality-key--' + kind + '" aria-hidden="true"></span>' + label + '</li>';
+        const rule = '<li class="quality-legend__rule" aria-hidden="true"></li>';
+        if (state.colorBy === 'criticality') {
             Object.keys(CRITICALITY).forEach((level) => items.push('<li>' + criticalityBadge(level) + '</li>'));
-        } else if (colorBy === 'coverage') {
+        } else if (state.colorBy === 'coverage') {
             items.push('<li><span class="quality-ramp" style="background:linear-gradient(90deg,' + COVERAGE_RAMP.join(',') + ')" aria-hidden="true"></span>Branch coverage 0–100%</li>');
             items.push(swatch(NOT_MEASURED_COLOR, 'Not measured'));
-        } else {
+        } else if (state.colorBy === 'repository') {
             Object.keys(REPOSITORIES).forEach((repository) => items.push(swatch(REPOSITORIES[repository].color, REPOSITORIES[repository].label)));
+        } else {
+            items.push('<li>Colour: module, as in the list</li>');
         }
-        const rule = '<li class="quality-legend__rule" aria-hidden="true"></li>';
         items.push(rule);
-        const line = (kind, label) => '<li><span class="quality-line quality-line--' + kind + '" aria-hidden="true"></span>' + label + '</li>';
-        if (state.view === 'symbols') {
-            items.push('<li><span class="quality-region-key" aria-hidden="true"></span>' + (state.symbolModule ? 'Circle: a file' : 'Circle: a module') + '</li>');
-            items.push(line('symbol', 'Call or reference'));
-            items.push('<li>Selected:</li>');
-            items.push(line('declared', 'same module'));
-            items.push(line('crossing', 'declared dependency'));
-            items.push(line('undeclared', 'undeclared dependency'));
-            items.push(rule);
-            items.push('<li><span class="quality-dots" aria-hidden="true"><span></span><span></span><span></span></span>Dot size: how many use it</li>');
-        } else if (state.view === 'modules') {
+        if (state.level === 'modules') {
             items.push(line('declared', 'Declared dependency'));
             items.push(line('undeclared', 'Undeclared dependency'));
             items.push(line('unused', 'Declared, no code reference'));
             items.push('<li><span class="quality-swatch quality-swatch--contract" aria-hidden="true"></span>Contract between repositories</li>');
             items.push(rule);
-            items.push('<li>Box height: lines of code</li>');
+            items.push('<li>Circle size: lines of code</li>');
+            return items.join('');
+        }
+        items.push(key('region', state.level === 'symbols' && state.module ? 'Circle: a file' : 'Circle: a module'));
+        items.push('<li>Selected:</li>');
+        items.push(line('declared', 'same module'));
+        items.push(line('crossing', 'declared dependency'));
+        items.push(line('undeclared', 'undeclared dependency'));
+        items.push(rule);
+        if (state.level === 'files') {
+            items.push(line('clone', 'Copied code'));
+            items.push(key('ring', 'Over ' + FILE_BUDGET.toLocaleString('en') + ' lines'));
+            items.push('<li><span class="quality-dots" aria-hidden="true"><span></span><span></span><span></span></span>Dot size: lines</li>');
         } else {
-            items.push(line('internal', 'Inside one module'));
-            items.push(line('crossing', 'Declared dependency'));
-            items.push(line('undeclared', 'Undeclared dependency'));
-            items.push('<li><span class="quality-swatch quality-swatch--entry" aria-hidden="true"></span>Ringed: used from another module</li>');
+            items.push(key('hollow', 'Nothing mentions it'));
+            items.push('<li><span class="quality-dots" aria-hidden="true"><span></span><span></span><span></span></span>Dot size: how many use it</li>');
         }
         return items.join('');
     }
@@ -1411,68 +1204,55 @@
     const CLOSE_BUTTON = '<button type="button" class="quality-panel__close" data-clear-selection title="Close (Esc)" aria-label="Close details"><i class="fas fa-times" aria-hidden="true"></i></button>';
 
     function overviewHtml(state) {
-        if (state.view === 'symbols') {
-            return '<p class="quality-eyebrow">Functions map</p>'
-                + '<h2 class="quality-panel__title">How to read the functions map</h2>'
-                + '<ol class="quality-steps">'
-                + '<li>Each dot is a function or class of either repository, coloured by its module. Each module is a circle with its name on top; a module shown alone has a circle for each file.</li>'
-                + '<li>A larger dot is used by more functions and files. Zooming in opens space between the dots, where more names and lines show. Hover a dot for its name.</li>'
-                + '<li>A line joins a function to one it calls or references. Calls through objects, such as <code>self.save()</code> or <code>this.render()</code>, are not seen.</li>'
-                + '<li>Click a module in the list, or double-click its circle, to show only its functions. Click it again, or <strong>Reset</strong>, to show every function.</li>'
-                + '<li>Select a dot for its callers and callees; double-click it, or a file\'s circle, to open the file. Search finds a function, class or file by name.</li>'
-                + '<li>The module map stays the place to review boundaries: this map is for exploring.</li>'
-                + '</ol>';
-        }
-        if (state.view === 'functions') {
-            return '<p class="quality-eyebrow">File functions</p>'
-                + '<h2 class="quality-panel__title">How to read the functions</h2>'
-                + '<ol class="quality-steps">'
-                + '<li>The opened file\'s functions and classes are in the middle, in line order. What uses them is on the left, what they use on the right, grouped by file.</li>'
-                + '<li>Arrows are calls, imported or shared names, HTTP requests and templates rendered. A box holding no function is reached at file level, such as a module-level import.</li>'
-                + '<li>Calls through objects, such as <code>self.save()</code>, are not seen.</li>'
-                + '<li>A ringed function is used from another module.</li>'
-                + '<li>Select a function for its callers and callees. Double-click one on either side to open its file.</li>'
-                + '<li>Press <kbd>Esc</kbd> or use the module name at the top left to go back to the module\'s files.</li>'
-                + '</ol>';
-        }
-        if (state.view === 'files') {
-            return '<p class="quality-eyebrow">' + (state.focus ? 'Module files' : 'All files') + '</p>'
-                + '<h2 class="quality-panel__title">How to read the files</h2>'
-                + '<ol class="quality-steps">'
-                + (state.focus
-                    ? '<li>The opened module is in the middle. Modules that use it are on the left, modules it uses on the right.</li>'
-                        + '<li>Inside, files are ordered by how far they are from where calls enter the module.</li>'
-                    : '<li>Every module\'s files, with the modules in the layers of the module view.</li>')
-                + '<li>A ringed file is used from another module: the arrows crossing a border are the module\'s actual interface.</li>'
-                + '<li>Select a file to focus on its links and see its details; double-click it to open its functions.</li>'
-                + '<li>Press <kbd>Esc</kbd> or use <strong>All modules</strong> at the top left to go back.</li>'
-                + '</ol>';
-        }
-        return '<p class="quality-eyebrow">Module map</p>'
-            + '<h2 class="quality-panel__title">How to read the map</h2>'
-            + '<ol class="quality-steps">'
-            + '<li>Each box is a module: a group of files with one responsibility in the module catalog.</li>'
-            + '<li>An arrow goes from the module whose code uses another module to the module it uses: imports, calls, shared browser names, script loads, HTTP requests and templates. A link to a page draws no arrow.</li>'
-            + '<li>A module sits above the modules it lists as dependencies in the catalog, so declared dependencies point down.</li>'
-            + '<li>An orange dashed arrow is a code dependency the catalog does not declare. A faint grey dashed arrow is a dependency the catalog declares but no code uses. Both should be fixed.</li>'
-            + '<li>Select a module to focus on its dependencies and see its details, and double-click it to open its files. <kbd>Esc</kbd> or a click on the background clears the focus.</li>'
-            + '<li>Drag to move. Zoom with the buttons or <kbd>Ctrl</kbd>/<kbd>⌘</kbd> and scroll.</li>'
-            + '</ol>';
+        const steps = {
+            modules: [
+                'Each circle is a module: a group of files with one responsibility in the module catalog. Its area is its lines of code.',
+                'A module sits above the modules it lists as dependencies. An arc goes from the module whose code uses another to the module it uses, so arcs run downwards, on the outer side of the column.',
+                'An orange dashed arc is a dependency the catalog does not declare, and a dotted grey one is declared but used by no code. An arc that runs upwards goes against the layering and bends to the inner side.',
+                'A purple diamond is a contract: the two repositories share a file format, not code.',
+                'Select a module or an arc for its details. Double-click a module to see its files in the same circle.',
+                'Drag to move. Zoom with the buttons or <kbd>Ctrl</kbd>/<kbd>⌘</kbd> and scroll.'
+            ],
+            files: [
+                'The circles are the modules, where they are on <strong>Modules</strong>. Each dot is a file; a larger dot is a longer file, and a ringed one is over ' + FILE_BUDGET.toLocaleString('en') + ' lines.',
+                'Thin lines join files that use each other. Select a file to light its own lines and list what it uses and what uses it.',
+                'A dashed black line joins two files that hold the same block of code. Select it to see where.',
+                'Colour by <strong>Branch coverage</strong> paints each file with its own coverage: grey files are not measured.',
+                'Click a module in the list to light its files. Double-click a file or a circle to see its functions.'
+            ],
+            symbols: [
+                'Each dot is a function or class. Each module is a circle; a module drawn alone has a circle for each file.',
+                'A larger dot is used by more functions and files. A hollow dot has a name that nothing else in the code mentions: it is probably unused.',
+                'A line joins a function to one it calls or references. Calls through objects, such as <code>self.save()</code> or <code>this.render()</code>, are not seen.',
+                'Click a module in the list, or double-click its circle, to draw it alone. <kbd>Esc</kbd> or <strong>Reset</strong> shows every function again.',
+                'Select a dot for its callers and callees. Search finds a function, class or file by name.'
+            ]
+        };
+        const titles = { modules: 'How to read the modules', files: 'How to read the files', symbols: 'How to read the functions' };
+        return '<p class="quality-eyebrow">Code map</p><h2 class="quality-panel__title">' + titles[state.level] + '</h2>'
+            + '<ol class="quality-steps">' + steps[state.level].map((step) => '<li>' + step + '</li>').join('') + '</ol>';
+    }
+
+    function fileButton(fileId) {
+        return '<a href="#' + escapeHtml(fileId) + '" class="quality-link" data-select-file="' + escapeHtml(fileId) + '">' + escapeHtml(baseName(fileId)) + '</a>';
     }
 
     function moduleHtml(context, moduleId, closeButton = CLOSE_BUTTON) {
         const module = context.modules[moduleId];
-        const row = (context.data.report.modules || {})[moduleId] || {};
-        const interfaceRows = (context.data.code_map.interface || {})[moduleId] || [];
+        const codeMap = context.data.code_map;
+        const row = (context.report.modules || {})[moduleId];
+        const interfaceRows = (codeMap.interface || {})[moduleId] || [];
         const declared = new Set(module.entrypoints.map((entry) => entry.symbol).filter(Boolean));
         const usedIds = new Set(interfaceRows.map((symbol) => symbol.id));
         const outgoing = context.moduleLinks.filter((link) => link.source === moduleId);
         const incoming = context.moduleLinks.filter((link) => link.target === moduleId);
+        const mine = (fileId) => context.owners[fileId] === moduleId;
         const lanes = LANES.map(([lane, label]) => {
             const summary = laneSummary(row, lane);
             return '<div><dt>' + label + '</dt><dd>' + statusBadge(summary.status, summary.text)
                 + (summary.detail ? '<small>' + escapeHtml(summary.detail) + '</small>' : '') + '</dd></div>';
         }).join('');
+        const count = (label, value) => '<div><dt>' + label + '</dt><dd>' + value.toLocaleString('en') + '</dd></div>';
         const dependencyItem = (link, other) => [moduleButton(other),
             (link.count ? plural(link.count, 'reference') : 'no code reference')
             + (link.declared ? '' : ' · <strong class="quality-warn-text">not declared</strong>')];
@@ -1483,16 +1263,20 @@
             + (/^_[^_]/.test(symbol.name) ? ' <span class="quality-tag quality-tag--warn">private name</span>' : '')
             + '<small>' + sourceLink(context.data, symbol.file, symbol.line) + ' · used by ' + symbol.used_by.map(shortName).map(escapeHtml).join(', ') + '</small>');
         const docs = Object.keys(module.docs || {}).map((kind) => module.docs[kind].map((path) => escapeHtml(kind) + ': ' + sourceLink(context.data, module.repository + ':' + path)).join('<br>'));
-        const open = context.state.view === 'files' && context.state.focus === moduleId ? ''
-            : '<p><button type="button" class="quality-button" data-open-module="' + escapeHtml(module.id) + '"><i class="fas fa-folder-open" aria-hidden="true"></i> Open module files</button></p>';
+        const level = (id, icon, label) => (context.state.level === id ? '' : '<button type="button" class="quality-button" data-go-level="' + id
+            + '" data-go-module="' + escapeHtml(moduleId) + '"><i class="fas ' + icon + '" aria-hidden="true"></i> ' + label + '</button>');
         return closeButton
             + '<p class="quality-eyebrow">' + escapeHtml((REPOSITORIES[module.repository] || {}).label || module.repository) + ' module</p>'
             + '<h2 class="quality-panel__title">' + escapeHtml(module.title) + '</h2>'
             + '<div class="quality-panel__meta"><code>' + escapeHtml(module.id) + '</code>' + criticalityBadge(module.criticality) + '</div>'
             + '<p>' + escapeHtml(module.responsibility) + '</p>'
             + '<p class="quality-muted">' + escapeHtml((CRITICALITY[module.criticality] || {}).meaning || '') + '</p>'
-            + open
-            + '<h3 class="quality-panel__subtitle">Evidence</h3><dl class="quality-kv">' + lanes + '</dl>'
+            + '<p class="quality-actions">' + level('files', 'fa-file-code', 'Its files') + level('symbols', 'fa-code', 'Its functions') + '</p>'
+            + (row ? '<h3 class="quality-panel__subtitle">CI results</h3><dl class="quality-kv">' + lanes + '</dl>' : '')
+            + '<h3 class="quality-panel__subtitle">To clean up</h3><dl class="quality-kv">'
+            + count('Functions nothing mentions', context.tidy.unused.filter((symbol) => mine(symbol.file)).length)
+            + count('Copied blocks', context.tidy.clones.filter((clone) => clone.files.some(mine)).length)
+            + count('Files over ' + FILE_BUDGET.toLocaleString('en') + ' lines', context.tidy.large.filter((file) => mine(file.id)).length) + '</dl>'
             + '<h3 class="quality-panel__subtitle">Depends on</h3>' + list(outgoing.map((link) => dependencyItem(link, link.target)), 'Nothing.')
             + '<h3 class="quality-panel__subtitle">Used by</h3>' + list(incoming.map((link) => dependencyItem(link, link.source)), 'No other module.')
             + '<h3 class="quality-panel__subtitle">Declared entry points</h3>' + list(entrypoints, 'None declared.')
@@ -1528,39 +1312,50 @@
     }
 
     function fileHtml(context, fileId) {
+        const codeMap = context.data.code_map;
         const file = context.files[fileId];
         const owners = context.owners;
-        const lines = (links, end) => links.map((link) => sourceLink(context.data, link[end]) + (owners[link[end]] !== file.module ? ' <span class="quality-tag">' + escapeHtml(shortName(owners[link[end]])) + '</span>' : '')
+        const ends = (links, end) => links.map((link) => fileButton(link[end]) + (owners[link[end]] !== file.module ? ' <span class="quality-tag">' + escapeHtml(shortName(owners[link[end]])) + '</span>' : '')
             + '<small>' + escapeHtml(kindsText(link.kinds)) + '</small>');
-        const graph = fileGraph(context.data.code_map, file.module);
-        const outgoing = graph.links.filter((link) => link.source === fileId);
-        const incoming = graph.links.filter((link) => link.target === fileId);
-        const used = ((context.data.code_map.interface || {})[file.module] || []).filter((symbol) => symbol.file === fileId);
-        const routes = (context.data.code_map.routes || []).filter((route) => route.file === fileId);
+        const graph = fileGraph(codeMap, file.module);
+        const used = ((codeMap.interface || {})[file.module] || []).filter((symbol) => symbol.file === fileId);
+        const routes = (codeMap.routes || []).filter((route) => route.file === fileId);
         const pageLinks = {};
-        context.data.code_map.links.filter((link) => !drawn(link) && link.source === fileId).forEach((link) => addCount(pageLinks, link.target, link.count));
-        const open = context.state.view === 'functions' && context.state.file === fileId ? ''
-            : '<p><button type="button" class="quality-button" data-open-file="' + escapeHtml(fileId) + '"><i class="fas fa-code" aria-hidden="true"></i> Open file functions</button></p>';
+        codeMap.links.filter((link) => !drawn(link) && link.source === fileId).forEach((link) => addCount(pageLinks, link.target, link.count));
+        const coverage = (context.report.files || {})[fileId];
+        const copies = (codeMap.clones || []).map((clone, index) => ({ clone, index })).filter(({ clone }) => clone.files.includes(fileId));
         const reached = (route) => [route.requested_by.length ? 'requested by ' + route.requested_by.map(baseName).map(escapeHtml).join(', ') : '',
             route.linked_by.length ? 'linked from ' + route.linked_by.map(baseName).map(escapeHtml).join(', ') : ''].filter(Boolean).join('; ')
             || 'Nothing in the code reaches it';
+        const facts = [plural(file.lines || 0, 'line'), plural(file.symbols || 0, 'function or class', 'functions and classes')];
+        if (coverageOf(coverage) !== null) {
+            facts.push(typeof coverage.branches === 'number' ? coverage.branches + '% branch coverage' : 'no branches');
+            if (typeof coverage.lines === 'number') facts.push(coverage.lines + '% of lines covered');
+        }
         return CLOSE_BUTTON
             + '<p class="quality-eyebrow">File in ' + escapeHtml(shortName(file.module)) + '</p>'
             + '<h2 class="quality-panel__title">' + escapeHtml(baseName(fileId)) + '</h2>'
             + '<p>' + sourceLink(context.data, fileId) + '</p>'
-            + '<p class="quality-muted">' + plural(file.lines || 0, 'line') + ', ' + plural(file.symbols || 0, 'function or class', 'functions and classes') + '.</p>'
-            + open
+            + '<p class="quality-muted">' + facts.join(', ') + '.</p>'
+            + (file.symbols && context.state.level !== 'symbols' ? '<p class="quality-actions"><button type="button" class="quality-button" data-show-functions="' + escapeHtml(fileId)
+                + '"><i class="fas fa-code" aria-hidden="true"></i> Its functions</button></p>' : '')
             + '<h3 class="quality-panel__subtitle">Used from other modules (' + used.length + ')</h3>'
             + list(used.map((symbol) => '<code>' + escapeHtml(symbol.name) + '</code><small>by ' + symbol.used_by.map(shortName).map(escapeHtml).join(', ') + '</small>'), 'Nothing in this file.')
             + (routes.length ? '<h3 class="quality-panel__subtitle">Routes (' + routes.length + ')</h3>'
                 + list(routes.map((route) => ['<code>' + escapeHtml(route.pattern) + '</code>', escapeHtml(route.methods.join(', ')), reached(route)]), '') : '')
-            + '<h3 class="quality-panel__subtitle">Uses</h3>' + list(lines(outgoing, 'target'), 'No other file.')
-            + '<h3 class="quality-panel__subtitle">Used by</h3>' + list(lines(incoming, 'source'), 'No other file.')
+            + '<h3 class="quality-panel__subtitle">Uses</h3>' + list(ends(graph.links.filter((link) => link.source === fileId), 'target'), 'No other file.')
+            + '<h3 class="quality-panel__subtitle">Used by</h3>' + list(ends(graph.links.filter((link) => link.target === fileId), 'source'), 'No other file.')
+            + (copies.length ? '<h3 class="quality-panel__subtitle">Copied code (' + copies.length + ')</h3>' + list(copies.map(({ clone, index }) => {
+                const here = clone.locations.find((location) => location.file === fileId);
+                const other = clone.locations.find((location) => location !== here);
+                return ['<a href="#clone" class="quality-link" data-select-clone="' + index + '">Lines ' + here.start + '–' + here.end + '</a>', plural(clone.lines, 'line'),
+                    'also in ' + sourceLink(context.data, other.file, other.start)];
+            }), '') : '')
             + (Object.keys(pageLinks).length ? '<h3 class="quality-panel__subtitle">Links to pages</h3>'
-                + list(Object.keys(pageLinks).sort().map((target) => [sourceLink(context.data, target), plural(pageLinks[target], 'link')]), '') : '');
+                + list(Object.keys(pageLinks).sort().map((target) => [fileButton(target), plural(pageLinks[target], 'link')]), '') : '');
     }
 
-    /** A function's callers and callees, each a button that opens it in its file. */
+    /** A function's callers and callees, each a link that selects it on the Functions level. */
     function functionHtml(context, symbolId) {
         const codeMap = context.data.code_map;
         const symbol = context.symbols[symbolId];
@@ -1574,26 +1369,33 @@
             const tag = context.owners[file] !== moduleId ? ' <span class="quality-tag">' + escapeHtml(shortName(context.owners[file] || '')) + '</span>' : '';
             const name = other
                 ? '<a href="#' + escapeHtml(id) + '" class="quality-link" data-select-function="' + escapeHtml(id) + '"><code>' + escapeHtml(other.name) + '</code></a>'
-                : '<a href="#' + escapeHtml(id) + '" class="quality-link" data-open-file="' + escapeHtml(id) + '">' + escapeHtml(baseName(id)) + '</a> (file level)';
+                : fileButton(id) + ' (file level)';
             return name + tag + '<small>' + sourceLink(context.data, file, other ? other.line : null) + '</small>';
         };
         const rows = (side, other) => links.filter((link) => link[side] === symbolId)
             .sort((a, b) => a[other].localeCompare(b[other]) || a.kind.localeCompare(b.kind))
             .map((link) => [end(link[other]), escapeHtml(kindsText({ [link.kind]: link.count }))]);
-        // On the functions map the file is one double-click away; this is the same step for the keyboard.
-        const open = context.state.view !== 'symbols' ? ''
-            : '<p class="quality-muted">In module ' + moduleButton(moduleId) + '.</p>'
-                + '<p><button type="button" class="quality-button" data-open-file="' + escapeHtml(symbol.file) + '" data-open-symbol="' + escapeHtml(symbolId) + '">'
-                + '<i class="fas fa-code" aria-hidden="true"></i> Open file functions</button></p>';
         return CLOSE_BUTTON
             + '<p class="quality-eyebrow">Function in ' + escapeHtml(baseName(symbol.file)) + '</p>'
             + '<h2 class="quality-panel__title"><code>' + escapeHtml(symbol.name) + '</code></h2>'
             + '<p>' + sourceLink(context.data, symbol.file, symbol.line) + '</p>'
-            + open
+            + '<p class="quality-muted">In ' + fileButton(symbol.file) + ', module ' + moduleButton(moduleId) + '.</p>'
+            + (symbol.unused ? '<p class="quality-callout">Nothing else in the code of either repository mentions this name, tests aside. It is probably unused: check for a call the map cannot see before deleting it.</p>' : '')
             + (route ? '<p>Answers <code>' + escapeHtml(route.methods.join(', ') + ' ' + route.pattern) + '</code>.</p>' : '')
             + (usedBy ? '<p class="quality-muted">Used from ' + usedBy.used_by.map(shortName).map(escapeHtml).join(', ') + '.</p>' : '')
             + '<h3 class="quality-panel__subtitle">Used by</h3>' + list(rows('target', 'source'), 'Nothing the map can see.')
             + '<h3 class="quality-panel__subtitle">Uses</h3>' + list(rows('source', 'target'), 'Nothing the map can see.');
+    }
+
+    /** One pair of copied blocks: where each copy is. */
+    function cloneHtml(context, index) {
+        const clone = context.data.code_map.clones[index];
+        return CLOSE_BUTTON
+            + '<p class="quality-eyebrow">Copied code</p>'
+            + '<h2 class="quality-panel__title">' + plural(clone.lines, 'line') + ' found twice</h2>'
+            + '<p>The same block of code is in both places. One shared function would leave a single copy to change.</p>'
+            + list(clone.locations.map((location) => [fileButton(location.file) + ' <span class="quality-tag">' + escapeHtml(shortName(context.owners[location.file] || '')) + '</span>',
+                'lines ' + location.start + '–' + location.end, sourceLink(context.data, location.file, location.start)]), '');
     }
 
     function contractHtml(context, contractId) {
@@ -1607,76 +1409,112 @@
             + '<h3 class="quality-panel__subtitle">Consumed by</h3>' + list(contract.consumers.map(moduleButton), 'Nobody.');
     }
 
-    /** A titled list with its count; ``warn`` marks a non-empty list as something to act on. */
-    function findingGroup(title, lead, items, empty, warn = true) {
-        return '<div class="quality-finding' + (warn && items.length ? ' quality-finding--warn' : '') + '">'
+    /**
+     * Findings as cards, each a titled list with its count; ``warn`` marks a list as something to act on. A card shows
+     * FINDING_ROWS rows and folds the rest away. The groups that found nothing share one card of one line each, so an
+     * empty check never takes a card of its own.
+     */
+    function findingGroups(groups) {
+        const card = ({ title, lead, items, warn = true }) => '<div class="quality-finding' + (warn ? ' quality-finding--warn' : '') + '">'
             + '<div class="quality-finding__head"><h3>' + title + '</h3><span class="quality-finding__count">' + items.length + '</span></div>'
-            + '<p>' + lead + '</p>' + list(items, empty) + '</div>';
+            + '<p>' + lead + '</p>' + list(items.slice(0, FINDING_ROWS))
+            + (items.length > FINDING_ROWS ? '<details class="quality-more"><summary>Show ' + (items.length - FINDING_ROWS) + ' more</summary>'
+                + list(items.slice(FINDING_ROWS)) + '</details>' : '') + '</div>';
+        const clear = groups.filter((group) => !group.items.length);
+        return groups.filter((group) => group.items.length).map(card).join('')
+            + (clear.length ? '<ul class="quality-clear">' + clear.map((group) => '<li><i class="fas fa-check" aria-hidden="true"></i>'
+                + '<span><strong>' + group.title + ':</strong> none. <small>' + group.lead + '</small></span></li>').join('') + '</ul>' : '');
     }
 
     function findingsHtml(context) {
         const findings = context.findings;
-        const group = findingGroup;
         const privateItems = findings.privateNames.map((symbol) => ['<code>' + escapeHtml(symbol.name) + '</code> in ' + moduleButton(symbol.module),
             'used by ' + symbol.used_by.map(shortName).map(escapeHtml).join(', '), sourceLink(context.data, symbol.file, symbol.line)]);
-        return group('Undeclared module dependencies', 'Code in one module references another module the catalog does not list as a dependency.',
-            findings.undeclared.map((link) => [linkButton(link), plural(link.count, 'reference')]), 'None.')
-            + group('Modules that depend on each other', 'Each of the two modules references the other, so neither can change in isolation.',
-                findings.cycles.map((link) => moduleButton(link.source) + ' ⇄ ' + moduleButton(link.target)), 'None.')
-            + group('Private names used across a boundary', 'A name starting with <code>_</code> is internal to its module, but another module uses it.', privateItems, 'None.')
-            + group('Declared dependencies without code references', 'These may go through the database or a URL built at runtime, which the map does not see, or the declaration is out of date.',
-                findings.unused.map(linkButton), 'None.');
+        return findingGroups([
+            { title: 'Undeclared module dependencies', lead: 'Code in one module references another module the catalog does not list as a dependency.',
+                items: findings.undeclared.map((link) => [linkButton(link), plural(link.count, 'reference')]) },
+            { title: 'Modules that depend on each other', lead: 'Each of the two modules references the other, so neither can change in isolation.',
+                items: findings.cycles.map((link) => moduleButton(link.source) + ' ⇄ ' + moduleButton(link.target)) },
+            { title: 'Private names used across a boundary', lead: 'A name starting with <code>_</code> is internal to its module, but another module uses it.', items: privateItems },
+            { title: 'Declared dependencies without code references', lead: 'These may go through the database or a URL built at runtime, which the map does not see, or the declaration is out of date.',
+                items: findings.unused.map(linkButton) }
+        ]);
     }
 
     function blindSpotsHtml(context) {
         const data = context.data;
         const spots = blindSpots(data.code_map);
         const at = (row) => sourceLink(data, row.file, row.line);
-        return findingGroup('References that reach nothing', 'A URL, <code>url_for</code> endpoint or template name in the code that the app does not serve: a typo, or a route that was removed.',
-            spots.unmatched.map((row) => ['<code>' + escapeHtml(row.reference) + '</code>', escapeHtml(UNMATCHED_KINDS[row.kind] || row.kind), at(row)]), 'None.')
-            + findingGroup('Routes nothing in the code reaches', 'No script, template or view requests or links to these. They may serve outside clients, crawlers or links in the documentation, or be unused.',
-                spots.unreached.map((route) => ['<code>' + escapeHtml(route.pattern) + '</code>', escapeHtml(route.methods.join(', ')), sourceLink(data, route.file, route.line)]), 'None.', false)
-            + findingGroup('URLs and templates chosen at runtime', 'The code computes the URL, endpoint or template when it runs, so the map cannot tell which route or template it reaches.',
-                spots.dynamic.map((row) => ['<code>' + escapeHtml(row.expression) + '</code>', escapeHtml(DYNAMIC_KINDS[row.kind] || row.kind), at(row)]), 'None.', false)
-            + findingGroup('Browser names declared by several scripts', 'Scripts share one global scope, so a reference to one of these names cannot be linked to one script; on a page loading several, the last one wins.',
-                spots.sharedNames.map((row) => ['<code>' + escapeHtml(row.name) + '</code>', plural(row.symbols.length, 'script'),
-                    row.symbols.map((symbol) => sourceLink(data, symbolFile(symbol), symbolLine(symbol))).join('<br>')]), 'None.')
-            + findingGroup('Limits of the method', 'What reading the code cannot establish, whatever the code looks like.',
-                (data.code_map.limitations || []).map(escapeHtml), 'None recorded.', false);
+        return findingGroups([
+            { title: 'References that reach nothing', lead: 'A URL, <code>url_for</code> endpoint or template name in the code that the app does not serve: a typo, a route that was removed, or a URL with a part the map could not follow.',
+                items: spots.unmatched.map((row) => ['<code>' + escapeHtml(row.reference) + '</code>', escapeHtml(UNMATCHED_KINDS[row.kind] || row.kind), at(row)]) },
+            { title: 'Routes nothing in the code reaches', lead: 'No script, template or view requests or links to these. They may serve outside clients, crawlers or links in the documentation, be reached through a URL built at runtime, or be unused.',
+                items: spots.unreached.map((route) => ['<code>' + escapeHtml(route.pattern) + '</code>', escapeHtml(route.methods.join(', ')), sourceLink(data, route.file, route.line)]), warn: false },
+            { title: 'URLs and templates chosen at runtime', lead: 'Here the code passes a variable, not a fixed text, to a request, <code>url_for</code> or <code>render_template</code>, so the map draws no arrow from this line. This is expected and not a defect: it only means an arrow may be missing.',
+                items: spots.dynamic.map((row) => ['<code>' + escapeHtml(row.expression) + '</code>', escapeHtml(DYNAMIC_KINDS[row.kind] || row.kind), at(row)]), warn: false },
+            { title: 'Browser names declared by several scripts', lead: 'Scripts share one global scope, so a reference to one of these names cannot be linked to one script; on a page loading several, the last one wins.',
+                items: spots.sharedNames.map((row) => ['<code>' + escapeHtml(row.name) + '</code>', plural(row.symbols.length, 'script'),
+                    row.symbols.map((symbol) => sourceLink(data, symbolFile(symbol), symbolLine(symbol))).join('<br>')]) },
+            { title: 'Limits of the method', lead: 'What reading the code cannot establish, whatever the code looks like.',
+                items: (data.code_map.limitations || []).map(escapeHtml), warn: false }
+        ]);
+    }
+
+    function cleanupHtml(context) {
+        const data = context.data;
+        const tidy = context.tidy;
+        const module = (fileId) => ' <span class="quality-tag">' + escapeHtml(shortName(context.owners[fileId] || '')) + '</span>';
+        return findingGroups([
+            { title: 'Functions nothing mentions', warn: false,
+                lead: 'The name of the function or class appears nowhere else in the code of either repository, tests aside. Probably unused: check for a call the map cannot see before deleting.',
+                items: tidy.unused.map((symbol) => ['<a href="#' + escapeHtml(symbol.id) + '" class="quality-link" data-select-function="' + escapeHtml(symbol.id) + '"><code>'
+                    + escapeHtml(symbol.name) + '</code></a>' + module(symbol.file), '', sourceLink(data, symbol.file, symbol.line)]) },
+            { title: 'Copied code', warn: false, lead: 'The same block of at least 10 lines in two places. The largest come first.',
+                items: tidy.clones.map((clone, index) => ({ clone, index })).sort((a, b) => b.clone.lines - a.clone.lines).map(({ clone, index }) => [
+                    '<a href="#clone" class="quality-link" data-select-clone="' + index + '">' + clone.files.map(baseName).map(escapeHtml).join(' ⇄ ') + '</a>', plural(clone.lines, 'line'),
+                    clone.locations.map((location) => sourceLink(data, location.file, location.start)).join('<br>')]) },
+            { title: 'Files over ' + FILE_BUDGET.toLocaleString('en') + ' lines', warn: false, lead: 'Long files are hard to review and are where copies hide. Generated and data files are not counted.',
+                items: tidy.large.map((file) => [fileButton(file.id) + module(file.id), file.lines.toLocaleString('en') + ' lines', sourceLink(data, file.id)]) }
+        ]);
     }
 
     function figuresHtml(context) {
         const codeMap = context.data.code_map;
         const findings = context.findings;
-        const figure = (value, label, warn) => '<a class="quality-figure' + (warn && value ? ' quality-figure--warn' : '') + '" href="#'
-            + (warn ? 'qualityFindingsTitle' : 'qualityMapTitle') + '"><strong class="quality-figure__value">' + value.toLocaleString('en') + '</strong>'
-            + '<span class="quality-figure__label">' + label + '</span></a>';
-        return figure(codeMap.modules.length, 'Modules')
-            + figure(codeMap.files.length, 'Files')
-            + figure(findings.undeclared.length, 'Undeclared dependencies', true)
-            + figure(findings.cycles.length, 'Modules depending on each other', true)
-            + figure(findings.privateNames.length, 'Private names across a boundary', true);
+        const figure = (value, label, target, warn) => '<a class="quality-figure' + (warn && value ? ' quality-figure--warn' : '') + '" href="#' + target + '">'
+            + '<strong class="quality-figure__value">' + value.toLocaleString('en') + '</strong><span class="quality-figure__label">' + label + '</span></a>';
+        return figure(codeMap.modules.length, 'Modules', 'qualityMapTitle')
+            + figure(codeMap.files.length, 'Files', 'qualityMapTitle')
+            + figure((codeMap.symbols || []).length, 'Functions and classes', 'qualityMapTitle')
+            + figure(findings.undeclared.length + findings.cycles.length + findings.privateNames.length + findings.unused.length, 'Boundary findings', 'qualityFindingsTitle', true)
+            + figure(context.tidy.unused.length, 'Functions nothing mentions', 'qualityCleanupTitle')
+            + figure(context.tidy.clones.length, 'Copied blocks', 'qualityCleanupTitle')
+            + figure(context.tidy.large.length, 'Files over ' + FILE_BUDGET.toLocaleString('en') + ' lines', 'qualityCleanupTitle');
     }
 
+    /** The CI results of every module: one row each, with a bar under its branch coverage. */
     function tableHtml(context) {
-        const report = context.data.report;
-        const ids = Object.keys(report.modules || {}).sort();
-        return ids.map((moduleId) => {
+        const report = context.report;
+        const head = '<thead><tr><th scope="col">Module</th><th scope="col">Criticality</th>' + LANES.map(([, label]) => '<th scope="col">' + label + '</th>').join('') + '</tr></thead>';
+        return head + '<tbody>' + Object.keys(report.modules || {}).sort().map((moduleId) => {
             const row = report.modules[moduleId];
             const module = context.modules[moduleId];
             const cells = LANES.map(([lane]) => {
                 const summary = laneSummary(row, lane);
-                return '<td>' + statusBadge(summary.status, summary.text) + '</td>';
+                const share = lane === 'coverage' ? coverageOf(row.coverage) : null;
+                return '<td>' + statusBadge(summary.status, summary.text)
+                    + (share === null ? '' : '<span class="quality-meter" aria-hidden="true"><span style="width:' + share + '%"></span></span>') + '</td>';
             }).join('');
             return '<tr><th scope="row">' + (module ? moduleButton(moduleId)
                 + '<span class="quality-table__repo">' + escapeHtml((REPOSITORIES[module.repository] || {}).label || module.repository) + '</span>' : escapeHtml(moduleId))
                 + '</th><td>' + criticalityBadge(row.criticality) + '</td>' + cells + '</tr>';
-        }).join('');
+        }).join('') + '</tbody>';
     }
 
+    /** The pill beside the results: failed checks first, then whether every measurement is there. */
     function runStatus(report) {
+        if ((report.checks || []).some((check) => check.status === 'fail')) return { tone: 'bad', label: 'Checks failed' };
         if (report.completeness === 'complete') return { tone: 'good', label: 'Complete' };
-        if (report.completeness === 'stale') return { tone: 'warn', label: 'Stale' };
         return { tone: 'warn', label: report.completeness ? report.completeness.charAt(0).toUpperCase() + report.completeness.slice(1) : 'Unknown' };
     }
 
@@ -1695,12 +1533,11 @@
             return base ? '<a href="' + escapeHtml(base.replace(/\/blob\/[^/]+\/$/, '/commit/' + sha)) + '" target="_blank" rel="noopener noreferrer">' + label + '</a>' : label;
         };
         return item('Required checks', !checks.length ? statusBadge('not_measured')
-            : checks.some((check) => check.status === 'stale') ? statusBadge('stale', checks.length + ' checks, stale')
-                : statusBadge(passed === checks.length ? 'pass' : 'fail', passed + ' of ' + checks.length + ' passed'))
+            : statusBadge(passed === checks.length ? 'pass' : 'fail', passed + ' of ' + checks.length + ' passed'))
             + item('App commit', commit('app'))
             + item('Engine commit', commit('engine'))
             + item('Measured', generated && !isNaN(generated) ? escapeHtml(generated.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })) : 'unknown')
-            + (data.run_url ? item('Raw evidence', '<a href="' + escapeHtml(data.run_url) + '" target="_blank" rel="noopener noreferrer">CI run <i class="fas fa-external-link-alt" aria-hidden="true"></i></a>') : '');
+            + (data.run_url ? item('Checks on GitHub', '<a href="' + escapeHtml(data.run_url) + '" target="_blank" rel="noopener noreferrer">CI run <i class="fas fa-external-link-alt" aria-hidden="true"></i></a>') : '');
     }
 
     function checksHtml(report) {
@@ -1709,30 +1546,44 @@
         return '<ul class="quality-checks">' + checks.map((check) => '<li><code>' + escapeHtml(check.name) + '</code>' + statusBadge(check.status) + '</li>').join('') + '</ul>';
     }
 
+    /** Why there is nothing to show, in the words of the page. */
+    function unavailableHtml(data) {
+        const commit = data && data.revision ? ' <code>' + escapeHtml(String(data.revision).slice(0, 7)) + '</code>' : '';
+        if (data && data.reason === 'unknown_commit') {
+            return '<strong>This server does not know which commit it runs.</strong> It finds the CI results by commit, from a Git checkout or a <code>REVISION</code> file.';
+        }
+        if (data && data.reason === 'no_results') {
+            return '<strong>No CI results for commit' + commit + ' yet.</strong> They appear here a few minutes after the checks finish on GitHub. Missing results are not a passing result.';
+        }
+        return '<strong>The code quality data could not be loaded.</strong> Missing results are not a passing result.';
+    }
+
     function createContext(data, state) {
         const codeMap = data.code_map;
         const moduleLinks = aggregateModuleLinks(codeMap);
+        const graph = symbolGraph(codeMap);
         return {
             data, moduleLinks, state,
+            report: data.report || {},
             modules: indexBy(codeMap.modules, 'id'),
             files: indexBy(codeMap.files, 'id'),
             symbols: indexBy(codeMap.symbols || [], 'id'),
             owners: fileOwners(codeMap),
-            findings: boundaryFindings(codeMap, moduleLinks)
+            findings: boundaryFindings(codeMap, moduleLinks),
+            tidy: cleanup(codeMap),
+            colors: moduleColors(codeMap),
+            symbolGraph: graph,
+            symbolNodes: indexBy(graph.nodes, 'id'),
+            views: {}
         };
     }
 
     function init(root) {
         const element = (selector) => root.querySelector(selector);
-        const state = {
-            view: 'modules', focus: null, file: null, colorBy: 'criticality',
-            // The functions map: its colour encoding, the module picked from its list, its line and name switches, and
-            // the function to select again when going back to it from a file.
-            symbolColorBy: 'module', symbolModule: null, showEdges: true, showLabels: true, from: null, returnTo: null,
-            expanded: false, panelOpen: true
-        };
+        // The level drawn, the module in focus on it (selected on Modules, its files lit on Files, drawn alone on
+        // Functions), the colour encoding and the Edges and Labels switches. The focus survives a change of level.
+        const state = { level: 'modules', module: null, colorBy: 'module', showEdges: true, showLabels: true, expanded: false, panelOpen: true };
         const mapElement = element('#qualityMap');
-        const explorer = element('#qualityExplorer');
         const search = element('#qualitySearch');
         const searchResults = element('#qualitySearchResults');
         let context = null;
@@ -1742,8 +1593,8 @@
         let tooltipShown = false;
         let matches = [];
         let activeMatch = -1;
-        // The selection on the functions map whose names are placed, as ids and the selected dot, and the zoom they were placed at.
-        let symbolFocus = null;
+        // The dots named around a selection, as ids and the selected dot, and the zoom the names were placed at.
+        let named = null;
         let namedZoom = null;
 
         function setPanel(html) {
@@ -1751,83 +1602,57 @@
             element('#qualityPanel').scrollTop = 0;
         }
 
-        /** The panel with nothing selected: the guide, or the module shown on the functions map. Its × hides the panel. */
-        function showOverview() {
-            if (state.view === 'symbols' && state.symbolModule) setPanel(moduleHtml(context, state.symbolModule, HIDE_PANEL_BUTTON));
-            else setPanel(HIDE_PANEL_BUTTON + overviewHtml(state));
-        }
-
         function selected() {
             return cy ? cy.$(':selected') : null;
         }
 
-        /**
-         * Space around the map when it is fitted. The cloud of every function is round and can go closer to the edges;
-         * a module shown alone keeps clear of the breadcrumb above it.
-         */
+        function view() {
+            return mapView(context, state.level, state.module);
+        }
+
+        /** Space around the map when it is fitted. The cloud of every function is round and can go closer to the edges. */
         function fitPadding() {
-            if (state.view !== 'symbols') return 48;
-            return state.symbolModule ? 56 : 24;
-        }
-
-        /** Every function and class, with the module colours and an index by id, built once. Search and the list use it all. */
-        function symbolMap() {
-            if (!context.symbolMap) {
-                const codeMap = context.data.code_map;
-                const graph = symbolGraph(codeMap);
-                context.symbolMap = { graph, colors: moduleColors(codeMap), nodes: indexBy(graph.nodes, 'id'), views: {} };
-            }
-            return context.symbolMap;
+            return state.level === 'symbols' && !state.module ? 24 : 56;
         }
 
         /**
-         * What the functions map draws: every function in module regions, or only the module picked from the list, laid
-         * out on its own in file regions so it fills the map. Each is laid out once, on first use; a module alone takes
-         * a fraction of the whole.
+         * Fades everything but ``target`` and its direct neighbours, lights their lines and names the dots that stay.
+         * With ``alone``, only the other dots fade: the lines stay faint and names show by zoom, as for the files of
+         * a module in focus. The circles stay, so a selection is still seen in its module or file.
          */
-        function symbolView() {
-            const map = symbolMap();
-            const key = state.symbolModule || '';
-            if (!map.views[key]) {
-                const byFile = Boolean(state.symbolModule);
-                const graph = byFile ? moduleSymbolGraph(map.graph, state.symbolModule) : map.graph;
-                const { positions, regions } = symbolLayout(context.data.code_map, graph, { byFile });
-                regions.forEach((region) => Object.assign(region, {
-                    of: byFile ? 'file' : 'module', label: byFile ? baseName(region.id) : shortName(region.id)
-                }));
-                map.views[key] = { graph, positions, regions, colors: map.colors };
-            }
-            return map.views[key];
-        }
-
-        /**
-         * Fades everything but ``target`` and its direct neighbours, and labels the arrows that stay lit. On the
-         * functions map the neighbours are also named.
-         */
-        function highlight(target) {
-            if (!cy) return;
-            const focused = target && target.length;
-            const members = focused && target.isNode() ? target.union(target.descendants()) : target;
-            const keep = !focused ? null : target.isNode() ? members.closedNeighborhood().union(target.ancestors()) : target.connectedNodes().union(target);
+        function highlight(target, alone) {
+            const some = target && target.length;
+            const keep = !some ? null : alone ? target : target.isNode() ? target.closedNeighborhood() : target.connectedNodes().union(target);
             cy.batch(() => {
                 cy.elements().removeClass('faded lit named');
-                if (keep) {
-                    // The regions stay, so a selection is still seen in its module or file.
-                    cy.elements().not(keep).not(keep.ancestors()).filter((item) => !item.hasClass('symbol-region') && !item.hasClass('symbol-region-label')).addClass('faded');
-                    keep.edges().addClass('lit');
-                }
+                if (keep) cy.elements(alone ? '.dot' : '*').not(keep).not('.region, .region-label').addClass('faded');
+                if (keep && !alone) keep.edges().addClass('lit');
             });
-            symbolFocus = keep && state.view === 'symbols'
-                ? { ids: new Set(keep.nodes().map((node) => node.id())), first: target.length === 1 ? target.id() : null } : null;
-            nameSymbols();
+            named = keep && !alone && state.level !== 'modules' ? { ids: new Set(keep.nodes().map((node) => node.id())), first: target.length === 1 ? target.id() : null } : null;
+            nameDots();
+        }
+
+        /** With nothing selected: the module in focus, selected on Modules and with its files lit on Files, or the guide. */
+        function showFocus() {
+            const disc = state.module && state.level === 'modules' ? cy.getElementById(state.module) : null;
+            if (disc) {
+                disc.select();
+                highlight(disc);
+            } else {
+                highlight(state.module && state.level === 'files' ? cy.nodes('.dot').filter((dot) => dot.data('module') === state.module) : null, true);
+            }
+            // A module drawn alone is the map itself: its × hides the panel. Elsewhere it gives up the focus.
+            setPanel(state.module ? moduleHtml(context, state.module, state.level === 'symbols' ? HIDE_PANEL_BUTTON : CLOSE_BUTTON) : HIDE_PANEL_BUTTON + overviewHtml(state));
         }
 
         function select(target) {
-            if (!cy) return;
             cy.elements().unselect();
-            if (!target || !target.length) {
-                highlight(null);
-                showOverview();
+            const kind = target && target.length ? target.data('kind') : null;
+            if (kind === 'module') state.module = target.id();
+            else if (state.level === 'modules') state.module = null;
+            if (!kind || kind === 'module') {
+                showFocus();
+                chrome();
                 return;
             }
             target.select();
@@ -1835,22 +1660,22 @@
             // A selection asks for its details, so a hidden panel opens again, keeping the selection in view.
             if (!state.panelOpen) {
                 setPanelOpen(true);
-                const box = typeof target.renderedBoundingBox === 'function' ? target.renderedBoundingBox() : null;
-                if (box && box.x2 > cy.width()) cy.animate({ center: { eles: target } }, { duration: 200 });
+                const box = target.renderedBoundingBox();
+                if (box.x2 > cy.width()) cy.animate({ center: { eles: target } }, { duration: 200 });
             }
             const data = target.data();
-            if (data.kind === 'module') setPanel(moduleHtml(context, data.id));
-            else if (data.kind === 'module-link') setPanel(moduleLinkHtml(context, context.moduleLinks.find((link) => link.source === data.source && link.target === data.target)));
-            else if (data.kind === 'file') setPanel(fileHtml(context, data.id));
-            else if (data.kind === 'file-link') setPanel(fileHtml(context, data.source));
-            else if (data.kind === 'contract') setPanel(contractHtml(context, data.id));
-            else if (data.kind === 'function' || data.kind === 'symbol') setPanel(functionHtml(context, data.id));
-            else if (data.kind === 'function-file') setPanel(fileHtml(context, data.id));
-            else if (data.kind === 'function-link') {
-                // The end in the opened file, which is what the link is listed under.
-                const end = [data.target, data.source].find((id) => context.symbols[id] && context.symbols[id].file === state.file);
-                setPanel(end ? functionHtml(context, end) : fileHtml(context, state.file));
-            } else showOverview();
+            if (kind === 'module-link') setPanel(moduleLinkHtml(context, context.moduleLinks.find((link) => link.source === data.source && link.target === data.target)));
+            else if (kind === 'file') setPanel(fileHtml(context, data.id));
+            else if (kind === 'symbol') setPanel(functionHtml(context, data.id));
+            else if (kind === 'contract') setPanel(contractHtml(context, data.id));
+            else if (kind === 'clone') setPanel(cloneHtml(context, data.clone));
+            chrome();
+        }
+
+        /** One step back: the selection first, then the module in focus. A module drawn alone stays unless ``leave``. */
+        function clear(leave) {
+            if (selected().filter((item) => item.data('kind') !== 'module').length) select(null);
+            else if (state.module && (state.level !== 'symbols' || leave)) go(state.level, null);
         }
 
         /** Brings ``target`` into the middle of the map, for selections made outside it. */
@@ -1860,25 +1685,10 @@
         }
 
         function crumbsHtml() {
-            if (state.view === 'modules') return '<i class="fas fa-sitemap" aria-hidden="true"></i> All modules';
-            const separator = '<span class="quality-crumbs__sep" aria-hidden="true"><i class="fas fa-chevron-right"></i></span>';
-            const home = '<button type="button" data-view="modules"' + (state.view === 'files' ? ' title="Back to all modules (Esc)"' : '')
-                + '><i class="fas fa-arrow-left" aria-hidden="true"></i> All modules</button>' + separator;
-            if (state.view === 'symbols' && state.symbolModule) {
-                return home + '<button type="button" data-symbol-reset title="Show every function (Esc)">All functions</button>'
-                    + separator + '<span>' + escapeHtml(shortName(state.symbolModule)) + '</span>';
-            }
-            if (state.view === 'symbols') return home + '<span>All functions</span>';
-            if (state.view === 'functions' && state.from === 'symbols') {
-                const back = state.symbolModule ? shortName(state.symbolModule) + ' functions' : 'All functions';
-                return '<button type="button" data-view-toggle="symbols" title="Back to the functions map (Esc)"><i class="fas fa-arrow-left" aria-hidden="true"></i> '
-                    + escapeHtml(back) + '</button>' + separator + '<span>' + escapeHtml(baseName(state.file)) + '</span>';
-            }
-            if (state.view === 'functions') {
-                return home + '<button type="button" data-open-module="' + escapeHtml(state.focus) + '" title="Back to the module\'s files (Esc)">'
-                    + escapeHtml(shortName(state.focus)) + '</button>' + separator + '<span>' + escapeHtml(baseName(state.file)) + '</span>';
-            }
-            return home + '<span>' + (state.focus ? escapeHtml(shortName(state.focus)) : 'All files') + '</span>';
+            const all = LEVELS[state.level].all;
+            if (!state.module) return '<i class="fas fa-sitemap" aria-hidden="true"></i> ' + all;
+            return '<button type="button" data-reset title="' + all + ' (Esc)"><i class="fas fa-arrow-left" aria-hidden="true"></i> ' + all + '</button>'
+                + '<span class="quality-crumbs__sep" aria-hidden="true"><i class="fas fa-chevron-right"></i></span><span>' + escapeHtml(shortName(state.module)) + '</span>';
         }
 
         function setPressed(selector, active) {
@@ -1889,50 +1699,54 @@
             });
         }
 
-        /** Which of Modules, Files and Functions the current view belongs to. */
-        function level() {
-            if (state.view === 'symbols' || (state.view === 'functions' && state.from === 'symbols')) return 'symbols';
-            return state.view === 'files' && !state.focus ? 'files' : 'modules';
+        /** The module list: colour as on the map, largest first by what the level counts. It is also the colour key. */
+        function renderExplorer() {
+            const codeMap = context.data.code_map;
+            const counts = state.level === 'modules' ? moduleLines(codeMap) : {};
+            if (state.level === 'files') codeMap.files.forEach((file) => addCount(counts, file.module, 1));
+            if (state.level === 'symbols') context.symbolGraph.nodes.forEach((node) => addCount(counts, node.module, 1));
+            element('#qualityExplorer').dataset.shows = state.level;
+            element('#qualityExplorerUnit').textContent = LEVELS[state.level].unit;
+            element('#qualityExplorerModules').innerHTML = codeMap.modules.map((module) => module.id)
+                .sort((a, b) => (counts[b] || 0) - (counts[a] || 0) || a.localeCompare(b)).map((moduleId) => {
+                    const module = context.modules[moduleId];
+                    const on = state.module === moduleId;
+                    return '<li><button type="button" class="quality-explorer__module' + (on ? ' is-active' : '') + '" data-explorer-module="' + escapeHtml(moduleId)
+                        + '" aria-pressed="' + on + '" title="' + escapeHtml(module.title) + '">'
+                        + '<span class="quality-swatch quality-swatch--dot" style="background:' + nodeColor(module, context.report, state.colorBy, context.colors) + '" aria-hidden="true"></span>'
+                        + '<span class="quality-explorer__name">' + escapeHtml(shortName(moduleId)) + '</span>'
+                        + '<span class="quality-explorer__count">' + (counts[moduleId] || 0).toLocaleString('en') + '</span></button></li>';
+                }).join('');
+            element('#qualityExplorerReset').disabled = !state.module && !selected().length && !search.value;
         }
 
-        /** The functions map's module list: colour as on the map, most functions first. */
-        function renderExplorer() {
-            const list = element('#qualityExplorerModules');
-            if (!list) return;
-            const map = symbolMap();
-            const counts = {};
-            map.graph.nodes.forEach((node) => addCount(counts, node.module, 1));
-            list.innerHTML = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b)).map((moduleId) => {
-                const module = context.modules[moduleId];
-                const on = state.symbolModule === moduleId;
-                return '<li><button type="button" class="quality-explorer__module' + (on ? ' is-active' : '') + '" data-symbol-module="' + escapeHtml(moduleId)
-                    + '" aria-pressed="' + on + '" title="' + escapeHtml(module ? module.title : moduleId) + '">'
-                    + '<span class="quality-swatch quality-swatch--dot" style="background:' + nodeColor(module, context.data.report, state.symbolColorBy, map.colors) + '" aria-hidden="true"></span>'
-                    + '<span class="quality-explorer__name">' + escapeHtml(shortName(moduleId)) + '</span>'
-                    + '<span class="quality-explorer__count">' + counts[moduleId].toLocaleString('en') + '</span></button></li>';
-            }).join('');
-            const reset = element('#qualityExplorerReset');
-            if (reset) reset.disabled = !state.symbolModule && !(selected() && selected().length) && !(search && search.value);
+        /** Everything around the map that names the level, the module in focus and the colours. */
+        function chrome() {
+            element('#qualityLegend').innerHTML = legendHtml(state);
+            element('#qualityBreadcrumb').innerHTML = crumbsHtml();
+            setPressed('[data-level]', (button) => button.dataset.level === state.level);
+            setPressed('[data-color-by]', (button) => button.dataset.colorBy === state.colorBy);
+            renderExplorer();
         }
 
         /**
-         * Names the dots whose name is at least LABEL_PX tall at the current zoom and does not cover a name already
-         * placed, largest dots first; around a selection, the selection and as many neighbours as fit. Only dots that
-         * change are restyled.
+         * Names the circles, and the dots whose name is at least LABEL_PX tall at the current zoom and does not cover a
+         * name already placed, largest dots first; around a selection, the selection and as many neighbours as fit.
+         * Only what changes is restyled.
          */
-        function nameSymbols() {
-            if (state.view !== 'symbols' || !cy) return;
+        function nameDots() {
             const zoom = cy.zoom();
             namedZoom = zoom;
-            const shown = new Map(labelPlaces(symbolView(), zoom, symbolFocus ? { only: symbolFocus.ids, first: symbolFocus.first } : {}).map((place) => [place.id, place]));
-            cy.batch(() => cy.nodes('.symbol, .symbol-region-label').forEach((node) => {
+            const options = state.level === 'modules' ? { only: new Set() } : named ? { only: named.ids, first: named.first } : {};
+            const shown = new Map(labelPlaces(view(), zoom, options).map((place) => [place.id, place]));
+            cy.batch(() => cy.nodes('.dot, .region-label').forEach((node) => {
                 const place = shown.get(node.id());
-                const region = node.hasClass('symbol-region-label');
-                const name = symbolFocus && !region ? 'named' : 'labelled';
+                const region = node.hasClass('region-label');
+                const name = named && !region ? 'named' : 'labelled';
                 if (place && node.data('labelFont') !== place.font) node.data('labelFont', place.font);
                 if (Boolean(place) !== node.hasClass(name)) node.toggleClass(name, Boolean(place));
                 if (Boolean(place && place.above) !== node.hasClass('above')) node.toggleClass('above', Boolean(place && place.above));
-                if (symbolFocus && !region && node.hasClass('labelled')) node.removeClass('labelled');
+                if (named && !region && node.hasClass('labelled')) node.removeClass('labelled');
             }));
         }
 
@@ -1940,57 +1754,33 @@
         // when the zoom has doubled or halved since, so a long zoom never shows names more than twice their size.
         let namingTimer = null;
         function scheduleNames() {
-            if (state.view !== 'symbols') return;
             global.clearTimeout(namingTimer);
-            if (namedZoom && Math.abs(Math.log2(cy.zoom() / namedZoom)) >= 1) nameSymbols();
-            else namingTimer = global.setTimeout(nameSymbols, NAME_DELAY);
+            if (namedZoom && Math.abs(Math.log2(cy.zoom() / namedZoom)) >= 1) nameDots();
+            else namingTimer = global.setTimeout(nameDots, NAME_DELAY);
         }
 
-        /** Applies the Edges and Labels switches to the functions map. */
-        function applySymbolSwitches() {
-            if (state.view !== 'symbols') return;
+        /** Applies the Edges and Labels switches to the dots and their lines. */
+        function applySwitches() {
             cy.batch(() => {
-                cy.edges('.symbol-link').toggleClass('hidden', !state.showEdges);
-                cy.nodes('.symbol').toggleClass('unlabelled', !state.showLabels);
+                cy.edges('.dot-link').toggleClass('hidden', !state.showEdges);
+                cy.nodes('.dot').toggleClass('unlabelled', !state.showLabels);
             });
         }
 
         function render() {
-            // The module list is a column of the map: showing or hiding it changes the map's width.
-            if (explorer && explorer.hidden !== (state.view !== 'symbols')) {
-                explorer.hidden = state.view !== 'symbols';
-                if (typeof cy.resize === 'function') cy.resize();
-            }
-            const options = Object.assign({ moduleLinks: context.moduleLinks, symbolMap: state.view === 'symbols' ? symbolView() : null }, state);
-            const build = { modules: moduleElements, files: fileElements, functions: functionElements, symbols: symbolElements }[state.view];
-            const elements = build(context.data.code_map, context.data.report, options);
             cy.elements().remove();
-            cy.add(elements);
+            cy.add(mapElements(context, state, view()));
             cy.layout({ name: 'preset', fit: true, padding: fitPadding() }).run();
-            // Open a module close enough to read its file names, and never shrink the module view to unreadable boxes.
-            const readable = state.focus ? READABLE_ZOOM : state.view === 'modules' ? MODULE_ZOOM : 0;
-            if (readable && typeof cy.zoom === 'function' && cy.zoom() < readable) {
-                cy.zoom(readable);
-                cy.center(state.focus ? cy.getElementById(state.view === 'functions' ? state.file : state.focus) : undefined);
-            }
-            if (state.view === 'symbols' && typeof cy.zoom === 'function' && cy.zoom() > MODULE_MAX_ZOOM) {
+            if (state.level === 'symbols' && cy.zoom() > MODULE_MAX_ZOOM) {
                 cy.zoom(MODULE_MAX_ZOOM);
                 cy.center();
             }
-            element('#qualityLegend').innerHTML = legendHtml(state);
-            element('#qualityBreadcrumb').innerHTML = crumbsHtml();
-            setPressed('[data-view-toggle]', (button) => button.dataset.viewToggle === level());
-            // Colouring by module only exists on the functions map, where the regions need it.
-            root.querySelectorAll('[data-color-by="module"]').forEach((button) => { button.hidden = state.view !== 'symbols'; });
-            setPressed('[data-color-by]', (button) => button.dataset.colorBy === colorChoice(state));
-            if (state.view === 'symbols') {
-                applySymbolSwitches();
-                renderExplorer();
-            }
-            if (state.view === 'files' && state.focus) select(cy.getElementById(state.focus));
-            else if (state.view === 'functions') setPanel(fileHtml(context, state.file));
-            else if (state.view === 'symbols') select(null);
-            else showOverview();
+            // On Files the module in focus fills the map: its circle is where it was on Modules.
+            const circle = state.level === 'files' && state.module ? cy.getElementById('region:' + state.module) : null;
+            if (circle && circle.length) cy.fit(circle, fitPadding());
+            applySwitches();
+            showFocus();
+            chrome();
         }
 
         /** Re-renders behind a short fade, so switching views does not jump. */
@@ -2004,109 +1794,67 @@
             global.requestAnimationFrame(() => mapElement.classList.remove('is-switching'));
         }
 
-        function openModule(moduleId) {
-            const node = state.view === 'modules' ? cy.getElementById(moduleId) : null;
-            const go = () => {
-                state.view = 'files';
-                state.focus = moduleId;
-                state.file = null;
-                state.from = null;
-                switchView();
-            };
-            if (node && node.length && typeof cy.animate === 'function') {
-                cy.animate({ fit: { eles: node, padding: Math.min(mapElement.clientWidth, mapElement.clientHeight) / 3 } }, { duration: 260, easing: 'ease-in-cubic', complete: go });
-            } else {
-                go();
-            }
-        }
-
-        /** Opens one file's functions, and selects ``symbolId`` there when given. From the functions map, Esc goes back to it. */
-        function openFile(fileId, symbolId) {
-            const chosen = () => {
-                if (!symbolId) return;
-                select(cy.getElementById(symbolId));
-                reveal(cy.getElementById(symbolId));
-            };
-            if (state.view === 'functions' && state.file === fileId) {
-                chosen();
+        /** Shows ``level`` with ``moduleId`` in focus, drawing again only when the picture changes, then runs ``after``. */
+        function go(level, moduleId, after) {
+            const redraw = level !== state.level || (level === 'symbols' && (moduleId || null) !== state.module);
+            state.level = level;
+            state.module = moduleId || null;
+            if (redraw) {
+                switchView(after);
                 return;
             }
-            if (state.view === 'symbols') {
-                state.from = 'symbols';
-                state.returnTo = symbolId || null;
-            } else if (state.view !== 'functions') {
-                state.from = null;
-            }
-            state.view = 'functions';
-            state.focus = context.owners[fileId];
-            state.file = fileId;
-            switchView(chosen);
-        }
-
-        function showModules(selectedId) {
-            state.view = 'modules';
-            state.focus = null;
-            state.file = null;
-            state.from = null;
-            switchView(() => {
-                if (selectedId) select(cy.getElementById(selectedId));
-            });
-        }
-
-        /** The functions map, with ``symbolId`` selected again when coming back from its file. */
-        function showSymbols(symbolId) {
-            state.view = 'symbols';
-            state.focus = null;
-            state.file = null;
-            state.from = null;
-            switchView(() => {
-                if (symbolId && cy.getElementById(symbolId).length) select(cy.getElementById(symbolId));
-            });
-        }
-
-        /**
-         * Shows only one module's functions on the functions map, fitted to it, with the module in the panel; null
-         * shows every function again. The module already shown only clears the selection.
-         */
-        function focusModule(moduleId) {
-            if (state.symbolModule === moduleId) {
-                select(null);
-                renderExplorer();
-                return;
-            }
-            state.symbolModule = moduleId;
-            switchView();
-        }
-
-        /** While one module is shown, a function or file found elsewhere switches the map to its module, so it is there. */
-        function showModuleOf(fileId) {
-            const moduleId = context.owners[fileId];
-            if (state.symbolModule && moduleId && state.symbolModule !== moduleId) focusModule(moduleId);
-        }
-
-        /** Selects a function on the functions map and zooms in far enough to read its neighbours' names. */
-        function focusSymbol(symbolId) {
-            if (context.symbols[symbolId]) showModuleOf(context.symbols[symbolId].file);
-            const node = cy.getElementById(symbolId);
-            if (!node.length) return;
-            select(node);
-            reveal(node, FOCUS_ZOOM);
-            renderExplorer();
-        }
-
-        /** Selects every function of one file on the functions map and shows the file in the panel. */
-        function focusFile(fileId) {
-            showModuleOf(fileId);
-            const nodes = cy.nodes('.symbol').filter((node) => context.symbols[node.id()].file === fileId);
-            if (!nodes.length) return;
             cy.elements().unselect();
-            nodes.select();
-            highlight(nodes);
-            setPanel(fileHtml(context, fileId));
-            if (typeof cy.animate === 'function') {
-                cy.animate({ fit: { eles: nodes.closedNeighborhood(), padding: 60 } }, { duration: 300, easing: 'ease-in-out-cubic' });
-            }
-            renderExplorer();
+            showFocus();
+            chrome();
+            if (after) after();
+        }
+
+        /** Brings the module in focus, or the whole map, into view. */
+        function frame() {
+            const circle = state.level === 'files' && state.module ? cy.getElementById('region:' + state.module) : cy.elements();
+            cy.animate({ fit: { eles: circle, padding: fitPadding() } }, { duration: 260, easing: 'ease-in-out-cubic' });
+        }
+
+        /** The module to draw on Functions for something in ``fileId``: its own, unless every function is already drawn. */
+        function moduleFor(fileId) {
+            return state.level === 'symbols' && !state.module ? null : context.owners[fileId];
+        }
+
+        function showSymbol(symbolId) {
+            const symbol = context.symbols[symbolId];
+            if (!symbol) return;
+            go('symbols', moduleFor(symbol.file), () => {
+                select(cy.getElementById(symbolId));
+                reveal(cy.getElementById(symbolId), FOCUS_ZOOM);
+            });
+        }
+
+        function showFile(fileId) {
+            go('files', null, () => {
+                select(cy.getElementById(fileId));
+                reveal(cy.getElementById(fileId), FOCUS_ZOOM);
+            });
+        }
+
+        /** On Functions: selects every function of one file, fitted to the map, with the file in the panel. */
+        function showFunctionsOf(fileId) {
+            go('symbols', moduleFor(fileId), () => {
+                const dots = cy.nodes('.dot').filter((dot) => dot.data('file') === fileId);
+                cy.elements().unselect();
+                dots.select();
+                highlight(dots);
+                setPanel(fileHtml(context, fileId));
+                if (dots.length) cy.animate({ fit: { eles: dots.closedNeighborhood(), padding: 60 } }, { duration: 300, easing: 'ease-in-out-cubic' });
+                renderExplorer();
+            });
+        }
+
+        /** Selects an arc of the Modules level or a pair of copied blocks of the Files level, by its element id. */
+        function showEdge(level, id) {
+            go(level, null, () => {
+                select(cy.getElementById(id));
+                reveal(cy.getElementById(id));
+            });
         }
 
         function zoomBy(factor) {
@@ -2162,11 +1910,11 @@
         function hoverStart(target) {
             cy.elements('.hover').removeClass('hover');
             target.addClass('hover');
-            if (target.isNode()) target.union(target.descendants()).connectedEdges().addClass('hover');
+            if (target.isNode()) target.connectedEdges().addClass('hover');
             global.clearTimeout(tooltipTimer);
-            // While a tooltip is showing, moving straight to a neighbour shows the neighbour's at once. A region is crossed
+            // While a tooltip is showing, moving straight to a neighbour shows the neighbour's at once. A circle is crossed
             // on the way between its dots, so its own tooltip always waits for the cursor to rest.
-            if (tooltipShown && target.data('kind') !== 'symbol-region') showTooltip(target);
+            if (tooltipShown && target.data('kind') !== 'region') showTooltip(target);
             else tooltipTimer = global.setTimeout(() => showTooltip(target), HOVER_DELAY);
         }
 
@@ -2178,58 +1926,40 @@
 
         function tooltipHtml(target) {
             const data = target.data();
-            if (data.kind === 'module' && context.modules[data.id]) {
-                const module = context.modules[data.id];
-                const coverage = laneSummary((context.data.report.modules || {})[data.id], 'coverage');
-                return '<strong>' + escapeHtml(module.title) + '</strong><span>' + escapeHtml(module.criticality) + ' criticality · branch coverage ' + escapeHtml(coverage.text)
-                    + ' · ' + plural(moduleLines(context.data.code_map)[data.id] || 0, 'line') + '</span>';
+            const report = context.report;
+            const count = (number) => plural(number, 'function or class', 'functions and classes');
+            if (data.kind === 'module' || (data.kind === 'region' && data.of === 'module')) {
+                const module = context.modules[data.kind === 'module' ? data.id : data.region];
+                const coverage = laneSummary((report.modules || {})[module.id], 'coverage');
+                return '<strong>' + escapeHtml(shortName(module.id)) + '</strong><span>' + escapeHtml(module.title) + '<br>' + escapeHtml(module.criticality) + ' criticality · branch coverage '
+                    + escapeHtml(coverage.text.toLowerCase()) + ' · ' + plural(moduleLines(context.data.code_map)[module.id] || 0, 'line')
+                    + '<br>Double-click for its ' + (state.level === 'modules' ? 'files' : 'functions') + '</span>';
+            }
+            if (data.kind === 'region') {
+                return '<strong>' + escapeHtml(baseName(data.region)) + '</strong><span>' + escapeHtml(pathOf(data.region)) + ' · ' + count(data.count) + '</span>';
             }
             if (data.kind === 'module-link') {
                 const link = context.moduleLinks.find((item) => item.source === data.source && item.target === data.target);
                 return '<strong>' + escapeHtml(shortName(link.source)) + ' → ' + escapeHtml(shortName(link.target)) + '</strong><span>'
                     + (link.count ? escapeHtml(kindsText(link.kinds)) : 'No code reference found') + (link.declared ? '' : '<br>Not declared in the catalog') + '</span>';
             }
-            if (data.kind === 'file' || data.kind === 'function-file') return '<strong>' + escapeHtml(baseName(data.id)) + '</strong><span>' + escapeHtml(pathOf(data.id)) + '</span>';
-            if (data.kind === 'function') {
-                const symbol = context.symbols[data.id];
-                return '<strong>' + escapeHtml(symbol.name) + '</strong><span>' + escapeHtml(pathOf(symbol.file) + ':' + symbol.line) + '</span>';
+            if (data.kind === 'file') {
+                const file = context.files[data.id];
+                const coverage = coverageOf((report.files || {})[data.id]);
+                return '<strong>' + escapeHtml(baseName(data.id)) + '</strong><span>' + escapeHtml(pathOf(data.id)) + '<br>' + escapeHtml(shortName(file.module)) + ' · ' + plural(file.lines || 0, 'line')
+                    + (coverage === null ? '' : ' · ' + coverage + '% covered') + '</span>';
             }
             if (data.kind === 'symbol') {
-                const node = symbolMap().nodes[data.id];
-                return '<strong>' + escapeHtml(node.name) + '</strong><span>' + escapeHtml(pathOf(node.file) + ':' + node.line) + '<br>'
-                    + escapeHtml(shortName(node.module)) + ' · used by ' + plural(node.users, 'function or file', 'functions and files') + '</span>';
+                const node = context.symbolNodes[data.id];
+                return '<strong>' + escapeHtml(node.name) + '</strong><span>' + escapeHtml(pathOf(node.file) + ':' + node.line) + '<br>' + escapeHtml(shortName(node.module)) + ' · '
+                    + (node.unused ? 'nothing mentions it' : 'used by ' + plural(node.users, 'function or file', 'functions and files')) + '</span>';
             }
-            if (data.kind === 'file-link' || data.kind === 'function-link') {
-                const name = (id) => escapeHtml(context.symbols[id] ? context.symbols[id].name : baseName(id));
-                return '<strong>' + name(data.source) + ' → ' + name(data.target) + '</strong><span>' + escapeHtml(data.kinds) + '</span>';
-            }
-            if (data.kind === 'symbol-region' && data.of === 'module') {
-                const module = context.modules[data.region];
-                return '<strong>' + escapeHtml(shortName(data.region)) + '</strong><span>' + escapeHtml(module ? module.title : data.region) + ' · '
-                    + plural(data.count, 'function or class', 'functions and classes') + '<br>Double-click to show it alone</span>';
-            }
-            if (data.kind === 'symbol-region') {
-                return '<strong>' + escapeHtml(baseName(data.region)) + '</strong><span>' + escapeHtml(pathOf(data.region)) + ' · '
-                    + plural(data.count, 'function or class', 'functions and classes') + '<br>Double-click to open its functions</span>';
+            if (data.kind === 'clone') {
+                const clone = context.data.code_map.clones[data.clone];
+                return '<strong>Copied code</strong><span>' + clone.files.map(baseName).map(escapeHtml).join(' ⇄ ') + ' · ' + plural(clone.lines, 'line') + '</span>';
             }
             if (data.kind === 'contract') return '<strong>' + escapeHtml(data.label) + '</strong><span>Contract between the repositories</span>';
             return '';
-        }
-
-        function selectLink(key) {
-            const go = () => {
-                select(cy.getElementById('link:' + key));
-                reveal(cy.getElementById('link:' + key));
-            };
-            if (state.view !== 'modules') {
-                state.view = 'modules';
-                state.focus = null;
-                state.file = null;
-                state.from = null;
-                switchView(go);
-            } else {
-                go();
-            }
         }
 
         function scrollToMap() {
@@ -2237,18 +1967,15 @@
         }
 
         function recolor() {
-            setPressed('[data-color-by]', (button) => button.dataset.colorBy === colorChoice(state));
-            const colors = state.view === 'symbols' ? symbolMap().colors : null;
-            cy.batch(() => cy.nodes('.module, .file, .function, .symbol').forEach((node) => {
-                const moduleId = node.data('module') || (node.data('kind') === 'module' ? node.id() : node.data('parent'));
-                const color = nodeColor(context.modules[moduleId], context.data.report, colorChoice(state), colors);
-                node.data(node.data('kind') === 'symbol' ? { color } : paint(color));
+            cy.batch(() => cy.nodes('.module, .dot').forEach((node) => {
+                const moduleId = node.data('kind') === 'module' ? node.id() : node.data('module');
+                node.data({ color: nodeColor(context.modules[moduleId], context.report, state.colorBy, context.colors, node.data('file')) });
             }));
-            element('#qualityLegend').innerHTML = legendHtml(state);
-            if (state.view === 'symbols') renderExplorer();
+            chrome();
         }
 
-        // Search on the functions map: a list of matches under the box, chosen with a click or the arrow keys and Enter.
+        // Search: a list of matches under the box, chosen with a click or the arrow keys and Enter. A function opens on
+        // Functions, a file on Files.
         function renderMatches() {
             const text = search.value.trim();
             searchResults.innerHTML = matches.map((match, index) => '<li role="option" id="qualitySearchOption' + index + '" class="quality-search__option'
@@ -2271,116 +1998,79 @@
         function chooseMatch(match) {
             if (!match) return;
             closeMatches();
-            if (match.kind === 'file') focusFile(match.id);
-            else focusSymbol(match.id);
+            if (match.kind === 'file') showFile(match.id);
+            else showSymbol(match.id);
         }
 
-        if (search && searchResults) {
-            search.addEventListener('input', () => {
-                matches = context ? matchSymbols(symbolMap().graph, search.value) : [];
-                activeMatch = matches.length ? 0 : -1;
+        search.addEventListener('input', () => {
+            matches = context ? matchNames(context.symbolGraph.nodes, context.data.code_map.files, search.value) : [];
+            activeMatch = matches.length ? 0 : -1;
+            renderMatches();
+        });
+        search.addEventListener('focus', () => {
+            if (search.value.trim() && matches.length) renderMatches();
+        });
+        search.addEventListener('blur', closeMatches);
+        search.addEventListener('keydown', (event) => {
+            if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && matches.length) {
+                event.preventDefault();
+                activeMatch = (activeMatch + (event.key === 'ArrowDown' ? 1 : -1) + matches.length) % matches.length;
                 renderMatches();
-            });
-            search.addEventListener('focus', () => {
-                if (search.value.trim() && matches.length) renderMatches();
-            });
-            search.addEventListener('blur', closeMatches);
-            search.addEventListener('keydown', (event) => {
-                if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && matches.length) {
-                    event.preventDefault();
-                    activeMatch = (activeMatch + (event.key === 'ArrowDown' ? 1 : -1) + matches.length) % matches.length;
-                    renderMatches();
-                } else if (event.key === 'Enter') {
-                    event.preventDefault();
-                    chooseMatch(matches[activeMatch] || matches[0]);
-                } else if (event.key === 'Escape' && search.value) {
-                    // Esc first empties the box; with the box empty it acts on the map as anywhere else.
-                    event.preventDefault();
-                    search.value = '';
-                    matches = [];
-                    closeMatches();
-                }
-            });
-            // Pressing a match must not blur the box first, which would close the list before the click lands.
-            searchResults.addEventListener('mousedown', (event) => event.preventDefault());
-            searchResults.addEventListener('click', (event) => {
-                const option = event.target.closest('[data-search-index]');
-                if (option) chooseMatch(matches[Number(option.dataset.searchIndex)]);
-            });
-        }
-
-        root.addEventListener('click', (event) => {
-            const target = event.target.closest('[data-select-module], [data-select-link], [data-open-module], [data-open-file], [data-select-function], [data-symbol-module], [data-view], [data-view-toggle], [data-color-by], [data-zoom], [data-clear-selection], [data-hide-panel], [data-symbol-reset]');
-            if (!target) return;
-            event.preventDefault();
-            const inPanel = Boolean(target.closest('#qualityPanel'));
-            if (target.dataset.selectModule) {
-                if (state.view === 'symbols' && inPanel) {
-                    focusModule(target.dataset.selectModule);
-                } else if (state.view === 'modules') {
-                    select(cy.getElementById(target.dataset.selectModule));
-                    if (!inPanel) reveal(cy.getElementById(target.dataset.selectModule));
-                } else {
-                    showModules(target.dataset.selectModule);
-                }
-                if (!inPanel) scrollToMap();
-            } else if (target.dataset.selectLink) {
-                selectLink(target.dataset.selectLink);
-                if (!inPanel) scrollToMap();
-            } else if (target.dataset.openModule) {
-                openModule(target.dataset.openModule);
-            } else if (target.dataset.openFile) {
-                openFile(target.dataset.openFile, target.dataset.openSymbol);
-            } else if (target.dataset.selectFunction) {
-                const symbol = context.symbols[target.dataset.selectFunction];
-                if (symbol && state.view === 'symbols') focusSymbol(symbol.id);
-                else if (symbol) openFile(symbol.file, symbol.id);
-            } else if (target.dataset.symbolModule) {
-                focusModule(state.symbolModule === target.dataset.symbolModule ? null : target.dataset.symbolModule);
-            } else if (target.hasAttribute('data-symbol-reset')) {
-                if (search) {
-                    search.value = '';
-                    matches = [];
-                    closeMatches();
-                }
-                if (state.symbolModule) {
-                    focusModule(null);
-                } else {
-                    select(null);
-                    renderExplorer();
-                    if (typeof cy.animate === 'function') cy.animate({ fit: { eles: cy.elements(), padding: fitPadding() } }, { duration: 260, easing: 'ease-in-out-cubic' });
-                }
-            } else if (target.dataset.view === 'modules' || target.dataset.viewToggle === 'modules') {
-                if (state.view !== 'modules') showModules(state.view === 'symbols' ? null : state.focus);
-            } else if (target.dataset.viewToggle === 'files') {
-                if (state.view === 'files' && !state.focus) return;
-                state.view = 'files';
-                state.focus = null;
-                state.file = null;
-                state.from = null;
-                switchView();
-            } else if (target.dataset.viewToggle === 'symbols') {
-                if (state.view !== 'symbols') showSymbols(state.view === 'functions' && state.from === 'symbols' ? state.returnTo : null);
-            } else if (target.dataset.colorBy) {
-                if (state.view === 'symbols') state.symbolColorBy = target.dataset.colorBy;
-                else state.colorBy = target.dataset.colorBy;
-                recolor();
-            } else if (target.dataset.zoom) {
-                zoomBy(target.dataset.zoom === 'in' ? 1.3 : 1 / 1.3);
-            } else if (target.hasAttribute('data-hide-panel')) {
-                setPanelOpen(false);
-                if (panelToggle) panelToggle.focus();
-            } else if (target.hasAttribute('data-clear-selection')) {
-                select(null);
-                if (state.view === 'symbols') renderExplorer();
+            } else if (event.key === 'Enter') {
+                event.preventDefault();
+                chooseMatch(matches[activeMatch] || matches[0]);
+            } else if (event.key === 'Escape' && search.value) {
+                // Esc first empties the box; with the box empty it acts on the map as anywhere else.
+                event.preventDefault();
+                search.value = '';
+                matches = [];
+                closeMatches();
             }
         });
+        // Pressing a match must not blur the box first, which would close the list before the click lands.
+        searchResults.addEventListener('mousedown', (event) => event.preventDefault());
+        searchResults.addEventListener('click', (event) => {
+            const option = event.target.closest('[data-search-index]');
+            if (option) chooseMatch(matches[Number(option.dataset.searchIndex)]);
+        });
+
+        root.addEventListener('click', (event) => {
+            const target = event.target.closest('[data-select-module], [data-select-link], [data-select-function], [data-select-file], [data-select-clone], [data-show-functions], [data-go-level], [data-explorer-module], [data-level], [data-color-by], [data-zoom], [data-clear-selection], [data-hide-panel], [data-reset]');
+            if (!target || !cy) return;
+            event.preventDefault();
+            const data = target.dataset;
+            const inPanel = Boolean(target.closest('#qualityPanel'));
+            if (data.selectModule) go(inPanel ? state.level : 'modules', data.selectModule, frame);
+            else if (data.selectLink) showEdge('modules', 'link:' + data.selectLink);
+            else if (data.selectFunction) showSymbol(data.selectFunction);
+            else if (data.selectFile) showFile(data.selectFile);
+            else if (data.selectClone) showEdge('files', 'clone:' + data.selectClone);
+            else if (data.showFunctions) showFunctionsOf(data.showFunctions);
+            else if (data.goLevel) go(data.goLevel, data.goModule);
+            else if (data.explorerModule) go(state.level, state.module === data.explorerModule ? null : data.explorerModule, frame);
+            else if (data.level) go(data.level, state.module);
+            else if (data.colorBy) {
+                state.colorBy = data.colorBy;
+                recolor();
+            } else if (data.zoom) {
+                zoomBy(data.zoom === 'in' ? 1.3 : 1 / 1.3);
+            } else if ('hidePanel' in data) {
+                setPanelOpen(false);
+                if (panelToggle) panelToggle.focus();
+            } else if ('clearSelection' in data) {
+                clear(true);
+            } else if ('reset' in data) {
+                search.value = '';
+                matches = [];
+                closeMatches();
+                go(state.level, null, frame);
+            }
+            if (!inPanel && (data.selectModule || data.selectLink || data.selectFunction || data.selectFile || data.selectClone)) scrollToMap();
+        });
         [['#qualityEdgesToggle', 'showEdges'], ['#qualityLabelsToggle', 'showLabels']].forEach(([selector, key]) => {
-            const toggle = element(selector);
-            if (!toggle) return;
-            toggle.addEventListener('change', () => {
-                state[key] = toggle.checked;
-                if (cy) applySymbolSwitches();
+            element(selector).addEventListener('change', (event) => {
+                state[key] = event.target.checked;
+                if (cy) applySwitches();
             });
         });
         element('#qualityFit').addEventListener('click', () => {
@@ -2475,61 +2165,58 @@
             const typing = event.target.closest && event.target.closest('select, textarea, input:not([type="checkbox"])');
             if (typing && typing !== search) return;
             if (state.expanded) setExpanded(false);
-            else if (selected().length && !(state.view === 'files' && state.focus && selected().id() === state.focus)) select(null);
-            else if (state.view === 'symbols' && state.symbolModule) focusModule(null);
-            else if (state.view === 'functions' && state.from === 'symbols') showSymbols(state.returnTo);
-            else if (state.view === 'functions') openModule(state.focus);
-            else if (state.view === 'files') showModules(state.focus);
-            if (state.view === 'symbols') renderExplorer();
+            else clear(true);
         });
 
+        const unavailable = (data) => {
+            element('#qualityUnavailableText').innerHTML = unavailableHtml(data);
+            element('#qualityUnavailable').hidden = false;
+        };
         return global.SharedUtils.fetchJson(root.dataset.apiUrl)
             .then((data) => {
                 if (!data.available) {
-                    element('#qualityUnavailable').hidden = false;
+                    unavailable(data);
                     return;
                 }
                 element('#qualityContent').hidden = false;
-                if (data.warning) {
-                    element('#qualityWarning').hidden = false;
-                    element('#qualityWarningText').textContent = data.warning;
-                }
-                const status = runStatus(data.report);
-                const pill = element('#qualityRunStatus');
-                if (pill) {
-                    pill.className = 'quality-pill quality-pill--' + status.tone;
-                    pill.textContent = status.label;
-                }
-                element('#qualitySummary').innerHTML = summaryHtml(data);
-                element('#qualityChecks').innerHTML = checksHtml(data.report);
                 context = createContext(data, state);
+                // Without a report there is still a map: a local `quality.py map` measures nothing.
+                const local = data.source === 'local';
+                const commit = data.revision ? ' for commit <code>' + escapeHtml(String(data.revision).slice(0, 7)) + '</code>' : '';
+                element('#qualityRunEyebrow').textContent = local ? 'Measured on this computer' : 'Measured by CI';
+                element('#qualityRunTitle').innerHTML = local ? 'Local run' : 'CI results' + commit;
+                element('#qualityWarning').hidden = !local;
+                const status = data.report ? runStatus(data.report) : { tone: 'warn', label: 'Map only' };
+                const pill = element('#qualityRunStatus');
+                pill.className = 'quality-pill quality-pill--' + status.tone;
+                pill.textContent = status.label;
+                element('#qualitySummary').innerHTML = data.report ? summaryHtml(data) : '';
+                root.querySelectorAll('[data-needs-report]').forEach((section) => { section.hidden = !data.report; });
+                element('#qualityChecks').innerHTML = checksHtml(context.report);
                 element('#qualityTable').innerHTML = tableHtml(context);
+                element('#qualityFigures').innerHTML = figuresHtml(context);
                 element('#qualityFindings').innerHTML = findingsHtml(context);
+                element('#qualityCleanup').innerHTML = cleanupHtml(context);
                 element('#qualityBlindSpots').innerHTML = blindSpotsHtml(context);
-                const figures = element('#qualityFigures');
-                if (figures) figures.innerHTML = figuresHtml(context);
                 cy = global.cytoscape({
                     container: mapElement, style: GRAPH_STYLE, minZoom: 0.15, maxZoom: 10,
                     wheelSensitivity: 0.4, boxSelectionEnabled: false, autoungrabify: true
                 });
-                // A click focuses: it fades the rest until Esc or a click on the background.
-                // A region is background to a click: double-clicking it goes into it.
-                const selectable = (target) => (!target.isParent() || ['module', 'function-file'].includes(target.data('kind'))) && target.data('kind') !== 'symbol-region';
+                // A click focuses: it fades the rest until Esc or a click on the background. A circle around dots is
+                // background to a click; double-clicking it goes into it.
                 cy.on('tap', (event) => {
-                    select(event.target === cy || (event.target.isNode() && !selectable(event.target)) ? null : event.target);
-                    if (state.view === 'symbols') renderExplorer();
+                    if (event.target === cy || event.target.data('kind') === 'region') clear(false);
+                    else select(event.target);
                 });
-                cy.on('dbltap', 'node.module', (event) => openModule(event.target.id()));
-                cy.on('dbltap', 'node.file', (event) => openFile(event.target.id()));
-                cy.on('dbltap', 'node.function, node.function-file.outside, node.symbol', (event) => {
-                    const symbol = context.symbols[event.target.id()];
-                    openFile(symbol ? symbol.file : event.target.id(), symbol ? symbol.id : undefined);
+                cy.on('dbltap', 'node.module', (event) => go('files', event.target.id()));
+                cy.on('dbltap', 'node.region', (event) => {
+                    if (event.target.data('of') === 'file') showFunctionsOf(event.target.data('region'));
+                    else go('symbols', event.target.data('region'));
                 });
-                cy.on('dbltap', 'node.symbol-region', (event) => {
-                    if (event.target.data('of') === 'module') focusModule(event.target.data('region'));
-                    else openFile(event.target.data('region'));
+                cy.on('dbltap', 'node.dot', (event) => {
+                    if (event.target.data('kind') === 'file') showFunctionsOf(event.target.id());
                 });
-                const hoverable = 'node.module, node.file-module, node.file, node.contract, node.function, node.function-file, node.symbol, node.symbol-region, edge';
+                const hoverable = 'node.module, node.contract, node.dot, node.region, edge';
                 cy.on('mouseover', hoverable, (event) => {
                     mapElement.style.cursor = 'pointer';
                     hoverStart(event.target);
@@ -2542,31 +2229,34 @@
                 cy.on('zoom', scheduleNames);
                 render();
             })
-            .catch(() => {
-                element('#qualityUnavailable').hidden = false;
-            });
+            .catch(() => unavailable(null));
     }
 
     global.QualityDashboard = {
         aggregateModuleLinks,
         boundaryFindings,
         blindSpots,
+        cleanup,
         moduleLevels,
-        modulePositions,
+        moduleColumns,
+        layeredCentres,
         fileGraph,
-        functionGraph,
+        fileDots,
+        fileSize,
         symbolGraph,
         moduleSymbolGraph,
         symbolSize,
-        symbolPositions,
-        symbolLayout,
+        dotLayout,
+        mapView,
+        mapElements,
         moduleRing,
         moduleColors,
         packRegions,
-        matchSymbols,
+        matchNames,
         labelPlaces,
         laneSummary,
         nodeColor,
+        createContext,
         escapeHtml,
         init
     };

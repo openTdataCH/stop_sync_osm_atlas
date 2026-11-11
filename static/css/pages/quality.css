@@ -1,7 +1,7 @@
 /* ==========================================================================
    CODE QUALITY DASHBOARD
    Same shell as the Operators and Analytics pages: a section heading, then
-   flat blocks. The module map is one workspace with its toolbar, detail
+   flat blocks. The code map is one workspace with its toolbar, detail
    panel and legend attached.
    ========================================================================== */
 
@@ -152,6 +152,12 @@
 
 .quality-run__warning[hidden] {
   display: none;
+}
+
+.quality-run__warning code {
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: 0.92em;
 }
 
 .quality-run__facts {
@@ -519,7 +525,7 @@ a.quality-figure:hover .quality-figure__label {
   background: var(--color-border);
 }
 
-/* The map, with the functions map's search and module list as a column on its left. */
+/* The map, with the search box and the module list as a column on its left. */
 .quality-map-wrap {
   display: flex;
   min-width: 0;
@@ -615,10 +621,6 @@ a.quality-figure:hover .quality-figure__label {
   padding: var(--space-3);
   border-right: 1px solid var(--color-border);
   background: var(--color-bg);
-}
-
-.quality-explorer[hidden] {
-  display: none;
 }
 
 /* Above the switches below it, whose tracks are positioned too, so the matches cover them. */
@@ -1192,11 +1194,6 @@ a.quality-figure:hover .quality-figure__label {
   border-radius: 50%;
 }
 
-.quality-swatch--entry {
-  border: 2px solid var(--color-primary);
-  background: var(--color-bg);
-}
-
 .quality-swatch--contract {
   background: var(--color-quality-contract);
   transform: rotate(45deg) scale(0.8);
@@ -1218,13 +1215,11 @@ a.quality-figure:hover .quality-figure__label {
 .quality-line--declared { border-top-color: var(--color-quality-declared); }
 .quality-line--undeclared { border-top-color: var(--color-quality-undeclared); border-top-style: dashed; }
 .quality-line--unused { border-top-color: var(--color-quality-unused); border-top-style: dotted; }
-.quality-line--contract { border-top-color: var(--color-quality-contract); border-top-style: dotted; }
-.quality-line--internal { border-top-color: var(--color-quality-internal); }
 .quality-line--crossing { border-top-color: var(--color-quality-crossing); }
-.quality-line--symbol { border-top-width: 1px; border-top-color: var(--color-quality-unused); }
+.quality-line--clone { border-top-width: 2px; border-top-color: var(--color-fg); border-top-style: dashed; }
 
-/* The light circle of a module or file on the functions map. */
-.quality-region-key {
+/* Round keys: the light circle of a module or file, a file over the size budget, a function nothing mentions. */
+.quality-key {
   display: inline-block;
   flex: none;
   width: 0.85rem;
@@ -1234,7 +1229,24 @@ a.quality-figure:hover .quality-figure__label {
   background: var(--color-bg-subtle);
 }
 
-/* Three dots of growing size: the functions map's size legend. */
+.quality-key--ring {
+  width: 0.55rem;
+  height: 0.55rem;
+  margin: 0 0.15rem;
+  border: 0;
+  background: var(--color-fg-subtle);
+  outline: 1.5px solid var(--color-fg);
+  outline-offset: 2px;
+}
+
+.quality-key--hollow {
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 2px solid var(--color-fg-subtle);
+  background: var(--color-bg);
+}
+
+/* Three dots of growing size: the key to dot size. */
 .quality-dots {
   display: inline-flex;
   align-items: center;
@@ -1327,9 +1339,11 @@ a.quality-figure:hover .quality-figure__label {
 /* -------------------------------------------------------------------------
    Findings, table and checks
    ------------------------------------------------------------------------- */
+/* Each card is as tall as its own list: a long list beside a short one leaves no empty card. */
 .quality-findings {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(26rem, 100%), 1fr));
+  align-items: start;
   gap: var(--space-4);
 }
 
@@ -1370,6 +1384,50 @@ a.quality-figure:hover .quality-figure__label {
 
 .quality-finding > p {
   margin: 0 0 var(--space-2);
+  color: var(--color-fg-muted);
+  font-size: var(--text-xs);
+}
+
+/* The rows of a long list past the first few. */
+.quality-more > summary {
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-primary);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  cursor: pointer;
+}
+
+.quality-more[open] > summary {
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* The checks that found nothing: one line each, across the whole width. */
+.quality-clear {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+  font-size: var(--text-sm);
+  list-style: none;
+}
+
+.quality-clear > li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.quality-clear i {
+  color: var(--color-success-fg);
+  font-size: var(--text-xs);
+}
+
+.quality-clear small {
   color: var(--color-fg-muted);
   font-size: var(--text-xs);
 }
@@ -1545,4 +1603,62 @@ a.quality-figure:hover .quality-figure__label {
   .quality-switch__track::after {
     transition: none;
   }
+}
+
+/* -------------------------------------------------------------------------
+   Coverage bar, panel actions and notes
+   ------------------------------------------------------------------------- */
+/* Under a module's branch coverage in the table: the same share as a bar. */
+.quality-meter {
+  display: block;
+  width: 6rem;
+  max-width: 100%;
+  height: 4px;
+  margin-top: var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--color-bg-muted);
+  overflow: hidden;
+}
+
+.quality-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-primary);
+}
+
+.quality-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.quality-actions:empty {
+  display: none;
+}
+
+.quality-callout {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-subtle);
+  color: var(--color-warning-fg);
+  font-size: var(--text-sm);
+}
+
+/* What the module list counts on this level: lines, files or functions. */
+.quality-explorer__unit {
+  margin-left: var(--space-1);
+  color: var(--color-fg-subtle);
+  font-weight: var(--font-normal);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* The Modules level has no dots, so nothing for the Edges and Labels switches to hide. */
+.quality-explorer[data-shows="modules"] .quality-explorer__switches {
+  display: none;
+}
+
+[data-needs-report][hidden] {
+  display: none;
 }

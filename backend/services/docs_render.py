@@ -20,7 +20,6 @@ from backend.services.docs_sources import code_file_url, doc_source_key, docs_di
 from backend.services.docs_stats import (
     convert_github_alerts_to_html, get_canonical_palette_html, heading_slug, replace_stats_placeholders,
 )
-from backend.services.quality_report import replace_quality_placeholder
 from backend.services.repo_scanner import RepoScanner
 from backend.version import APP_ROOT
 
@@ -331,9 +330,6 @@ def convert_markdown_to_html(
 
     # Remaining links to source files or non-served Markdown belong on GitHub.
     markdown_text = rewrite_repo_links(markdown_text, current_doc)
-
-    # The quality report can open with a warning alert, so it goes in before alert conversion.
-    markdown_text = replace_quality_placeholder(markdown_text, APP_ROOT)
 
     # Convert GitHub-style alerts to HTML before markdown processing
     markdown_text = convert_github_alerts_to_html(markdown_text)

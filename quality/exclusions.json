@@ -22,20 +22,8 @@
       "reason": "Generated analyzer evidence"
     },
     {
-      "pattern": "quality/latest.json",
-      "reason": "Generated quality artifact"
-    },
-    {
-      "pattern": "quality/quality-map.json",
-      "reason": "Generated graph"
-    },
-    {
-      "pattern": "quality/report.md",
-      "reason": "Generated report"
-    },
-    {
-      "pattern": "quality/published/**",
-      "reason": "Committed copy of a CI report, written by make deploy-report"
+      "pattern": "quality/evidence.json",
+      "reason": "Generated report and code map"
     },
     {
       "pattern": "tests/**",
@@ -55,7 +43,7 @@
     },
     {
       "pattern": "mutants/**",
-      "reason": "Generated mutation worktree"
+      "reason": "The engine's generated mutation worktree"
     }
   ],
   "duplication": [

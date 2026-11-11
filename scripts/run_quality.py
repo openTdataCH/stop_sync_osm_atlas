@@ -134,7 +134,7 @@ def main() -> int:
         print(error, file=sys.stderr)
         return 1
     manifest["tool_versions"]["node"] = subprocess.check_output(["node", "--version"], text=True).strip()
-    for package in ("ruff", "vulture", "pytest", "pytest-cov", "coverage", "hypothesis", "jsonschema"):
+    for package in ("ruff", "pytest", "pytest-cov", "coverage", "hypothesis", "jsonschema"):
         try:
             manifest["tool_versions"][package] = version(package)
         except PackageNotFoundError:
@@ -158,7 +158,7 @@ def main() -> int:
     }
     run("engine-fast", ["make", "-C", str(engine), "quality-fast", f"PYTHON={args.engine_python if full else python}"], env=engine_environment)
     if full:
-        run("structural-debt", [python, "scripts/quality.py", "debt", *engine_option])
+        run("duplicated-blocks", [python, "scripts/quality.py", "debt", *engine_option])
         # The engine import contract runs the engine through ENGINE_PYTHON as a subprocess.
         app_environment = {**os.environ, "DATABASE_URI": "sqlite://", "ENGINE_DIR": str(engine),
                            "ENGINE_PYTHON": args.engine_python}
@@ -171,8 +171,7 @@ def main() -> int:
         run("engine-python-tests", ["make", "-C", str(engine), "quality-test", f"PYTHON={args.engine_python}", f"OUTPUT_DIR={RAW}"], env=engine_environment)
         run("coverage-sanity", [python, "scripts/quality.py", "coverage", *engine_option])
         # Report even failed gates; partial evidence must remain visible.
-        comparison = ["--base", os.environ["QUALITY_BASE"]] if os.getenv("QUALITY_BASE") else []
-        run("quality-report", [python, "scripts/quality.py", "report", *engine_option, *comparison])
+        run("quality-report", [python, "scripts/quality.py", "report", *engine_option])
     else:
         focused_tests = [str(path.relative_to(ROOT)) for path in sorted((ROOT / "tests").glob("test_quality_*.py"))]
         run("quality-and-contract-unit-tests", [python, "-m", "pytest", "tests/test_result_bundle.py", *focused_tests, "-q"])

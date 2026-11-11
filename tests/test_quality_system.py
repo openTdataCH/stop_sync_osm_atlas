@@ -1,9 +1,7 @@
 """Acceptance tests for evidence integrity, ownership and architecture policies."""
 import ast
 import json
-import hashlib
 from datetime import datetime, timezone
-from pathlib import Path
 import subprocess
 
 import pytest
@@ -62,6 +60,19 @@ def test_source_ownership_rejects_missing_or_duplicate_owner(tmp_path, monkeypat
         quality.load_catalogs()
 
 
+def test_the_pattern_with_the_longest_fixed_start_owns_a_file():
+    modules = [{'id': name, 'paths': {'source': globs}} for name, globs in [
+        ('api', ['backend/**']), ('docs', ['backend/services/docs_*.py', 'backend/blueprints/docs.py']), ('jobs', ['backend/jobs/**'])]]
+    # A directory has a default owner; a deeper directory, a narrower pattern or a file named in full takes its files.
+    assert quality.owners_of('backend/services/stops.py', modules) == ['api']
+    assert quality.owners_of('backend/jobs/run.py', modules) == ['jobs']
+    assert quality.owners_of('backend/services/docs_render.py', modules) == ['docs']
+    assert quality.owners_of('backend/blueprints/docs.py', modules) == ['docs']
+    assert quality.owners_of('static/js/page.js', modules) == []
+    modules.append({'id': 'second', 'paths': {'source': ['backend/jobs/**/*.py']}})
+    assert quality.owners_of('backend/jobs/run.py', modules) == ['jobs', 'second']
+
+
 def test_python_coverage_requires_branch_measurement(tmp_path):
     with pytest.raises(ValueError, match='branch coverage'):
         quality.coverage_files({'meta': {'branch_coverage': False}}, tmp_path)
@@ -89,14 +100,6 @@ def test_core_architecture_resolves_relative_imports(tmp_path):
     assert quality.architecture({'engine': tmp_path}, {('engine', 'src/osm_public_transport_matcher/core/matching.py'): 'engine.core-matching'})
 
 
-def test_expired_exceptions_fail(tmp_path, monkeypatch):
-    (tmp_path / 'quality').mkdir()
-    (tmp_path / 'quality/exceptions.json').write_text(json.dumps([{'module': 'test', 'finding': 'a', 'owner': 'maintainer', 'reason': 'temporary', 'expires': '2000-01-01'}]))
-    monkeypatch.setattr(quality, 'ROOT', tmp_path)
-    with pytest.raises(ValueError, match='expired'):
-        quality.active_exceptions({'test'})
-
-
 def test_fingerprint_changes_for_dirty_source_but_not_generated_output(tmp_path):
     subprocess.run(['git', 'init', str(tmp_path)], check=True, capture_output=True)
     (tmp_path / 'source.py').write_text('answer = 41\n')
@@ -105,15 +108,14 @@ def test_fingerprint_changes_for_dirty_source_but_not_generated_output(tmp_path)
     after = quality.repository_fingerprint(tmp_path)
     assert after != before
     (tmp_path / 'quality').mkdir()
-    (tmp_path / 'quality/latest.json').write_text('{}')
+    (tmp_path / 'quality/evidence.json').write_text('{}')
     assert quality.repository_fingerprint(tmp_path) == after
 
 
 def test_report_never_treats_missing_file_as_covered(tmp_path, monkeypatch):
     raw = tmp_path / 'quality/raw'
     raw.mkdir(parents=True)
-    schema = Path(quality.ROOT / 'quality/latest.schema.json').read_text()
-    (tmp_path / 'quality/latest.schema.json').write_text(schema)
+    (tmp_path / 'quality/report.schema.json').write_text((quality.ROOT / 'quality/report.schema.json').read_text())
     (tmp_path / 'a.py').write_text('pass\n')
     module = dict(id='app.test', criticality='high', owner='test', reviewed='2026-09-22', invariants=['Invariant'], docs={'explanation':['README.md']}, paths={'tests':[]})
     coverage = {'meta': {'branch_coverage': True}, 'files': {'backend/a.py': {'summary': {'num_statements': 1, 'covered_lines': 1, 'num_branches': 2, 'covered_branches': 1}, 'executed_lines': [1], 'missing_lines': []}}}
@@ -128,6 +130,14 @@ def test_report_never_treats_missing_file_as_covered(tmp_path, monkeypatch):
     assert cov['status'] == 'invalid'
     assert cov['missing_files'] == ['backend/untested.py']
     assert result['modules']['app.test']['tests']['status'] == 'not_measured'
+    assert result['completeness'] == 'partial'
+    # Each measured file keeps its own coverage, for the map.
+    assert result['files'] == {'app:backend/a.py': {'lines': 100.0, 'branches': 50.0}}
+    assert set(result['modules']['app.test']) == {'criticality', 'tests', 'coverage', 'duplication', 'docs', 'architecture'}
+    # Evidence measured on other source is refused, not shown with a warning.
+    monkeypatch.setattr(quality, 'repository_fingerprint', lambda *args: 'edited since')
+    with pytest.raises(ValueError, match='no evidence of the current source'):
+        quality.report({'app': tmp_path}, {'app': {'modules': [module]}}, {('app', 'backend/a.py'): 'app.test'})
 
 
 def test_junit_skipped_scenarios_are_not_a_pass(tmp_path):
@@ -136,38 +146,6 @@ def test_junit_skipped_scenarios_are_not_a_pass(tmp_path):
     rows = quality.test_results(path)
     assert rows[0]['skipped'] == 1
     assert rows[1]['failed'] is True
-
-
-@pytest.mark.parametrize('inventory,python_status,javascript_status', [
-    (['app:backend/app.py'], 'pass', 'not_applicable'),
-    (None, 'not_measured', 'not_measured'),
-    ({'app:backend/app.py': True}, 'invalid', 'invalid'),
-])
-def test_dead_code_results_require_recorded_python_analyzer_inputs(tmp_path, monkeypatch, inventory, python_status, javascript_status):
-    raw = tmp_path / 'quality/raw'
-    raw.mkdir(parents=True)
-    (tmp_path / 'quality/latest.schema.json').write_text((quality.ROOT / 'quality/latest.schema.json').read_text())
-    debt = {'schema_version': 1, 'findings': []}
-    if inventory is not None:
-        debt['analyzed_python_files'] = inventory
-    (raw / 'debt.json').write_text(json.dumps(debt))
-    (raw / 'checks.json').write_text(json.dumps({'generated_at': datetime.now(timezone.utc).isoformat(),
-        'revision': {'app': 'sha', 'engine': 'sha'}, 'fingerprints': {'app': 'fingerprint'}, 'checks': []}))
-    modules = [dict(id=mid, criticality='high', owner='test', reviewed='2026-09-22', invariants=['Invariant'],
-                    docs={'explanation': ['README.md']}, paths={'tests': []}) for mid in ('app.python', 'app.javascript')]
-    monkeypatch.setattr(quality, 'ROOT', tmp_path)
-    monkeypatch.setattr(quality, 'architecture', lambda *args: [])
-    monkeypatch.setattr(quality, 'revision', lambda *args: 'sha')
-    monkeypatch.setattr(quality, 'repository_fingerprint', lambda *args: 'fingerprint')
-    result = quality.report({'app': tmp_path}, {'app': {'modules': modules}}, {
-        ('app', 'backend/app.py'): 'app.python', ('app', 'static/js/review.js'): 'app.javascript'})
-    for module, status in [('app.python', python_status), ('app.javascript', javascript_status)]:
-        lane = result['modules'][module]['dead_code']
-        assert lane['status'] == status
-        assert lane['analyzer'] == 'Vulture'
-        assert lane['scope'] == 'Python'
-        assert ('count' in lane) == (status == 'pass')
-    assert '| Python dead code |' in (tmp_path / 'quality/report.md').read_text()
 
 
 def test_junit_class_failures_belong_to_the_test_module(tmp_path):
@@ -183,34 +161,6 @@ def test_junit_prefers_existing_module_prefix_over_class_name(tmp_path):
     (tmp_path / 'scenarios/contract.py').write_text('')
     assert quality.testcase_file({'classname': 'scenarios.contract.TestBundle.Nested'}, tmp_path) == 'scenarios/contract.py'
     assert quality.testcase_file({'classname': 'ignored.Class', 'file': 'explicit.py'}, tmp_path) == 'explicit.py'
-
-
-@pytest.mark.parametrize('content', ['not JSON', 'null', '[]', '{}', '{"schema_version": 1, "tests_sha256": []}'])
-def test_malformed_optional_mutation_evidence_is_invalid_without_breaking_report(tmp_path, content):
-    artifact = tmp_path / 'mutation.json'
-    artifact.write_text(content)
-    assert quality.mutation_evidence(artifact, tmp_path)['status'] == 'invalid'
-
-
-def test_mutation_evidence_is_measured_only_for_matching_sources_and_valid_totals(tmp_path):
-    source = tmp_path / 'src/osm_public_transport_matcher/results/validation.py'
-    test = tmp_path / 'tests/test_results.py'
-    source.parent.mkdir(parents=True)
-    test.parent.mkdir(parents=True)
-    source.write_text('original source')
-    test.write_text('original test')
-    data = dict(schema_version=1, started_at=datetime.now(timezone.utc).isoformat(),
-                source_path=source.relative_to(tmp_path).as_posix(), source_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
-                tests_sha256={test.relative_to(tmp_path).as_posix(): hashlib.sha256(test.read_bytes()).hexdigest()},
-                scope='osm_public_transport_matcher.results.validation.*_position*', total_mutants=2, counts={'killed': 1, 'survived': 1})
-    artifact = tmp_path / 'mutation.json'
-    artifact.write_text(json.dumps(data))
-    assert quality.mutation_evidence(artifact, tmp_path)['score'] == 50
-    source.write_text('changed source')
-    assert quality.mutation_evidence(artifact, tmp_path)['status'] == 'stale'
-    data['counts'] = {'killed': 3, 'survived': -1}
-    artifact.write_text(json.dumps(data))
-    assert quality.mutation_evidence(artifact, tmp_path)['status'] == 'invalid'
 
 
 def test_required_coverage_gate_rejects_missing_report(tmp_path, monkeypatch):
@@ -252,13 +202,14 @@ def test_map_resolves_calls_through_imports_and_reports_each_module_interface(tm
         return dict(id=mid, title=mid, criticality='high', responsibility='r', owner='o', reviewed='2026-11-02', invariants=[],
                     entrypoints=list(entrypoints), dependencies=[], paths={'source': [], 'tests': []}, docs={})
     catalogs = {'app': {'modules': [module('app.api'), module('app.store', ['backend.services:save'])], 'contracts': []}}
-    graph = quality.build_map({'app': tmp_path}, catalogs, ownership)
-    edges = {(item['source'], item['target'], item['kind']) for item in graph['edges']}
+    code_map = quality.build_map({'app': tmp_path}, catalogs, ownership)
+    links = {(item['source'], item['target'], item['kind']): item['count'] for item in code_map['links']}
+    edges = {(item['source'], item['target'], item['kind']) for item in code_map['symbol_links']}
     api, package = 'app:backend/api.py', 'app:backend/services/__init__.py'
     save = 'app:backend/services/store.py:save@1'
-    assert (api, 'app:backend/services/store.py', 'imports') in edges
+    assert (api, 'app:backend/services/store.py', 'imports') in links
     # Importing a submodule does not import the package's __init__; importing a name from it does.
-    assert [item['line'] for item in graph['edges'] if (item['source'], item['target'], item['kind']) == (api, package, 'imports')] == [2]
+    assert links[(api, package, 'imports')] == 1
     assert (api, save, 'uses') in edges
     assert ('app:backend/api.py:handle@5', save, 'calls') in edges
     assert (save, 'app:backend/services/store.py:_private@5', 'calls') in edges
@@ -273,7 +224,6 @@ def test_map_resolves_calls_through_imports_and_reports_each_module_interface(tm
     assert (render, 'app:static/js/shared.js:formatValue@1', 'uses') in edges
     assert not any(source == target == render for source, target, _ in edges)
 
-    code_map = json.loads((tmp_path / 'quality/code-map.json').read_text())
     assert [(row['name'], row['used_by']) for row in code_map['interface']['app.store']] == [('save', ['app.api']), ('formatValue', ['app.api'])]
     assert code_map['modules'][1]['entrypoints'] == [{'entry': 'backend.services:save', 'symbol': save}]
     assert {'source': api, 'target': 'app:backend/services/store.py', 'kind': 'calls', 'count': 2} in code_map['links']
@@ -291,7 +241,7 @@ def test_map_links_requests_templates_and_browser_namespaces_and_reports_blind_s
         'templates/pages/index.html': '{% extends "layouts/base.html" %}\n<a href="{{ url_for(\'index\') }}">Home</a>\n'
                                       '<div data-url="{{ url_for(\'api.item\', item_id=1) }}"></div>\n{% include "missing.html" %}\n',
         'static/js/page.js': "fetch('/api/items/' + id);\nSharedUtils.fetchJson(config.url);\nvar namespace = window.Shared = window.Shared || {};\n"
-                             "namespace.Tool = function () {};\nvar gone = '/api/gone';\n",
+                             "namespace.Tool = function () {};\nvar gone = '/api/gone';\nfunction load(url) {\n    return fetch(url);\n}\n",
         'static/js/other.js': 'Shared.Tool();\nhelper();\n// Shared.Missing() in a comment is no use.\n',
         'static/js/a.js': 'function helper() {}\n',
         'static/js/b.js': 'function helper() {}\n',
@@ -304,12 +254,12 @@ def test_map_links_requests_templates_and_browser_namespaces_and_reports_blind_s
         return dict(id=mid, title=mid, criticality='high', responsibility='r', owner='o', reviewed='2026-11-04', invariants=[],
                     entrypoints=[], dependencies=[], paths={'source': [], 'tests': []}, docs={})
     catalogs = {'app': {'modules': [module('app.api'), module('app.web')], 'contracts': []}}
-    graph = quality.build_map({'app': tmp_path}, catalogs, ownership)
-    edges = {(item['source'], item['target'], item['kind']) for item in graph['edges']}
+    code_map = quality.build_map({'app': tmp_path}, catalogs, ownership)
+    edges = {(item['source'], item['target'], item['kind']) for item in code_map['symbol_links'] + code_map['links']}
     index, item = 'app:backend/app.py:index@7', 'app:backend/api.py:item@7'
     page, home = 'app:static/js/page.js', 'app:templates/pages/index.html'
 
-    assert {(route['pattern'], route['endpoint'], tuple(route['methods'])) for route in graph['routes']} == {
+    assert {(route['pattern'], route['endpoint'], tuple(route['methods'])) for route in code_map['routes']} == {
         ('/', 'index', ('GET',)), ('/api/items/<item_id>', 'api.item', ('GET', 'POST')), ('/api/unused', 'api.unused', ('GET',))}
     # A URL with a runtime part reaches its route; an API url_for is a request, a page url_for a link.
     assert (page, item, 'requests') in edges
@@ -323,14 +273,14 @@ def test_map_links_requests_templates_and_browser_namespaces_and_reports_blind_s
     assert not any('Missing' in target for _, target, _ in edges)
     assert not any(source == 'app:static/js/other.js' and 'helper' in target for source, target, _ in edges)
 
-    spots = graph['blind_spots']
+    # A request inside a wrapper, with the wrapper's parameter as its URL, is no blind spot of its own.
+    spots = code_map['blind_spots']
     assert [(row['file'], row['line'], row['kind'], row['reference']) for row in spots['unmatched']] == [
         (page, 5, 'url', '/api/gone'), (home, 4, 'template', 'missing.html')]
     assert [(row['file'], row['line'], row['kind'], row['expression']) for row in spots['dynamic']] == [
         ('app:backend/api.py', 13, 'render_template', 'name'), (page, 2, 'request', 'config.url')]
     assert spots['shared_names'] == [{'name': 'helper', 'symbols': ['app:static/js/a.js:helper@1', 'app:static/js/b.js:helper@1']}]
 
-    code_map = json.loads((tmp_path / 'quality/code-map.json').read_text())
     routes = {route['endpoint']: route for route in code_map['routes']}
     assert routes['api.item']['requested_by'] == [page, home]
     assert (routes['api.unused']['requested_by'], routes['api.unused']['linked_by']) == ([], [])
@@ -343,6 +293,38 @@ def test_map_links_requests_templates_and_browser_namespaces_and_reports_blind_s
     assert {'source': page, 'target': item, 'kind': 'requests', 'count': 1} in code_map['symbol_links']
     assert {'source': item, 'target': index, 'kind': 'links', 'count': 1} in code_map['symbol_links']
     assert {'source': index, 'target': home, 'kind': 'renders', 'count': 1} in code_map['symbol_links']
+
+
+def test_map_marks_functions_no_production_code_names_and_draws_the_recorded_clones(tmp_path, monkeypatch):
+    monkeypatch.setattr(quality, 'ROOT', tmp_path)
+    sources = {
+        'backend/tools.py': "import functools\n\n\ndef used():\n    return 1\n\n\ndef orphan():\n    return used()\n\n\ndef entry():\n    return 2\n\n\n"
+                            "@functools.cache\ndef registered():\n    return 3\n\n\ndef by_name():\n    return 4\n\n\ndef in_template():\n    return 5\n\n\n"
+                            "class Row:\n    def __repr__(self):\n        return getattr(self, 'by_name')\n",
+        'migrations/step.py': 'def upgrade():\n    pass\n',
+        'templates/page.html': '{{ in_template() }} <a onclick="clicked()">x</a>\n',
+        'static/js/page.js': "function clicked() {}\nfunction orphanScript() {}\nfunction built() {}\nvar markup = '<a onclick=\"built()\">';\n"
+                             "class Panel {\n    constructor() {}\n    open() {}\n}\nnew Panel();\n",
+        'static/js/copy.js': 'function clicked() {}\n',
+    }
+    for name, text in sources.items():
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text(text)
+    (tmp_path / 'quality/raw').mkdir(parents=True)
+    places = [{'file': 'app:static/js/page.js', 'start': 1, 'end': 12, 'start_column': 0}, {'file': 'app:static/js/copy.js', 'start': 1, 'end': 12}]
+    (tmp_path / 'quality/raw/debt.json').write_text(json.dumps({'findings': [
+        {'id': 'one', 'kind': 'clone', 'files': ['app:static/js/page.js', 'app:static/js/copy.js'], 'lines': 12, 'fragment': 'text', 'locations': places},
+        {'id': 'two', 'kind': 'clone', 'files': ['app:static/js/page.js', 'app:tests/gone.js'], 'lines': 12, 'locations': places}]}))
+    module = dict(id='app.web', title='web', criticality='high', responsibility='r', owner='o', reviewed='2026-11-11', invariants=[],
+                  entrypoints=['backend.tools:entry'], dependencies=[], paths={'source': [], 'tests': []}, docs={})
+    code_map = quality.build_map({'app': tmp_path}, {'app': {'modules': [module], 'contracts': []}}, {('app', name): 'app.web' for name in sources})
+    # Used without being named: an entry point, a decorated function, a special method, a migration step, a
+    # constructor. Named: in code, in a template, in markup built in a string, as a one-word string, by another script.
+    assert sorted(row['name'] for row in code_map['symbols'] if row.get('unused')) == ['Row', 'markup', 'open', 'orphan', 'orphanScript']
+    assert all('unused' not in row for row in code_map['symbols'] if row['name'] in ('used', 'entry', 'clicked'))
+    # A clone joins two files of the map; its lines come from the last duplication run.
+    assert code_map['clones'] == [{'files': ['app:static/js/page.js', 'app:static/js/copy.js'], 'lines': 12, 'locations': [
+        {'file': 'app:static/js/page.js', 'start': 1, 'end': 12}, {'file': 'app:static/js/copy.js', 'start': 1, 'end': 12}]}]
 
 
 def test_route_table_matches_the_registered_flask_routes(app):
@@ -367,3 +349,13 @@ def test_urls_match_the_most_specific_route(url, pattern):
               ('/api/report_progress/<task_id>', '/api/data', '/docs/<path:page>', '/docs/assets/<path:filename>', '/api/routes/gtfs/popup')]
     match = quality.match_route(url, routes)
     assert (match['pattern'] if match else None) == pattern
+
+
+def test_a_url_with_runtime_parts_reaches_every_route_it_can_name():
+    rules = ('/api/exports/<task_id>/progress', '/api/exports/<task_id>/cancel', '/api/exports', '/api/data')
+    routes = [dict(pattern=rule, regex=quality.route_regex(rule)) for rule in rules]
+    # No one route: the last part is known only at runtime, so it stands for any segment.
+    assert quality.match_route('/api/exports/{}/{}', routes) is None
+    assert [route['pattern'] for route in quality.runtime_routes('/api/exports/{}/{}?verbose=1', routes)] == list(rules[:2])
+    assert quality.runtime_routes('/api/gone', routes) == []
+    assert quality.runtime_routes('/api/{}/gone', routes) == []

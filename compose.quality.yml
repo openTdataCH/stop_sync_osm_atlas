@@ -26,8 +26,6 @@ services:
       DATABASE_URI: sqlite://
       TEST_POSTGRES_URI: postgresql+psycopg://test:test@postgres:5432/transport_test
       ENGINE_DIR: /workspace/engine
-      # CI sets the pull request's base commit for the advisory changed-line coverage.
-      QUALITY_BASE: ${QUALITY_BASE:-}
       GIT_CONFIG_COUNT: '2'
       GIT_CONFIG_KEY_0: safe.directory
       GIT_CONFIG_VALUE_0: /workspace/app

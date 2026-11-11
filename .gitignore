@@ -67,12 +67,9 @@ documentation/generated/
 # Local working notes
 docs_to_read/
 
-# Generated quality evidence (the catalog, schemas, baseline and published report are versioned)
+# Generated quality evidence (the catalog, schemas and baseline are versioned)
 quality/raw/
-quality/latest.json
-quality/quality-map.json
-quality/code-map.json
-quality/report.md
+quality/evidence.json
 
 # Internal documentation style guide (kept local, not published)
 documentation/Documentation style guide.md

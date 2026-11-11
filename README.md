@@ -89,7 +89,7 @@ make quality-down           # remove the disposable quality services and volumes
 
 The full command builds the Python 3.13 and Node 22 tooling, keeps the app and engine Python environments apart and starts its own disposable PostGIS database. For fast native iteration, use `make quality-fast` after installing the supported toolchain. An ordinary app-only test run skips the PostGIS publication and engine contract tests, so it does not replace the full run.
 
-[Running the quality checks](documentation/4.4%20Running%20the%20quality%20checks.md) covers native setup, the commands and evidence files, the module catalog, baselines, CI and troubleshooting. [Code quality](documentation/4.3%20Code%20quality.md#how-the-report-reaches-the-site) explains how the report reaches the site with `make deploy-report` before each deployment.
+[Running the quality checks](documentation/4.4%20Running%20the%20quality%20checks.md) covers native setup, the commands and evidence files, the module catalog, baselines, CI and troubleshooting. The [code quality dashboard](documentation/4.3%20Code%20quality.md) of a site shows the CI results of the commit it runs; [how they reach the site](documentation/4.4%20Running%20the%20quality%20checks.md#how-the-evidence-reaches-the-site) needs no step before a deployment.
 
 ## Contributing and documentation
 

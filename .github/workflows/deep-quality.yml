@@ -34,39 +34,3 @@ jobs:
         with:
           name: dependency-security-${{ github.sha }}
           path: quality/raw/*audit.json
-  mutation:
-    name: Result validation mutation sample
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - name: Read the engine pin
-        id: engine
-        run: echo "ref=$(cat engine.ref)" >> "$GITHUB_OUTPUT"
-      - name: Checkout pinned engine
-        uses: actions/checkout@v4
-        with:
-          # The engine repository is public, so the default token can read it.
-          repository: openTdataCH/osm-public-transport-matcher
-          ref: ${{ steps.engine.outputs.ref }}
-          path: engine
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-      - run: pip install './engine[swiss,gtfs,quality,mutation]'
-      - name: Mutate engine result validation
-        working-directory: engine
-        run: make quality-mutation PYTHON=python
-      - name: Publish mutation evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: result-validation-mutation-${{ github.sha }}
-          path: |
-            engine/quality/raw/engine-mutation.txt
-            engine/quality/raw/engine-mutation.json
-          if-no-files-found: warn
-      - name: Explain mutation result policy
-        if: always()
-        run: echo 'Mutation survivors are advisory until a reviewed baseline exists; inspect the result-validation-mutation artifact.' >> "$GITHUB_STEP_SUMMARY"

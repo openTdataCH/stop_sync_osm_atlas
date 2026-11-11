@@ -147,41 +147,7 @@
       "reviewed": "2026-11-04",
       "paths": {
         "source": [
-          "backend/models.py",
-          "backend/query_builder.py",
-          "backend/queries/**",
-          "backend/serializers/**",
-          "backend/db_errors.py",
-          "backend/extensions.py",
-          "backend/version.py",
-          "backend/services/__init__.py",
-          "backend/services/data_meta.py",
-          "backend/services/source_config.py",
-          "backend/services/global_stats.py",
-          "backend/services/gtfs_stop_id_sloid.py",
-          "backend/services/async_export*.py",
-          "backend/services/json_files.py",
-          "backend/services/url_query.py",
-          "backend/services/stop_lookup.py",
-          "backend/services/stop_suggest.py",
-          "backend/services/problem_filters.py",
-          "backend/services/time_utils.py",
-          "backend/services/transport_routes.py",
-          "backend/services/route_comparison.py",
-          "backend/services/route_listing.py",
-          "backend/services/site_url.py",
-          "backend/services/operator_coverage.py",
-          "backend/services/request_payload.py",
-          "backend/services/validators.py",
-          "backend/services/stats_export.py",
-          "backend/services/dataset_stats.py",
-          "backend/services/matching_rules.py",
-          "backend/blueprints/data.py",
-          "backend/blueprints/problems.py",
-          "backend/blueprints/reports.py",
-          "backend/blueprints/routes.py",
-          "backend/blueprints/search.py",
-          "backend/blueprints/stats.py",
+          "backend/**",
           "templates/reports/**",
           "templates/components/stats_data.html"
         ],
@@ -240,16 +206,8 @@
           "static/js/pages/**",
           "static/js/shared/constants.js",
           "static/js/shared/permalinks.js",
-          "templates/pages/index.html",
-          "templates/pages/problems.html",
-          "templates/pages/routes.html",
-          "templates/pages/operators.html",
-          "templates/pages/data.html",
-          "templates/components/_components.html",
-          "templates/components/_map_scripts.html",
-          "templates/components/export_overlay.html",
-          "templates/components/data_page_tabs.html",
-          "templates/components/routes-comparison.html"
+          "templates/pages/**",
+          "templates/components/**"
         ],
         "tests": [
           "tests/js/*.test.js",
@@ -288,21 +246,19 @@
       "reviewed": "2026-11-04",
       "paths": {
         "source": [
+          "documentation/**",
           "backend/blueprints/docs.py",
-          "backend/services/repo_scanner.py",
-          "backend/services/docs_*.py",
-          "backend/services/quality_report.py",
           "backend/blueprints/quality.py",
-          "templates/pages/quality.html",
-          "static/js/quality/**",
-          "documentation/**/*.py",
-          "documentation/**/*.css",
+          "backend/services/docs_*.py",
+          "backend/services/repo_scanner.py",
+          "backend/services/quality_report.py",
           "templates/pages/docs.html",
+          "templates/pages/quality.html",
           "templates/components/docs_page_header.html",
           "static/js/docs/**",
+          "static/js/quality/**",
           "static/js/shared/mermaid-config.js",
-          "scripts/render_docs_mermaid.mjs",
-          "documentation/**/*.json"
+          "scripts/render_docs_mermaid.mjs"
         ],
         "tests": [
           "tests/test_docs*.py",
@@ -321,7 +277,7 @@
         ]
       },
       "invariants": [
-        "Missing or stale evidence is never presented as a successful measurement.",
+        "Missing evidence is never presented as a successful measurement.",
         "Engine and app documentation retain their ownership."
       ],
       "entrypoints": [],
@@ -347,6 +303,9 @@
           "backend/blueprints/seo.py",
           ".github/**",
           "config/**",
+          "quality/**",
+          "scripts/**",
+          ".vscode/**",
           "docker*.yml",
           "dockerfile",
           "Dockerfile*",
@@ -358,24 +317,13 @@
           "package*.json",
           "Makefile",
           "*.toml",
-          "quality/**",
-          "scripts/quality.py",
-          "scripts/run_quality.py",
-          "scripts/deploy_report.py",
-          "scripts/regenerate_stats.py",
-          "scripts/quality*.mjs",
-          "scripts/check-js-coverage.*",
-          "scripts/run_vscode_task.sh",
-          "scripts/verify_engine_checkout.sh",
-          "eslint.config.*",
-          ".vscode/**"
+          "eslint.config.*"
         ],
         "tests": [
           "tests/test_db_connection_options.py",
           "tests/test_migrations.py",
           "tests/test_quality_system.py",
-          "tests/test_quality_runner.py",
-          "tests/test_deploy_report.py"
+          "tests/test_quality_runner.py"
         ]
       },
       "docs": {
@@ -418,12 +366,10 @@
       "paths": {
         "source": [
           "static/css/**",
+          "static/js/shared/**",
           "templates/layouts/**",
           "templates/errors/**",
           "templates/components/navbar.html",
-          "static/js/shared/theme.js",
-          "static/js/shared/utils.js",
-          "static/js/shared/page-tabs.js",
           "scripts/stylelint/**",
           "scripts/sync_vendor_assets.mjs",
           "scripts/check_no_cdn_templates.mjs",

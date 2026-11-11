@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
  * Parse browser scripts for the code map: the functions and classes each file defines, the names it shares with
- * other scripts, the names it reads from them, the URL strings it contains and the HTTP requests it makes. A name
- * read is placed in the function or class around it, and a call or reference to a function or class of the same
- * file is a link between the two.
+ * other scripts, the names it reads from them, the URL strings it contains, the HTTP requests it makes and how often
+ * it spells each name. A name read is placed in the function or class around it, and a call or reference to a
+ * function or class of the same file is a link between the two.
  *
  * Reads a JSON list of file paths on stdin and writes one JSON object keyed by path. A file that does not parse
  * fails the run: ESLint rejects it too, so the map never silently drops a script.
@@ -74,6 +74,14 @@ function requestUrl(call) {
     return isRequest ? call.arguments[0] || null : null;
 }
 
+/** The name a function is defined under: its own, the variable it is assigned to, or the property, as ``fetchJson``. */
+function functionName(node, parent) {
+    if (node.id) return node.id.name;
+    if (parent && parent.type === 'VariableDeclarator' && parent.id.type === 'Identifier') return parent.id.name;
+    const left = parent && parent.type === 'AssignmentExpression' ? parent.left : null;
+    return left && left.type === 'MemberExpression' && left.property.type === 'Identifier' ? left.property.name : null;
+}
+
 /** ``global.Name = global.Name || {}``: several scripts add members to one shared object, so ``Name`` is a namespace. */
 function namespaceInit(node) {
     if (node.type !== 'AssignmentExpression' || !globalProperty(node.left)) return null;
@@ -102,7 +110,23 @@ function analyze(text, ast, namespaces) {
     const byNode = new Map();
     const topLevelNames = {};
     const parents = new Map();
+    // How often the file spells each name, declarations included: a function no file spells again is unused. Names
+    // inside strings count, because markup built in a string calls functions, as ``onclick="filterByRoute(...)"``.
+    const mentions = Object.create(null);
+    const mention = (name) => { mentions[name] = (mentions[name] || 0) + 1; };
     const line = (node) => node.loc.start.line;
+    /**
+     * A request inside a wrapper is no blind spot of its own: its URL is the wrapper's parameter, or the wrapper is
+     * ``fetchJson`` itself, and every caller of the wrapper is read on its own line.
+     */
+    const inWrapper = (call, url) => {
+        for (let node = parents.get(call); node; node = parents.get(node)) {
+            if (!/Function/.test(node.type)) continue;
+            if (functionName(node, parents.get(node)) === 'fetchJson') return true;
+            if (url.type === 'Identifier' && node.params.some((param) => param.type === 'Identifier' && param.name === url.name)) return true;
+        }
+        return false;
+    };
     const define = (name, node, shared, options = {}) => {
         const index = symbols.push({ name, line: line(node) }) - 1;
         ranges.push(node.range);
@@ -129,6 +153,9 @@ function analyze(text, ast, namespaces) {
         ? namespaceOf(node.object) + '.' + node.property.name : null;
     walk(ast, (node, parent) => {
         parents.set(node, parent);
+        if (node.type === 'Identifier') mention(node.name);
+        const quoted = node.type === 'TemplateElement' ? node.value.cooked : node.type === 'Literal' && typeof node.value === 'string' ? node.value : '';
+        (quoted.match(/[A-Za-z_$][\w$]*/g) || []).forEach(mention);
         const topLevel = parent && parent.type === 'Program';
         if (namespaceInit(node)) {
             if (parent && parent.type === 'VariableDeclarator' && parent.id.type === 'Identifier') aliases[parent.id.name] = namespaceInit(node);
@@ -154,8 +181,8 @@ function analyze(text, ast, namespaces) {
             references.push({ name: globalProperty(node), line: line(node), node });
         } else if (node.type === 'CallExpression') {
             const url = requestUrl(node);
-            if (url) {
-                const value = isStringPart(url) ? shape(url) : PLACEHOLDER;
+            const value = url && isStringPart(url) ? shape(url) : PLACEHOLDER;
+            if (url && !(value.startsWith(PLACEHOLDER) && inWrapper(node, url))) {
                 requests.push({ line: line(node), url: value.startsWith(PLACEHOLDER) ? null : value,
                     expression: text.slice(url.range[0], url.range[1]).replace(/\s+/g, ' ').slice(0, 120) });
             }
@@ -187,7 +214,7 @@ function analyze(text, ast, namespaces) {
         if (!reference.isWriteOnly()) link(reference.identifier, topLevelNames[reference.identifier.name]);
     });
     return {
-        symbols, globals, strings, requests, links,
+        symbols, globals, strings, requests, links, mentions,
         references: references.map(({ name, line: at, node }) => ({ name, line: at, symbol: enclosing(node) }))
     };
 }
