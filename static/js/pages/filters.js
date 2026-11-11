@@ -83,6 +83,7 @@ var activeFilters = {
     atlasOperators: [],
     osmOperators: [],
     osmOperatorWikidata: [],
+    missingOsmOperator: false,
     missingOsmOperatorWikidata: false,
     matchedOptions: {
         allSelected: true,
@@ -378,6 +379,7 @@ function getActiveFilterCount() {
 
     count += activeFilters.station.length;
     count += countSimpleArrayFilters();
+    if (activeFilters.missingOsmOperator) count += 1;
     if (activeFilters.missingOsmOperatorWikidata) count += 1;
 
     if (activeFilters.osmGroups && activeFilters.osmGroups.length > 0) {
@@ -780,6 +782,12 @@ function updateFiltersUI() {
     const stationIdGroupHtml = buildOrGroup(stationIdChips);
     if (stationIdGroupHtml) finalGroupStrings.push(stationIdGroupHtml);
 
+    if (activeFilters.missingOsmOperator) {
+        finalGroupStrings.push(buildRemovableChip({
+            label: 'No operator tag', badgeClass: 'filter-chip-osm',
+            data: { type: 'missingOsmOperator', target: '#filterMissingOsmOperator' }
+        }));
+    }
     if (activeFilters.missingOsmOperatorWikidata) {
         finalGroupStrings.push(buildRemovableChip({
             label: 'No Wikidata tag', badgeClass: 'filter-chip-osm',
@@ -828,7 +836,8 @@ function updateFiltersUI() {
 function clearAllFilters() {
     // Uncheck all filter checkboxes
     setChecked('#masterMatchedCheckbox, #masterUnmatchedAtlasCheckbox, #masterUnmatchedOsmCheckbox, #masterDisusedOsmCheckbox', false);
-    setChecked('#filterDuplicatesOnly, #filterMissingOsmOperatorWikidata', false);
+    setChecked('#filterDuplicatesOnly, #filterMissingOsmOperator, #filterMissingOsmOperatorWikidata', false);
+    activeFilters.missingOsmOperator = false;
     activeFilters.missingOsmOperatorWikidata = false;
     setChecked('.filter-match-method, .filter-distance-method, .filter-route-method', false);
     setChecked('#masterDistanceMatchingCheckbox, #masterRouteMatchingCheckbox', false);
@@ -895,6 +904,7 @@ function updateActiveFilters() {
     if (isChecked('#masterDisusedOsmCheckbox')) activeFilters.stopType.push('osm_disused');
 
     activeFilters.showDuplicatesOnly = isChecked('#filterDuplicatesOnly');
+    activeFilters.missingOsmOperator = isChecked('#filterMissingOsmOperator');
     activeFilters.missingOsmOperatorWikidata = isChecked('#filterMissingOsmOperatorWikidata');
     activeFilters.transportTypes = checkedValues('.filter-transport-type');
     activeFilters.osmEntityTypes = checkedValues('.filter-osm-entity-type');
@@ -1179,7 +1189,7 @@ function loadRouteVariantOptions(dropdown) {
 // repeated search= values. See documentation/2.9 Permalinks.md#map.
 var FILTER_URL_KEYS = ['stop_filter', 'match_method', 'transport_types', 'osm_entity_types', 'osm_group_types',
     'show_duplicates_only', 'atlas_operator', 'osm_operator', 'osm_operator_wikidata',
-    'missing_osm_operator_wikidata', 'problem_type', 'priority', 'top_n', 'search'];
+    'missing_osm_operator', 'missing_osm_operator_wikidata', 'problem_type', 'priority', 'top_n', 'search'];
 // Off until the filters of the opening link are restored, so a half-built state never replaces them.
 var filterUrlSyncEnabled = false;
 
@@ -1225,6 +1235,7 @@ function filterUrlPairs() {
     addList('atlas_operator', activeFilters.atlasOperators);
     addList('osm_operator', activeFilters.osmOperators);
     addList('osm_operator_wikidata', activeFilters.osmOperatorWikidata);
+    if (activeFilters.missingOsmOperator) pairs.push(['missing_osm_operator', 'true']);
     if (activeFilters.missingOsmOperatorWikidata) pairs.push(['missing_osm_operator_wikidata', 'true']);
     addList('problem_type', activeFilters.problemTypes);
     addList('priority', activeFilters.problemPriorities);
@@ -1339,6 +1350,15 @@ window.enableFilterUrlSync = enableFilterUrlSync;
 window.filterUrlQuery = filterUrlQuery;
 
 function initFilterEventHandlers() {
+    onEach('#filterMissingOsmOperator', 'change', function () {
+        if (this.checked) {
+            activeFilters.osmOperators = [];
+            if (window.osmOperatorDropdown) window.osmOperatorDropdown.setSelection([]);
+        }
+        updateActiveFilters();
+        updateHeaderSummary();
+    });
+
     onEach('#filterMissingOsmOperatorWikidata', 'change', function () {
         if (this.checked) {
             activeFilters.osmOperatorWikidata = [];

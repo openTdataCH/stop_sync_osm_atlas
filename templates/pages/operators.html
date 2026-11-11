@@ -102,9 +102,6 @@
     <a class="operator-breakdown__map-link" href="{{ href }}" aria-label="{{ label }}">Map <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
     {%- endmacro %}
     {# Share of dark green in a value's shade: 100% for the most common value, 0% (OSM green) for the least common. #}
-    {% macro value_shade(loop) -%}
-    --operator-value-shade: {{ (100 * loop.revindex0 / (loop.length - 1)) | round | int if loop.length > 1 else 100 }}%;
-    {%- endmacro %}
     {% set status_icons = {
       'consistent': 'fa-check-circle',
       'partial': 'fa-adjust',
@@ -147,19 +144,10 @@
             <h3 class="operator-breakdown__title" id="{{ card_id }}-operator">
               <code>operator</code> on {{ operator.matched_osm_stop_count }} matched OSM stop{{ 's' if operator.matched_osm_stop_count != 1 }}
             </h3>
-            <div class="operator-breakdown__bar" aria-hidden="true">
-              {% for osm_operator in operator.osm_operators %}
-              <span class="operator-breakdown__segment operator-swatch--value" style="flex-grow: {{ osm_operator.matched_stop_count }}; {{ value_shade(loop) }}" title="{{ osm_operator.osm_operator }}: {{ osm_operator.matched_stop_count }}"></span>
-              {% endfor %}
-              {% if operator.missing_osm_operator_count > 0 %}
-              <span class="operator-breakdown__segment operator-swatch--missing" style="flex-grow: {{ operator.missing_osm_operator_count }};" title="Not tagged: {{ operator.missing_osm_operator_count }}"></span>
-              {% endif %}
-            </div>
             <ul class="operator-breakdown__list">
               {% for osm_operator in operator.osm_operators %}
               <li class="operator-breakdown__row">
                 <span class="operator-breakdown__label">
-                  <span class="operator-breakdown__swatch operator-swatch--value" style="{{ value_shade(loop) }}" aria-hidden="true"></span>
                   <span class="operator-breakdown__value">{{ osm_operator.osm_operator }}</span>
                 </span>
                 <span class="operator-breakdown__count">{{ osm_operator.matched_stop_count }}</span>
@@ -169,10 +157,10 @@
               {% if operator.missing_osm_operator_count > 0 %}
               <li class="operator-breakdown__row operator-breakdown__row--missing">
                 <span class="operator-breakdown__label">
-                  <span class="operator-breakdown__swatch operator-swatch--missing" aria-hidden="true"></span>
                   <span class="operator-breakdown__value">Not tagged</span>
                 </span>
                 <span class="operator-breakdown__count">{{ operator.missing_osm_operator_count }}</span>
+                {{ map_link(url_for('pages.index', atlas_operator=operator.atlas_business_org_abbr, missing_osm_operator='true'), 'See ' ~ operator.atlas_business_org_abbr ~ ' stops without operator on map') }}
               </li>
               {% endif %}
             </ul>

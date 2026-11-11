@@ -35,7 +35,8 @@ def test_wikidata_filter_selects_exact_values_and_combines_with_osm_operator(sql
 def test_operator_cards_link_to_matching_map_filters(client, monkeypatch):
     operator = operator_coverage._build_operator_row(
         type('Operator', (), {'atlas_business_org_abbr': 'EX', 'atlas_business_org_name': 'Example', 'sboid': None})(),
-        {'EX': 3}, {'EX': {'matched_atlas_stop_count': 3, 'matched_osm_stop_count': 3, 'missing_osm_operator_wikidata_count': 2}},
+        {'EX': 3}, {'EX': {'matched_atlas_stop_count': 3, 'matched_osm_stop_count': 4,
+                           'missing_osm_operator_count': 1, 'missing_osm_operator_wikidata_count': 2}},
         {'EX': [{'osm_operator': 'Example & Co', 'matched_stop_count': 3}]},
         {'EX': [{'osm_operator_wikidata': 'Q1', 'matched_stop_count': 3}]},
     )
@@ -44,7 +45,8 @@ def test_operator_cards_link_to_matching_map_filters(client, monkeypatch):
     assert response.status_code == 200
     links = re.findall(r'class="operator-breakdown__map-link" href="([^"]+)"', response.text)
     assert [parse_qs(urlparse(html.unescape(link)).query) for link in links] == [
-        {'osm_operator': ['Example & Co']}, {'osm_operator_wikidata': ['Q1']},
+        {'osm_operator': ['Example & Co']}, {'atlas_operator': ['EX'], 'missing_osm_operator': ['true']},
+        {'osm_operator_wikidata': ['Q1']},
         {'atlas_operator': ['EX'], 'missing_osm_operator_wikidata': ['true']},
     ]
     assert 'https://www.wikidata.org/wiki/Q1' in response.text
@@ -78,6 +80,25 @@ def test_missing_wikidata_combines_with_operator_and_excludes_source_only_stops(
                      for sloid, operator in (('s1', 'EX'), ('s2', 'EX'), ('s3', 'EX'), ('s4', 'OTHER'), ('s5', 'EX'))])
     session.commit()
     assert _matching_stop_ids(filters) == expected
+
+
+def test_missing_operator_selects_matched_stops_with_empty_operator_of_one_atlas_operator(sqlite_tables):
+    filters = parse_filter_params({'missing_osm_operator': 'true', 'atlas_operator': 'EX'})
+    session = sqlite_tables(StopsMatched, OsmNode, AtlasStop)
+    session.add_all([StopsMatched(id=id_, osm_node_id=node, sloid=sloid)
+                     for id_, node, sloid in ((1, 'a', 's1'), (2, 'b', 's2'), (3, 'c', 's3'),
+                                              (4, 'd', 's4'), (5, None, 's5'), (6, 'e', None))])
+    session.add_all([OsmNode(osm_node_id=node, osm_operator=operator)
+                     for node, operator in (('a', None), ('b', ''), ('c', 'Example'), ('d', None), ('e', None))])
+    session.add_all([AtlasStop(sloid=sloid, atlas_business_org_abbr=operator)
+                     for sloid, operator in (('s1', 'EX'), ('s2', 'EX'), ('s3', 'EX'), ('s4', 'OTHER'), ('s5', 'EX'))])
+    session.commit()
+    # Untagged (a, b) only: not a tagged stop (c), another operator's (d), an ATLAS-only (5) or OSM-only row (6).
+    assert _matching_stop_ids(filters) == [1, 2]
+
+
+def test_missing_operator_false_does_not_activate_filter():
+    assert 'missing_osm_operator' not in parse_filter_params({'missing_osm_operator': 'false'})
 
 
 def test_missing_wikidata_false_does_not_activate_filter():

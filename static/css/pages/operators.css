@@ -165,11 +165,6 @@
    ------------------------------------------------------------------------- */
 
 .operators-list {
-  /* Breakdown roles, separated by lightness so they stay distinct with colour-vision deficiencies. */
-  --operator-value-main: var(--color-success-fg);
-  --operator-value-other: var(--color-success);
-  --operator-value-missing: var(--color-border-emphasis);
-
   display: grid;
   gap: 0.75rem;
 }
@@ -314,33 +309,6 @@ abbr.operator-card__id-label[title] {
   font-weight: 600;
 }
 
-.operator-breakdown__bar {
-  display: flex;
-  gap: 2px;
-  height: 8px;
-  margin-bottom: 0.35rem;
-  overflow: hidden;
-  border-radius: 4px;
-}
-
-.operator-breakdown__segment {
-  flex-basis: 0;
-  min-width: 3px;
-  transition: opacity var(--transition-fast);
-}
-
-/* Hovering or focusing a row fades the other segments, so the row's own segment stands out. */
-.operator-breakdown.is-highlighting .operator-breakdown__segment:not(.is-highlighted) {
-  opacity: 0.3;
-}
-
-/* Values step evenly from dark green (most common) to OSM green (least common); the template sets the shade. */
-.operator-swatch--value {
-  background: color-mix(in oklab, var(--operator-value-main) var(--operator-value-shade, 100%), var(--operator-value-other));
-}
-
-.operator-swatch--missing { background: var(--operator-value-missing); }
-
 .operator-breakdown__list {
   margin: 0;
   padding: 0;
@@ -366,13 +334,6 @@ abbr.operator-card__id-label[title] {
   align-items: center;
   gap: 0.55rem;
   min-width: 0;
-}
-
-.operator-breakdown__swatch {
-  flex: 0 0 auto;
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
 }
 
 .operator-breakdown__value {
@@ -608,8 +569,7 @@ a.operator-breakdown__value i {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .operators-info__tooltip,
-  .operator-breakdown__segment {
+  .operators-info__tooltip {
     transition: none;
   }
 }

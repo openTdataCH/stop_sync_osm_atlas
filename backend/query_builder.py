@@ -117,6 +117,12 @@ def apply_common_filters(query, filters):
     if filters.get('osm_operators'):
         conditions.append(StopsMatched.osm_node_details.has(OsmNode.osm_operator.in_(filters['osm_operators'])))
 
+    if filters.get('missing_osm_operator'):
+        conditions.append(StopsMatched.osm_node_details.has(db.or_(
+            OsmNode.osm_operator.is_(None),
+            OsmNode.osm_operator == '',
+        )))
+
     if filters.get('missing_osm_operator_wikidata'):
         conditions.append(StopsMatched.osm_node_details.has(db.or_(
             OsmNode.osm_operator_wikidata.is_(None),

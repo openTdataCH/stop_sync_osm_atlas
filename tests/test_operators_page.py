@@ -69,9 +69,9 @@ def test_operator_card_breaks_down_matched_stops_by_operator_value(client, monke
 
     assert response.status_code == 200
     assert '2 different values' in response.text
-    assert re.findall(r'class="operator-breakdown__segment [^"]+" style="flex-grow: (\d+);', response.text) == ['16', '1', '15']
-    # Two values keep the two greens furthest apart, in the bar and in the list swatches.
-    assert re.findall(r'--operator-value-shade: (\d+)%', response.text) == ['100', '0', '100', '0']
+    # Values are listed with their counts only: no proportion bar, no colour swatches.
+    assert 'operator-breakdown__bar' not in response.text
+    assert 'operator-breakdown__swatch' not in response.text
     assert response.text.count('operator-breakdown__row--missing') == 2
 
 

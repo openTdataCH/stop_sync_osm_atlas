@@ -16,8 +16,10 @@ describe('operator map filters', () => {
     });
 
     beforeEach(() => {
-        document.body.innerHTML = '<div id="activeFilters"></div><input type="checkbox" id="filterMissingOsmOperatorWikidata">';
+        document.body.innerHTML = '<div id="activeFilters"></div><input type="checkbox" id="filterMissingOsmOperator">' +
+            '<input type="checkbox" id="filterMissingOsmOperatorWikidata">';
         activeFilters.atlasOperators = [];
+        activeFilters.missingOsmOperator = false;
         activeFilters.missingOsmOperatorWikidata = false;
         window.updateActiveFilters = updateActiveFiltersFromControls;
         window.loadDataForViewport = jest.fn();
@@ -75,6 +77,32 @@ describe('operator map filters', () => {
         updateFiltersUI();
         expect(document.getElementById('activeFilters').textContent).toContain('No Wikidata tag');
         expect(document.querySelector('[data-target="#filterMissingOsmOperatorWikidata"]')).not.toBeNull();
+    });
+
+    test('restores the operator and missing-operator combination from the coverage link', () => {
+        history.replaceState({}, '', '/?atlas_operator=EX&missing_osm_operator=true');
+        window.restoreOperatorFiltersFromUrl();
+        expect(window.appendCurrentFilterParams({})).toEqual({ atlas_operator: 'EX', missing_osm_operator: 'true' });
+        expect(getActiveFilterCount()).toBe(2);
+        expect(document.getElementById('filterMissingOsmOperator').checked).toBe(true);
+        expect(window.filterUrlQuery()).toContain('missing_osm_operator=true');
+        updateFiltersUI();
+        expect(document.getElementById('activeFilters').textContent).toContain('No operator tag');
+        expect(document.querySelector('[data-target="#filterMissingOsmOperator"]')).not.toBeNull();
+    });
+
+    test('toggling missing operator replaces specific operator values', () => {
+        const box = document.getElementById('filterMissingOsmOperator');
+        window.initFilterEventHandlers();
+        activeFilters.osmOperators = ['asm'];
+        box.checked = true;
+        box.dispatchEvent(new Event('change', { bubbles: true }));
+        expect(activeFilters.osmOperators).toEqual([]);
+        expect(window.osmOperatorDropdown.setSelection).toHaveBeenCalledWith([]);
+        expect(window.appendCurrentFilterParams({})).toEqual({ missing_osm_operator: 'true' });
+        window.clearAllFilters();
+        expect(box.checked).toBe(false);
+        expect(window.appendCurrentFilterParams({})).toEqual({});
     });
 
     test('permalink URL rewrites keep the operator links byte for byte', () => {

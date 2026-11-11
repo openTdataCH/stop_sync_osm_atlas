@@ -234,6 +234,8 @@ def parse_filter_params(request_args):
     osm_operator_str = request_args.get('osm_operator')
     if osm_operator_str:
         filters['osm_operators'] = [op.strip() for op in osm_operator_str.split(',') if op.strip()]
+    if request_args.get('missing_osm_operator', '').lower() == 'true':
+        filters['missing_osm_operator'] = True
     if request_args.get('missing_osm_operator_wikidata', '').lower() == 'true':
         filters['missing_osm_operator_wikidata'] = True
     wikidata_str = request_args.get('osm_operator_wikidata')

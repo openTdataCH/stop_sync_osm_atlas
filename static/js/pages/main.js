@@ -257,6 +257,13 @@ function restoreOperatorFiltersFromUrl() {
         activeFilters[entry[1]] = [...new Set(values)];
         if (window[entry[2]]) window[entry[2]].setSelection(activeFilters[entry[1]]);
     });
+    activeFilters.missingOsmOperator = params.get('missing_osm_operator') === 'true';
+    var missingOperatorCheckbox = document.getElementById('filterMissingOsmOperator');
+    if (missingOperatorCheckbox) missingOperatorCheckbox.checked = activeFilters.missingOsmOperator;
+    if (activeFilters.missingOsmOperator) {
+        activeFilters.osmOperators = [];
+        if (window.osmOperatorDropdown) window.osmOperatorDropdown.setSelection([]);
+    }
     activeFilters.missingOsmOperatorWikidata = params.get('missing_osm_operator_wikidata') === 'true';
     var missingWikidataCheckbox = document.getElementById('filterMissingOsmOperatorWikidata');
     if (missingWikidataCheckbox) missingWikidataCheckbox.checked = activeFilters.missingOsmOperatorWikidata;
@@ -307,6 +314,7 @@ function appendCurrentFilterParams(params, options) {
     if (activeFilters.osmOperatorWikidata && activeFilters.osmOperatorWikidata.length > 0) {
         params.osm_operator_wikidata = activeFilters.osmOperatorWikidata.join(',');
     }
+    if (activeFilters.missingOsmOperator) params.missing_osm_operator = 'true';
     if (activeFilters.missingOsmOperatorWikidata) params.missing_osm_operator_wikidata = 'true';
     appendProblemFilterParams(params);
     if (includeTopN && activeFilters.topN) {
@@ -1066,6 +1074,7 @@ document.addEventListener('DOMContentLoaded', function () {
         multiple: true,
         onSelectionChange: function (selectedOperators) {
             activeFilters.osmOperators = selectedOperators;
+            if (selectedOperators.length) document.getElementById('filterMissingOsmOperator').checked = false;
             updateActiveFilters();
             updateHeaderSummary();
         }
