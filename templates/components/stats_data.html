@@ -386,7 +386,7 @@ SECTION 3 — ROUTE MATCHING
 {% if stats.route_links is defined and stats.route_links %}
 {% set rl = stats.route_links %}
 {% set rli = rl.itineraries %}
-<p class="stats-block__lead">GTFS lines and OSM lines are linked one to one: through the GTFS route ID or, for an OSM line without a usable ID, through the same mode, line number and stops. Each link uses one line from each side. Inside a linked pair, itineraries are linked one to one when their directions agree and at least 80% of their stops match in order.</p>
+<p class="stats-block__lead">GTFS lines and OSM lines are linked one to one: through the GTFS route ID or, for an OSM line without a usable ID, through the same mode, line number and stops. Each link uses one line from each side. Inside a linked pair, itineraries are linked one to one when at least 80% of their stops match in order and their directions, where both are known, are the same.</p>
 <div class="stats-figures">
   {{ figure('Linked line pairs', num(rl.line_links)) }}
   {{ figure('GTFS lines linked', share(rl.gtfs_lines.linked, rl.gtfs_lines.total), of(rl.gtfs_lines.linked, rl.gtfs_lines.total) ~ ' lines') }}
@@ -931,7 +931,7 @@ SECTION 8 — OSM ROUTES
     </div>
     {% endfor %}
   </div>
-  <p class="stats-note">The direction of an OSM itinerary comes from the <code>.H</code> or <code>.R</code> suffix in <code>ref_trips</code>. Without it, the itinerary cannot be linked to a GTFS itinerary.</p>
+  <p class="stats-note">The direction of an OSM itinerary comes from the <code>.H</code> or <code>.R</code> suffix in <code>ref_trips</code>. Without it, the itinerary is linked to a GTFS itinerary on its stops in order alone.</p>
 </section>
 {% else %}
 <p class="stats-empty">OSM route statistics are not available for this run.</p>
