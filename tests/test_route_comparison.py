@@ -151,11 +151,11 @@ def comparison_db(app, monkeypatch, sqlite_tables):
     sqlite_tables(LineFamily, Itinerary, StopCall, ItineraryMatch, ItineraryBestOverlap, StopsMatched)
     with app.app_context():
         db.session.add_all([
-            LineFamily(id=1, source='gtfs', source_family_id='atlas-north', display_route_id='A',
+            LineFamily(id=1, source='gtfs', source_family_id='gtfs-north', display_route_id='A',
                        public_name='North line', operator='Metro North'),
             LineFamily(id=2, source='osm', source_family_id='osm-north', display_route_id='A',
                        public_name='OSM North', operator='Metro North', ref='S1'),
-            LineFamily(id=3, source='gtfs', source_family_id='atlas-south', display_route_id='Z',
+            LineFamily(id=3, source='gtfs', source_family_id='gtfs-south', display_route_id='Z',
                        public_name='South line'),
             LineFamily(id=4, source='osm', source_family_id='osm-south', display_route_id='Z',
                        public_name='OSM South'),
@@ -193,7 +193,7 @@ def test_api_compares_arbitrary_unmatched_pair(comparison_db):
     result = response.json
     assert result['gtfs'] == {
         'id': 102, 'family_id': 1, 'route_name': 'North line', 'route_id': 'A',
-        'display_name': 'Variant 2', 'direction_id': '0', 'source_itinerary_id': 'atlas-2',
+        'display_name': 'Variant 2', 'direction_id': '0', 'source_itinerary_id': 'gtfs-2',
         'is_matched': False, 'matched_with': [],
     }
     assert result['osm']['id'] == 202
@@ -246,7 +246,7 @@ def test_matched_variants_name_every_saved_counterpart(comparison_db):
     first, second = preview['osm']['matched_with']
     assert first == {
         'id': 101, 'family_id': 1, 'route_name': 'North line', 'route_id': 'A',
-        'display_name': 'Variant 1', 'direction_id': '0', 'source_itinerary_id': 'atlas-1',
+        'display_name': 'Variant 1', 'direction_id': '0', 'source_itinerary_id': 'gtfs-1',
         'is_matched': True, 'label': 'A · North line · Variant 1 · Direction 0',
     }
     assert second['id'] == 103
@@ -284,7 +284,7 @@ def test_options_anchor_positions_page_but_does_not_override_search(comparison_d
 
 
 @pytest.mark.parametrize(('source', 'search', 'expected_ids'), [
-    ('gtfs', 'atlas-south', [104]), ('osm', 'S1', [202, 203]),
+    ('gtfs', 'gtfs-south', [104]), ('osm', 'S1', [202, 203]),
     ('gtfs', 'metro north', [102, 103]), ('gtfs', 'Variant 3', [103]),
     ('osm', 'osm-4', [204]), ('osm', '%', []),
 ])
