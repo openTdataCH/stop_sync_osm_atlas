@@ -93,7 +93,7 @@
 <div class="container py-4"><p>Route review is unavailable for this dataset.</p></div>
 {% else %}
 <div class="routes-page{{ ' routes-page--gtfs-map' if active_view == 'gtfs_stop_id_sloid' }}">
-  <div class="routes-container{{ ' routes-container--gtfs-map' if active_view == 'gtfs_stop_id_sloid' }}">
+  <div class="routes-container">
     <div class="routes-page-tabs c-page-tabs--sticky">
     <nav class="c-page-tabs" aria-label="Routes pages" style="--page-tabs-count: {{ 3 if review_config.capabilities.gtfs_identity else 2 }}">
       <a href="{{ url_for('routes.routes_page') }}"
@@ -277,6 +277,9 @@
 
         <div class="route-card__badges">
           <span class="route-card__badge {{ 'route-card__badge--matched' if route.is_matched else 'route-card__badge--unmatched' }}">{{ route.match_label }}</span>
+          {% if route.match_support %}
+          <span class="route-card__badge route-card__badge--support" title="What supports this match">{{ route.match_support }}</span>
+          {% endif %}
         </div>
 
         {# A line can have several matches; each is a card of its own, so this one names the others. #}

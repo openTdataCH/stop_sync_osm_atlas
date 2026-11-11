@@ -47,33 +47,23 @@
   pointer-events: none;
 }
 
-/* The GTFS↔SLOID view is a map workspace, like Index and Problems. Keep only
-   the normal page-edge spacing and let the map use the viewport below tabs. */
-.routes-page.routes-page--gtfs-map {
+/* The GTFS↔SLOID view is a map workspace: same tabs and page width as the
+   other route views, with the map filling the viewport height below them. */
+.routes-page--gtfs-map {
   display: flex;
+  flex-direction: column;
   height: calc(100vh - var(--navbar-height));
   height: calc(100dvh - var(--navbar-height));
   min-height: 0;
-  padding: var(--space-2) 0;
-  background: var(--color-bg-subtle);
+  padding-bottom: var(--space-2);
 }
 
-.routes-container.routes-container--gtfs-map {
+.routes-page--gtfs-map .routes-container {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
   width: 100%;
-  max-width: none;
   min-height: 0;
-  padding: 0 var(--space-2);
-}
-
-.routes-container--gtfs-map > .routes-page-tabs {
-  flex: 0 0 auto;
-  align-self: center;
-  width: min(1400px, calc(100% + var(--space-4)));
-  margin-bottom: var(--space-1);
-  padding: 0 var(--space-4) var(--space-2);
 }
 
 .routes-header {
@@ -210,21 +200,17 @@
 }
 
 .routes-gtfs-map-view {
-  margin-top: var(--space-4);
-}
-
-.routes-container--gtfs-map .routes-gtfs-map-view {
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
-  margin-top: 0;
 }
 
 .routes-gtfs-map-shell {
   --zoom-banner-position: absolute;
   --zoom-banner-top: 70px;
   position: relative;
-  min-height: max(68vh, 620px);
+  flex: 1 1 auto;
+  min-height: 0;
   border-radius: var(--radius-lg);
   overflow: hidden;
   border: 1px solid var(--color-border);
@@ -232,20 +218,9 @@
   box-shadow: var(--shadow-md);
 }
 
-.routes-container--gtfs-map .routes-gtfs-map-shell {
-  flex: 1 1 auto;
-  width: 100%;
-  min-height: 0;
-}
-
 .routes-gtfs-map {
   width: 100%;
-  height: max(68vh, 620px);
-}
-
-.routes-container--gtfs-map .routes-gtfs-map {
   height: 100%;
-  min-height: 0;
 }
 
 .routes-gtfs-map-top-right {
@@ -710,6 +685,13 @@
 .route-card__badge--matched {
   background: var(--color-success-subtle);
   color: var(--color-success-fg);
+}
+
+.route-card__badge--support {
+  background: var(--color-bg-muted);
+  color: var(--color-fg-muted);
+  border: 1px solid var(--color-border);
+  font-weight: 600;
 }
 
 .route-card__badge--unmatched-atlas {
@@ -1258,12 +1240,6 @@
 @media (max-width: 576px) {
   .routes-page {
     padding: 0 0 var(--space-4);
-  }
-
-  .routes-gtfs-map-shell,
-  .routes-gtfs-map {
-    min-height: 70vh;
-    height: 70vh;
   }
 
   .routes-gtfs-map-shell {

@@ -420,8 +420,30 @@ def _other_line(family):
     }
 
 
+# The stops of two lines agree when two of their itineraries reach the stop
+# ratio of itinerary pairing (E3.2, step 4).
+STOPS_AGREE_RATIO = 0.8
+
+
+def match_support(match_method, stop_score):
+    """What supports a line link: 'Route ID and stops', 'Stops' or 'Route ID alone'.
+
+    A link has a route ID unless the engine found it by line number and stops.
+    None when the link carries no stop score (imported before the engine wrote one).
+    """
+    if stop_score is None:
+        return None
+    stops = stop_score >= STOPS_AGREE_RATIO
+    route_id = match_method != 'line_number_and_stops'
+    if route_id and stops:
+        return 'Route ID and stops'
+    if stops:
+        return 'Stops'
+    return 'Route ID alone' if route_id else None
+
+
 def _attach_other_matches(items):
-    """Tell each matched card which other lines its two lines are also matched to.
+    """Tell each matched card what supports its match and which other lines its two lines are also matched to.
 
     A line can have several matches: the timetable splits one line into
     several GTFS routes, and OSM can hold one line twice or in two parts. Each
@@ -430,17 +452,21 @@ def _attach_other_matches(items):
     for item in items:
         item['also_matched_osm_lines'] = []
         item['also_matched_atlas_routes'] = []
+        item['match_support'] = None
     matched = [item for item in items if item.get('line_family_match_id') is not None]
     if not matched:
         return
-    links = (
-        db.session.query(LineFamilyMatch.atlas_line_family_id, LineFamilyMatch.osm_line_family_id)
+    rows = (
+        db.session.query(LineFamilyMatch.id, LineFamilyMatch.atlas_line_family_id, LineFamilyMatch.osm_line_family_id,
+                         LineFamilyMatch.match_method, LineFamilyMatch.stop_score)
         .filter(or_(
             LineFamilyMatch.atlas_line_family_id.in_({item['atlas_family_id'] for item in matched}),
             LineFamilyMatch.osm_line_family_id.in_({item['osm_family_id'] for item in matched}),
         ))
         .all()
     )
+    support = {row.id: match_support(row.match_method, row.stop_score) for row in rows}
+    links = [(row.atlas_line_family_id, row.osm_line_family_id) for row in rows]
     families = {
         family.id: family
         for family in db.session.query(LineFamily)
@@ -453,6 +479,7 @@ def _attach_other_matches(items):
         return sorted(lines, key=lambda line: line['label'])
 
     for item in matched:
+        item['match_support'] = support.get(item['line_family_match_id'])
         atlas_id, osm_id = item['atlas_family_id'], item['osm_family_id']
         item['also_matched_osm_lines'] = other_lines(
             {link_osm for link_atlas, link_osm in links if link_atlas == atlas_id and link_osm != osm_id})

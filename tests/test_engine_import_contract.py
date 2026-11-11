@@ -123,6 +123,16 @@ def test_stored_match_types_are_copied_from_the_bundle(mode, engine_run):
         assert any(row['stop_type'] == 'effectively_matched' for row in rows), 'The Swiss example lost its two-sided stop'
 
 
+@pytest.mark.parametrize('mode', MODES)
+def test_line_links_keep_their_match_method_and_stop_score(mode, engine_run):
+    bundle = read_bundle(engine_run(mode)[1])
+    links = {row['kind']: row['value'] for row in bundle['routes']}['line_family_matches']
+    rows = build_fast_insert_payloads(*project_bundle(bundle))['line_family_matches']
+    assert links and all(link['stop_score'] is not None for link in links)
+    assert (sorted((row['match_method'], row['stop_score']) for row in rows)
+            == sorted((link['match_method'], link['stop_score']) for link in links))
+
+
 @pytest.mark.parametrize('mode', SWISS_MODES)
 def test_the_rule_catalog_lists_every_swiss_match_type(mode, engine_run):
     """Fails when the engine renames or adds a match type, so the catalog never goes stale silently."""

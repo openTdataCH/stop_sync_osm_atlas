@@ -602,9 +602,12 @@ def test_a_line_with_several_matches_has_one_card_for_each_and_names_the_others(
             LineFamily(id=11, source='osm', source_family_id='7794142', ref='IR16', route_master_id='7794142'),
             LineFamily(id=12, source='osm', source_family_id='train|IR 16|SBB', ref='IR 16',
                        display_route_id='IR 16'),
-            LineFamilyMatch(id=100, atlas_line_family_id=1, osm_line_family_id=10),
-            LineFamilyMatch(id=101, atlas_line_family_id=2, osm_line_family_id=10),
-            LineFamilyMatch(id=102, atlas_line_family_id=3, osm_line_family_id=11),
+            LineFamilyMatch(id=100, atlas_line_family_id=1, osm_line_family_id=10,
+                            match_method='line_number_and_stops', stop_score=1.0),
+            LineFamilyMatch(id=101, atlas_line_family_id=2, osm_line_family_id=10,
+                            match_method='exact_gtfs_route_id', stop_score=0.8),
+            LineFamilyMatch(id=102, atlas_line_family_id=3, osm_line_family_id=11,
+                            match_method='exact_gtfs_route_id', stop_score=0.5),
             LineFamilyMatch(id=103, atlas_line_family_id=3, osm_line_family_id=12),
         ])
         db.session.commit()
@@ -623,6 +626,23 @@ def test_a_line_with_several_matches_has_one_card_for_each_and_names_the_others(
     assert ir26['also_matched_atlas_routes'] == [{'label': 'IR26 · 91-26-D-j26-1', 'query': '91-26-D-j26-1'}]
     assert ir26['also_matched_osm_lines'] == []
     assert second_card['also_matched_osm_lines'] == [{'label': 'IR16 · route master 7794142', 'query': '7794142'}]
+    assert ir26['match_support'] == 'Stops'
+    assert cards[('91-26-D-j26-1', 10)]['match_support'] == 'Route ID and stops'
+    assert ir16['match_support'] == 'Route ID alone'
+    # A link imported before the engine wrote a stop score names no support.
+    assert cards[('91-16-B-j26-1', 12)]['match_support'] is None
+
+
+@pytest.mark.parametrize('match_method, stop_score, support', [
+    ('exact_gtfs_route_id', 0.8, 'Route ID and stops'),
+    ('normalized_gtfs_route_id', 1.0, 'Route ID and stops'),
+    ('display_route_id_match', 0.7999, 'Route ID alone'),
+    ('line_number_and_stops', 0.8, 'Stops'),
+    ('line_number_and_stops', 0.5, None),
+    ('exact_gtfs_route_id', None, None),
+])
+def test_match_support_names_the_route_id_and_whether_the_stops_agree(match_method, stop_score, support):
+    assert route_listing.match_support(match_method, stop_score) == support
 
 
 def test_routes_template_names_the_other_matches_of_a_line(app):
@@ -631,6 +651,7 @@ def test_routes_template_names_the_other_matches_of_a_line(app):
         'atlas_route_id': '91-26-C-j26-1', 'osm_route_name': 'IR 26', 'direction_groups': [], 'map_filter': None,
         'also_matched_atlas_routes': [{'label': 'IR26 · 91-26-D-j26-1', 'query': '91-26-D-j26-1'}],
         'also_matched_osm_lines': [{'label': 'IR 26 · relation 1', 'query': '1'}, {'label': 'IR 26 · relation 2', 'query': '2'}],
+        'match_support': 'Route ID and stops',
     }
     with app.test_request_context('/routes'):
         rendered = render_template(
@@ -649,3 +670,5 @@ def test_routes_template_names_the_other_matches_of_a_line(app):
         'OSM may hold this line twice, or in two parts.',
     ]
     assert 'href="/routes?q=91-26-D-j26-1"' in rendered
+    badges = [badge.get_text(strip=True) for badge in BeautifulSoup(rendered, 'html.parser').select('.route-card__badge')]
+    assert badges[:2] == ['Matched', 'Route ID and stops']

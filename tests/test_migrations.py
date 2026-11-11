@@ -1,5 +1,6 @@
 """The migrations build exactly the schema of backend/models.py."""
 import importlib
+from pathlib import Path
 
 from sqlalchemy import text
 
@@ -20,12 +21,13 @@ def test_upgrading_an_empty_database_gives_the_model_schema(postgres):
 
     from backend.extensions import db
 
-    schema = importlib.import_module('migrations.versions.0001_schema')
+    versions = sorted(Path(__file__).resolve().parents[1].joinpath('migrations', 'versions').glob('[0-9]*.py'))
     with postgres.begin() as connection:
         connection.execute(text('DROP SCHEMA public CASCADE'))
         connection.execute(text('CREATE SCHEMA public'))
         with Operations.context(MigrationContext.configure(connection)):
-            schema.upgrade()
+            for version in versions:
+                importlib.import_module(f'migrations.versions.{version.stem}').upgrade()
         context = MigrationContext.configure(
             connection, opts={'include_object': _model_objects_only, 'compare_type': True})
         assert compare_metadata(context, db.Model.metadata) == []

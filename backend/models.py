@@ -395,6 +395,7 @@ class LineFamilyMatch(db.Model):
     atlas_line_family_id = db.Column(db.Integer, db.ForeignKey('line_families.id', ondelete='CASCADE'), nullable=False)
     osm_line_family_id = db.Column(db.Integer, db.ForeignKey('line_families.id', ondelete='CASCADE'), nullable=False)
     match_method = db.Column(db.String(255))
+    stop_score = db.Column(db.Float)
 
 
 class ItineraryMatch(db.Model):
