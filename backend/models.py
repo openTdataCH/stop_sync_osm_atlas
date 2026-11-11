@@ -351,14 +351,11 @@ class Itinerary(db.Model):
     line_family_id = db.Column(db.Integer, db.ForeignKey('line_families.id', ondelete='CASCADE'), nullable=False)
     source_itinerary_id = db.Column(db.Text, nullable=False)
     direction_id = db.Column(db.String(20))
-    headsign_or_pattern_hash = db.Column(db.String(128))
     display_name = db.Column(db.Text)
     representative_headsign = db.Column(db.String(255))
     from_name = db.Column(db.String(255))
     to_name = db.Column(db.String(255))
     trip_count = db.Column(db.Integer)
-    shape_id = db.Column(db.Text)
-    geometry_wkt = db.Column(db.Text)
     canonical_stop_count = db.Column(db.Integer)
 
 
@@ -412,10 +409,7 @@ class ItineraryMatch(db.Model):
     line_family_match_id = db.Column(db.Integer, db.ForeignKey('line_family_matches.id', ondelete='CASCADE'))
     atlas_itinerary_id = db.Column(db.Integer, db.ForeignKey('itineraries.id', ondelete='CASCADE'), nullable=False)
     osm_itinerary_id = db.Column(db.Integer, db.ForeignKey('itineraries.id', ondelete='CASCADE'), nullable=False)
-    direction_score = db.Column(db.Float)
     stop_score = db.Column(db.Float)
-    geometry_score = db.Column(db.Float)
-    overall_score = db.Column(db.Float)
     match_reason = db.Column(db.String(255))
 
 

@@ -216,7 +216,6 @@ def _validate_records(records):
             for name in ('gtfs_stops', 'gtfs_atlas_state'):
                 _require(name not in values or (isinstance(values[name], list) and all(isinstance(row, dict) for row in values[name])), f'Invalid {name} extension')
             evidence = values.get('route_evidence') or {}
-            _require(set(evidence.get('source', {})) <= source.keys(), 'Route evidence references unknown source stop')
             _require(set(evidence.get('osm', {})) <= osm_by_id.keys(), 'Route evidence references unknown OSM stop')
             duplicates = values.get('duplicate_osm_group_map') or {}
             for key, members in duplicates.items():

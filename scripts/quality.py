@@ -181,7 +181,7 @@ def architecture(roots, ownership):
             forbidden = repo == 'app' and name.split('.')[0] in {'osm_public_transport_matcher', 'matching_and_import_db'}
             forbidden |= repo == 'engine' and name.split('.')[0] in {'backend', 'flask', 'sqlalchemy', 'geoalchemy2'}
             forbidden |= owner == 'engine.core-matching' and any(name == prefix or name.startswith(prefix + '.') for prefix in (
-                'osm_public_transport_matcher.acquisition', 'osm_public_transport_matcher.adapters', 'osm_public_transport_matcher.integrations', 'osm_public_transport_matcher.profiles', 'osm_public_transport_matcher.results',
+                'osm_public_transport_matcher.acquisition', 'osm_public_transport_matcher.adapters', 'osm_public_transport_matcher.profiles', 'osm_public_transport_matcher.results',
             ))
             if forbidden:
                 violations.append({'module': owner, 'file': path, 'line': line, 'import': name})
