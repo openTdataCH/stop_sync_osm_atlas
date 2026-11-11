@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import pytest
+from bs4 import BeautifulSoup
 from flask import render_template
 
 from backend.services import route_listing
@@ -203,11 +204,12 @@ def test_routes_template_uses_route_master_link_and_itinerary_relation(app, sour
     assert 'data-mode="saved" data-variant-data="variantData1_1"' in rendered
     assert 'id="variantData1_1"' in rendered
     assert '"osm_relation_id": "777"' in rendered
-    assert f'data-source-label="{source_label}"' in rendered
-    assert f'{source_label} variants: 1 | OSM variants: 1 | Matched: 1' in rendered
+    # Routes and variants come from the timetable, whatever the stop registry is called.
+    assert 'data-source-label="GTFS"' in rendered
+    assert 'GTFS variants: 1 | OSM variants: 1 | Matched: 1' in rendered
     assert f'{source_label} Operator' in rendered
+    assert 'also matched to' not in rendered
     if source_label != "ATLAS":
-        assert '>ATLAS Stops<' not in rendered
         assert 'href="/routes/gtfs-stop-id-sloid"' not in rendered
     assert 'Variants are experimental' in rendered
     assert 'are not yet a canonical OSM mapping target.' in rendered
@@ -337,6 +339,7 @@ def test_query_route_page_filters_orders_and_paginates_in_sql(app, monkeypatch):
         ])
         db.session.commit()
         monkeypatch.setattr(route_listing, '_load_atlas_operator_map', lambda _ids: {})
+        assert route_listing.query_route_page(page=1, per_page=1)[0][0]['also_matched_osm_lines'] == []
 
         first_page, total = route_listing.query_route_page(page=1, per_page=2)
         second_page, second_total = route_listing.query_route_page(page=2, per_page=2)
@@ -542,7 +545,7 @@ def test_routes_template_renders_stored_best_overlap_states_without_client_loadi
         )
 
     assert 'Highest overlap: 88.9%' in rendered
-    assert 'title="Best ATLAS variant: 31 · Lake line · Central (8 stops shared in order)"' in rendered
+    assert 'title="Best GTFS variant: 31 · Lake line · Central (8 stops shared in order)"' in rendered
     assert '(1 stop shared in order)">Highest overlap: 20.0%' in rendered
     assert 'No shared stops' in rendered
     assert 'Overlap not computed' in rendered
@@ -583,3 +586,66 @@ def test_unmatched_direction_group_carries_its_stops_as_a_one_sided_alignment():
     assert comparison['matched_stop_count'] == 0
     assert [row['atlas']['position'] for row in comparison['rows']] == [1, 2]
     assert all(row['osm'] is None and row['match_type'] is None for row in comparison['rows'])
+
+
+def test_a_line_with_several_matches_has_one_card_for_each_and_names_the_others(app, monkeypatch):
+    with app.app_context():
+        LineFamily.__table__.create(db.engine)
+        LineFamilyMatch.__table__.create(db.engine)
+        db.session.add_all([
+            # IR 26: the timetable splits the line into two routes, and OSM maps it once.
+            LineFamily(id=1, source='atlas', source_family_id='91-26-C-j26-1', display_route_id='91-26-C-j26-1', ref='IR26'),
+            LineFamily(id=2, source='atlas', source_family_id='91-26-D-j26-1', display_route_id='91-26-D-j26-1', ref='IR26'),
+            LineFamily(id=10, source='osm', source_family_id='7782601', ref='IR 26', route_master_id='7782601'),
+            # IR 16: one direction is in the route master, the other outside it.
+            LineFamily(id=3, source='atlas', source_family_id='91-16-B-j26-1', display_route_id='91-16-B-j26-1', ref='IR16'),
+            LineFamily(id=11, source='osm', source_family_id='7794142', ref='IR16', route_master_id='7794142'),
+            LineFamily(id=12, source='osm', source_family_id='train|IR 16|SBB', ref='IR 16',
+                       display_route_id='IR 16'),
+            LineFamilyMatch(id=100, atlas_line_family_id=1, osm_line_family_id=10),
+            LineFamilyMatch(id=101, atlas_line_family_id=2, osm_line_family_id=10),
+            LineFamilyMatch(id=102, atlas_line_family_id=3, osm_line_family_id=11),
+            LineFamilyMatch(id=103, atlas_line_family_id=3, osm_line_family_id=12),
+        ])
+        db.session.commit()
+        monkeypatch.setattr(route_listing, '_load_atlas_operator_map', lambda _ids: {})
+
+        items, total = route_listing.query_route_page(page=1, per_page=10)
+        # The other match is named also when its card is on another page.
+        [second_card], _ = route_listing.query_route_page(page=2, per_page=1)
+
+    assert total == 4 and [item['display_mode'] for item in items] == ['matched'] * 4
+    cards = {(item['atlas_route_id'], item['osm_family_id']): item for item in items}
+    ir16 = cards[('91-16-B-j26-1', 11)]
+    assert ir16['also_matched_osm_lines'] == [{'label': 'IR 16', 'query': 'IR 16'}]
+    assert ir16['also_matched_atlas_routes'] == []
+    ir26 = cards[('91-26-C-j26-1', 10)]
+    assert ir26['also_matched_atlas_routes'] == [{'label': 'IR26 · 91-26-D-j26-1', 'query': '91-26-D-j26-1'}]
+    assert ir26['also_matched_osm_lines'] == []
+    assert second_card['also_matched_osm_lines'] == [{'label': 'IR16 · route master 7794142', 'query': '7794142'}]
+
+
+def test_routes_template_names_the_other_matches_of_a_line(app):
+    route = {
+        'display_mode': 'matched', 'is_matched': True, 'match_label': 'Matched',
+        'atlas_route_id': '91-26-C-j26-1', 'osm_route_name': 'IR 26', 'direction_groups': [], 'map_filter': None,
+        'also_matched_atlas_routes': [{'label': 'IR26 · 91-26-D-j26-1', 'query': '91-26-D-j26-1'}],
+        'also_matched_osm_lines': [{'label': 'IR 26 · relation 1', 'query': '1'}, {'label': 'IR 26 · relation 2', 'query': '2'}],
+    }
+    with app.test_request_context('/routes'):
+        rendered = render_template(
+            'pages/routes.html', active_view='routes', listing_endpoint='routes.routes_page',
+            route_rows=[route], pagination=_TemplatePagination(), range_start=1, range_end=1,
+            atlas_operator_query='', osm_operator_query='', matched_filter='all',
+            match_filter_labels={'all': 'All'}, q='', search_placeholder='Search route',
+            per_page=10, per_page_options=[10], available_atlas_operators=[],
+            selected_atlas_operators=[], available_osm_operators=[], selected_osm_operators=[],
+        )
+    notes = [' '.join(note.get_text(' ').split()).replace(' ,', ',').replace(' .', '.')
+             for note in BeautifulSoup(rendered, 'html.parser').select('.route-card__also-matched')]
+    assert notes == [
+        'This OSM line is also matched to GTFS route IR26 · 91-26-D-j26-1. The timetable splits this line into several routes.',
+        'This GTFS route is also matched to OSM lines IR 26 · relation 1, IR 26 · relation 2. '
+        'OSM may hold this line twice, or in two parts.',
+    ]
+    assert 'href="/routes?q=91-26-D-j26-1"' in rendered

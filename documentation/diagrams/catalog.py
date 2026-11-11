@@ -496,14 +496,16 @@ def route_model() -> Diagram:
         960, 620,
         'The route model',
         'Both sides are normalized into the same three levels: a line family, its itineraries (one per '
-        'direction or variant) and each itinerary\'s ordered stop calls. On the ATLAS side these are rebuilt '
-        'from GTFS; on the OSM side they come from route_master and route relations. Families are matched '
-        'first, by GTFS route id or else by mode, line number and shared stops. Itineraries are paired only '
-        'inside a matched family: their directions must not disagree and at least 80 percent of the longer '
-        'stop list must be shared in order. In the example, four of five stops align, which is exactly 80 percent.',
+        'direction or variant) and each itinerary\'s ordered stop calls. On the GTFS side these are built '
+        'from the timetable; on the OSM side they come from route_master and route relations. Families are '
+        'matched first: two families that carry the same GTFS route id, or have the same mode and line number, '
+        'are matched when one itinerary of each has the same stops in order, and a family can have several '
+        'matches. Itineraries are paired inside each match: their directions must not disagree and at least '
+        '80 percent of the longer stop list must be shared in order. In the example, four of five stops align, '
+        'which is exactly 80 percent.',
     )
 
-    d.add(zone(24, 104, 360, 380, ATLAS, 'ATLAS side', 'rebuilt from GTFS'))
+    d.add(zone(24, 104, 360, 380, ATLAS, 'GTFS side', 'the timetable'))
     d.add(zone(576, 104, 360, 380, OSM, 'OSM side', 'PTv2 relations'))
 
     d.add(box(44, 130, 320, 58, ATLAS, 'Line family', [code('GTFS route_id 31-B-j26-1', size=11.5)],
@@ -551,9 +553,9 @@ def route_model() -> Diagram:
     d.add(text(480, 478, '4 of 5 stops in order: 80%', size=12.5, bold=True, color=INK, anchor='middle'))
 
     for number, top, lines in (
-        (1, 512, ['Families match by GTFS route id (exact, year-normalized or display id), else by mode,',
-                  'line number and shared stops. Each family appears in at most one match.']),
-        (2, 554, ['Itineraries pair only inside a matched family: directions that do not disagree, and at least 80%',
+        (1, 512, ['Families with the same GTFS route id, or the same mode and line number, match when one',
+                  'itinerary of each has the same stops in order. A family can have several matches.']),
+        (2, 554, ['Itineraries pair only inside a match: directions that do not disagree, and at least 80%',
                   'of the longer stop list shared in order. Stop calls are the same stop when they are at the same',
                   'platform or, failing that, the same station.']),
     ):

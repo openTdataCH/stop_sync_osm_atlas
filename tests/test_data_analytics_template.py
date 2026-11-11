@@ -224,8 +224,10 @@ def test_sections_follow_the_navigation_and_name_their_units():
     assert positions == sorted(positions)
     assert "4 unmatched elements" in html
     assert "2 stop units have no matched element." in html
-    # One-to-one links: the link count appears once as a figure, coverage per side next to it.
+    # The link count appears once as a figure, coverage per side next to it. Statistics
+    # stored before lines could have several links carry no such count, and no note.
     assert html.count(">Linked line pairs<") == 1
+    assert "linked to several" not in html
     assert "2 / 4 public transport lines" in html
     assert "Route problems" not in html
     json.dumps(stats)
@@ -238,9 +240,9 @@ def test_route_links_name_the_stop_fallback_and_the_refused_route_ids():
     stats = _minimal_empty_stats()
     stats["route_links"] = {
         "line_links": 3,
-        "gtfs_lines": {"total": 5, "linked": 3, "unlinked": {
-            "no_osm_line": 1, "osm_line_already_linked": 0, "osm_line_not_confirmed": 1}},
-        "osm_lines": {"total": 4, "public_transport": 4, "linked": 3, "unlinked": {
+        "gtfs_lines": {"total": 5, "linked": 3, "with_several_links": 0, "unlinked": {
+            "no_osm_line": 1, "osm_line_not_confirmed": 1}},
+        "osm_lines": {"total": 4, "public_transport": 4, "linked": 3, "with_several_links": 1, "unlinked": {
             "not_public_transport": 0, "non_gtfs": 0, "no_route_id": 0, "route_id_not_in_gtfs": 0,
             "gtfs_line_already_linked": 0, "route_id_not_confirmed": 1}},
         "by_mode": [{"mode": "bus", "gtfs_lines": 5, "gtfs_linked": 3, "osm_lines": 4, "osm_linked": 3}],
@@ -255,5 +257,6 @@ def test_route_links_name_the_stop_fallback_and_the_refused_route_ids():
     section = html[html.index('id="route-matching"'):html.index('id="problems"')]
 
     assert "Same mode, line number and stops" in section
-    assert "Its gtfs:route_id, from another year, names a different line" in section
-    assert "An OSM line carries the route ID of another year, but runs a different line" in section
+    assert "Its gtfs:route_id names a line with which it shares no stop, or one with another number" in section
+    assert "An OSM line carries the route ID, but shares no stop with the line or has another number" in section
+    assert "1 OSM line is linked to several GTFS lines, and 0 GTFS lines to several OSM lines." in section

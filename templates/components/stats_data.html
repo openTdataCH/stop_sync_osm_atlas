@@ -386,13 +386,16 @@ SECTION 3 — ROUTE MATCHING
 {% if stats.route_links is defined and stats.route_links %}
 {% set rl = stats.route_links %}
 {% set rli = rl.itineraries %}
-<p class="stats-block__lead">GTFS lines and OSM lines are linked one to one: through the GTFS route ID or, for an OSM line without a usable ID, through the same mode, line number and stops. Each link uses one line from each side. Inside a linked pair, itineraries are linked one to one when at least 80% of their stops match in order and their directions, where both are known, are the same.</p>
+<p class="stats-block__lead">A GTFS line and an OSM line are compared when the OSM line carries the GTFS route ID, or when they have the same mode and line number. They are linked when one itinerary of each has at least 80% of the stops in the same order. A GTFS line whose stops agree with no OSM line is linked through its route ID alone, if the two share a stop. A line can have several links: the timetable splits one line into several GTFS lines, and OSM can hold one line twice. Inside a linked pair, itineraries are linked one to one when at least 80% of their stops match in order and their directions, where both are known, are the same.</p>
 <div class="stats-figures">
   {{ figure('Linked line pairs', num(rl.line_links)) }}
   {{ figure('GTFS lines linked', share(rl.gtfs_lines.linked, rl.gtfs_lines.total), of(rl.gtfs_lines.linked, rl.gtfs_lines.total) ~ ' lines') }}
   {{ figure('OSM lines linked', share(rl.osm_lines.linked, rl.osm_lines.public_transport), of(rl.osm_lines.linked, rl.osm_lines.public_transport) ~ ' public transport lines') }}
   {{ figure('Linked itinerary pairs', num(rli.links), share(rli.gtfs_linked, rli.gtfs_in_linked_lines) ~ ' of the GTFS itineraries in linked lines') }}
 </div>
+{% if rl.osm_lines.with_several_links is defined %}
+<p class="stats-note">{{ num(rl.osm_lines.with_several_links) }} OSM line{{ ' is' if rl.osm_lines.with_several_links == 1 else 's are' }} linked to several GTFS lines, and {{ num(rl.gtfs_lines.with_several_links) }} GTFS line{{ '' if rl.gtfs_lines.with_several_links == 1 else 's' }} to several OSM lines. Each link is one card on the <a href="{{ url_for('routes.routes_page', matched='matched') }}">routes page</a>.</p>
+{% endif %}
 
 <section class="stats-block" aria-labelledby="linesByModeTitle">
   <h3 class="stats-block__title" id="linesByModeTitle">Lines by mode</h3>
@@ -434,7 +437,7 @@ SECTION 3 — ROUTE MATCHING
       <dl class="stats-kv stats-kv--single">
         {{ kv('No OSM line carries the route ID', num(gu.no_osm_line)) }}
         {% if gu.osm_line_already_linked %}{{ kv('The OSM line with the route ID is linked to another GTFS line', num(gu.osm_line_already_linked)) }}{% endif %}
-        {% if gu.osm_line_not_confirmed %}{{ kv('An OSM line carries the route ID of another year, but runs a different line', num(gu.osm_line_not_confirmed)) }}{% endif %}
+        {% if gu.osm_line_not_confirmed %}{{ kv('An OSM line carries the route ID, but shares no stop with the line or has another number', num(gu.osm_line_not_confirmed)) }}{% endif %}
       </dl>
       <h4 class="stats-block__subtitle">How the {{ num(rl.line_links) }} linked pairs were linked</h4>
       <div class="stats-bars">
@@ -459,13 +462,13 @@ SECTION 3 — ROUTE MATCHING
       <dl class="stats-kv stats-kv--single">
         {{ kv('No gtfs:route_id', num(ou.no_route_id)) }}
         {{ kv('Its gtfs:route_id is not in the current GTFS', num(ou.route_id_not_in_gtfs)) }}
-        {{ kv('Its GTFS line is linked to another OSM line', num(ou.gtfs_line_already_linked)) }}
-        {% if ou.route_id_not_confirmed %}{{ kv('Its gtfs:route_id, from another year, names a different line', num(ou.route_id_not_confirmed)) }}{% endif %}
+        {{ kv('Its GTFS line is linked to another OSM line, which has its stops', num(ou.gtfs_line_already_linked)) }}
+        {% if ou.route_id_not_confirmed %}{{ kv('Its gtfs:route_id names a line with which it shares no stop, or one with another number', num(ou.route_id_not_confirmed)) }}{% endif %}
         {% if ou.several_route_ids %}{{ kv('Several IDs in gtfs:route_id', num(ou.several_route_ids)) }}{% endif %}
         {{ kv('Not in GTFS by design (FlixBus)', num(ou.non_gtfs)) }}
         {% if ou.not_public_transport %}{{ kv('Not public transport (piste, mtb, …)', num(ou.not_public_transport)) }}{% endif %}
       </dl>
-      <p class="stats-note">A Swiss route ID contains the timetable year (<code>-j26-</code>), and the year is ignored when IDs are compared. The rest of an ID can still change from one year to the next, and an ID can pass to another line, often one with the same number in another town, so an ID of another year links two lines only when they also have the same number and share a stop. A line linked to another OSM line usually means that this OSM line carries an outdated ID that now belongs to a different line. Every OSM line counted here was also compared with the GTFS lines of its mode and number, without a clear match by stops.</p>
+      <p class="stats-note">A Swiss route ID contains the timetable year (<code>-j26-</code>), and the year is ignored when IDs are compared. The rest of an ID can still change from one year to the next, and an ID can pass to another line, often one with the same number in another town, so an ID alone links two lines only when they share a stop, and an ID of another year only when they also have the same number. A GTFS line linked to another OSM line usually means that this OSM line carries an outdated or copied ID. Every OSM line counted here was also compared with the GTFS lines of its mode and number, and none has 80% of its stops in order.</p>
     </div>
   </div>
 </section>
@@ -474,11 +477,11 @@ SECTION 3 — ROUTE MATCHING
 {% set gap = rl.linked_line_itinerary_gap %}
 <section class="stats-block" aria-labelledby="itineraryLinksTitle">
   <h3 class="stats-block__title" id="itineraryLinksTitle">Itineraries in linked lines</h3>
-  <p class="stats-block__lead">An itinerary is one stop pattern of a line: one per distinct GTFS stop sequence, one per OSM route relation. Only itineraries of linked lines can be linked.</p>
+  <p class="stats-block__lead">An itinerary is one stop pattern of a line: one per distinct GTFS stop sequence, one per OSM route relation. Only itineraries of linked lines can be linked, once in each link of their line.</p>
   <dl class="stats-kv">
     {{ kv('GTFS itineraries linked', of(rli.gtfs_linked, rli.gtfs_in_linked_lines), share(rli.gtfs_linked, rli.gtfs_in_linked_lines)) }}
     {{ kv('OSM itineraries linked', of(rli.osm_linked, rli.osm_in_linked_lines), share(rli.osm_linked, rli.osm_in_linked_lines)) }}
-    {{ kv('OSM itineraries without a direction, never linked', num(rli.osm_in_linked_lines_without_direction)) }}
+    {{ kv('OSM itineraries without a direction, linked on their stops alone', num(rli.osm_in_linked_lines_without_direction)) }}
   </dl>
   <div class="stats-columns stats-columns--2">
     <div>

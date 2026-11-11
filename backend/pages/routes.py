@@ -3,6 +3,7 @@ from flask import Blueprint, make_response, render_template, request
 
 from backend.pages.pagination import ListPagination, bounded_int, page_range, per_page_choice
 from backend.services import route_listing
+from backend.services.source_config import route_source_label
 from backend.services.url_query import canonical_query_redirect
 
 
@@ -11,16 +12,19 @@ route_pages_bp = Blueprint('routes', __name__)
 
 ROUTES_PER_PAGE_OPTIONS = [5, 10, 20, 50, 100]
 ROUTES_DEFAULT_PER_PAGE = 10
-MATCH_FILTER_LABELS = {
-    route_listing.ROUTE_MATCH_ALL: 'All',
-    route_listing.ROUTE_MATCHED: 'Matched',
-    route_listing.ROUTE_UNMATCHED: 'Unmatched',
-    route_listing.ROUTE_UNMATCHED_ATLAS: 'Unmatched ATLAS',
-    route_listing.ROUTE_UNMATCHED_OSM: 'Unmatched OSM',
-}
 ROUTES_VIEW_ROUTES = 'routes'
 ROUTES_VIEW_NON_GTFS = 'non_gtfs_routes'
 ROUTES_VIEW_GTFS_STOP_ID_SLOID = 'gtfs_stop_id_sloid'
+
+
+def _match_filter_labels() -> dict[str, str]:
+    return {
+        route_listing.ROUTE_MATCH_ALL: 'All',
+        route_listing.ROUTE_MATCHED: 'Matched',
+        route_listing.ROUTE_UNMATCHED: 'Unmatched',
+        route_listing.ROUTE_UNMATCHED_ATLAS: f'Unmatched {route_source_label()}',
+        route_listing.ROUTE_UNMATCHED_OSM: 'Unmatched OSM',
+    }
 
 
 def _routes_unavailable_response(message: str, phase: str | None = None):
@@ -49,7 +53,7 @@ def _serialize_filter(values: list[str]) -> str:
 
 
 def _search_placeholder() -> str:
-    return 'Search Atlas line IDs or OSM display route IDs'
+    return f'Search {route_source_label()} or OSM route IDs'
 
 
 def _route_listing_endpoint(active_view: str) -> str:
@@ -170,7 +174,7 @@ def routes_page():
         range_end=range_end,
         per_page=per_page,
         per_page_options=ROUTES_PER_PAGE_OPTIONS,
-        match_filter_labels=MATCH_FILTER_LABELS,
+        match_filter_labels=_match_filter_labels(),
         matched_filter=matched_filter,
         available_atlas_operators=available_atlas_operators,
         available_osm_operators=available_osm_operators,
@@ -227,7 +231,7 @@ def non_gtfs_routes_page():
         range_end=range_end,
         per_page=per_page,
         per_page_options=ROUTES_PER_PAGE_OPTIONS,
-        match_filter_labels=MATCH_FILTER_LABELS,
+        match_filter_labels=_match_filter_labels(),
         matched_filter=route_listing.ROUTE_MATCH_ALL,
         available_atlas_operators=[],
         available_osm_operators=[],

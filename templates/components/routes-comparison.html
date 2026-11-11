@@ -5,7 +5,7 @@
 #}
 {% macro variant_comparison(direction, key) %}
 {% set saved = direction.is_matched %}
-{% set source_label = review_config.source_label %}
+{% set source_label = review_config.route_source_label %}
 {% set fixed_source = 'atlas' if direction.has_atlas_variant else 'osm' %}
 {% set candidate_source = 'osm' if fixed_source == 'atlas' else 'atlas' %}
 {% set fixed_label = source_label if fixed_source == 'atlas' else 'OSM' %}

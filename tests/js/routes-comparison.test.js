@@ -59,7 +59,7 @@ const key = (target, name) => target.dispatchEvent(new KeyboardEvent('keydown', 
 const panelHtml = (id, { mode = 'explore', fixedSource = 'atlas', fixedId = '101', best = null, variant }) => `
   <details id="${id}" class="route-card__panel">
     <summary>Variant <span class="route-card__overlap">${SERVER_BADGE}</span></summary>
-    <section class="variant-comparison" data-mode="${mode}" data-variant-data="${id}Data" data-source-label="ATLAS"
+    <section class="variant-comparison" data-mode="${mode}" data-variant-data="${id}Data" data-source-label="GTFS"
       ${mode === 'explore' ? `data-fixed-source="${fixedSource}" data-fixed-itinerary-id="${fixedId}"
         data-options-url="/api/routes/comparison/options" data-comparison-url="/api/routes/comparison"` : ''}
       ${best ? `data-best-id="${best.id}" data-best-label="${best.label}" data-best-percentage="${best.percentage}"
@@ -130,7 +130,7 @@ describe('Route variant comparisons', () => {
     expect(summary.hidden).toBe(false);
     expect(summary.textContent).toContain('92.3%');
     expect(summary.textContent).toContain('12 of 13 stops match in order');
-    expect(summary.textContent).toContain('1 only in ATLAS · 0 only in OSM');
+    expect(summary.textContent).toContain('1 only in GTFS · 0 only in OSM');
     expect(summary.textContent).toContain('Saved match');
     expect(summary.textContent).toContain('Directions agree');
     expect(summary.querySelector('a').href).toBe('https://www.openstreetmap.org/relation/5551');
@@ -182,7 +182,7 @@ describe('Route variant comparisons', () => {
     const summary = node('atlasPanel', 'summary').textContent;
     expect(summary).toContain('80%');
     expect(summary).toContain('4 of 5 stops match in order');
-    expect(summary).toContain('OSM variant is the saved match of another ATLAS variant');
+    expect(summary).toContain('OSM variant is the saved match of another GTFS variant');
     expect(summary).not.toContain('Saved match');
     expect(node('atlasPanel', 'summary').querySelector('a').href).toBe('https://www.openstreetmap.org/relation/9301');
     expect(node('atlasPanel', 'results').classList).not.toContain('comparison-rows--single');
@@ -218,7 +218,7 @@ describe('Route variant comparisons', () => {
     await flush();
 
     const badge = node('atlasPanel', 'summary').querySelector('.comparison-badge--taken');
-    expect(badge.textContent).toBe('Already matched to ATLAS Line 10 · Lake → Central, Line 11 · Hill → Lake');
+    expect(badge.textContent).toBe('Already matched to GTFS Line 10 · Lake → Central, Line 11 · Hill → Lake');
     const [linked, other] = badge.querySelectorAll('.comparison-badge__target');
     expect(linked.tagName).toBe('BUTTON');
     expect(linked.title).toBe('10 · Line 10 · Lake → Central · Direction 1 · Show it on this route card');
@@ -236,7 +236,7 @@ describe('Route variant comparisons', () => {
 
     node('atlasPanel', 'trigger').click();
     expect(node('atlasPanel', 'options').querySelector('.comparison-option__flag').title)
-      .toBe('Saved match of ATLAS Line 10 · Lake → Central, Line 11 · Hill → Lake');
+      .toBe('Saved match of GTFS Line 10 · Lake → Central, Line 11 · Hill → Lake');
 
     // A highlight does not outlive the badge that set it.
     node('atlasPanel', 'summary').querySelector('.comparison-badge--taken').dispatchEvent(new MouseEvent('mouseenter'));
@@ -387,7 +387,7 @@ describe('Route variant comparisons', () => {
     await flush();
     expect(requests).toHaveLength(1);
     expect(node('osmPanel', 'empty').hidden).toBe(false);
-    expect(node('osmPanel', 'empty').textContent).toContain('No ATLAS variant shares a stop with this one');
+    expect(node('osmPanel', 'empty').textContent).toContain('No GTFS variant shares a stop with this one');
     expect(node('osmPanel', 'value').textContent).toBe('Choose a variant to compare');
     expect(rows('osmPanel')).toHaveLength(2);
     expect(node('osmPanel', 'next').disabled).toBe(true);
@@ -425,8 +425,8 @@ describe('Route variant comparisons', () => {
     window.RoutesComparison.init();
     setOpen('osmPanel');
     await flush();
-    expect(node('osmPanel', 'value').textContent).toBe('Could not load ATLAS variants');
-    expect(node('osmPanel', 'position').textContent).toContain('Could not load ATLAS variants');
+    expect(node('osmPanel', 'value').textContent).toBe('Could not load GTFS variants');
+    expect(node('osmPanel', 'position').textContent).toContain('Could not load GTFS variants');
     window.fetch = jest.fn(value => Promise.resolve(new URL(value).pathname.endsWith('/options')
       ? response(options([atlasBest])) : { ok: false, status: 404 }));
     node('osmPanel', 'position').querySelector('button').click();
@@ -490,7 +490,7 @@ describe('Route variant comparisons', () => {
     expect(platform.textContent).not.toContain('Not in');
     const summary = node('atlasPanel', 'summary').textContent;
     expect(summary).toContain('2 of 2 stops match in order');
-    expect(summary).toContain('0 only in ATLAS · 0 only in OSM · 1 at another platform');
+    expect(summary).toContain('0 only in GTFS · 0 only in OSM · 1 at another platform');
   });
 
   test('row hover and click send the stop positions to the variant map', async () => {

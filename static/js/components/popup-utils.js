@@ -155,7 +155,7 @@
             addSection('OSM-only Routes', osmOnlyRoutes);
         } else {
             addSection('Matched Routes', matchedRoutes);
-            addSection(`${SharedUtils.sourceLabelHtml()}-only Routes`, atlasOnlyRoutes);
+            addSection(`${SharedUtils.escapeHtml(SharedUtils.routeSourceLabel())}-only Routes`, atlasOnlyRoutes);
             addSection('OSM-only Routes', osmOnlyRoutes);
         }
         return html || '<i>No route information available</i>';

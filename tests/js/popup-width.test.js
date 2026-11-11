@@ -228,15 +228,15 @@ describe('popup content', () => {
       .map(tab => [tab.textContent.trim(), tab]));
     const panel = tab => document.getElementById(tab.getAttribute('aria-controls'));
 
-    expect(Object.keys(tabs)).toEqual(['ATLAS routes', 'OSM routes', 'Tags (1)']);
+    expect(Object.keys(tabs)).toEqual(['GTFS routes', 'OSM routes', 'Tags (1)']);
     expect(tabs['OSM routes'].disabled).toBe(true);
 
-    window.PopupRenderer.toggleMatchDetail(tabs['ATLAS routes']);
-    expect(panel(tabs['ATLAS routes']).hidden).toBe(false);
-    expect(panel(tabs['ATLAS routes']).dataset.source).toBe('atlas');
+    window.PopupRenderer.toggleMatchDetail(tabs['GTFS routes']);
+    expect(panel(tabs['GTFS routes']).hidden).toBe(false);
+    expect(panel(tabs['GTFS routes']).dataset.source).toBe('atlas');
 
     window.PopupRenderer.toggleMatchDetail(tabs['Tags (1)']);
-    expect(panel(tabs['ATLAS routes']).hidden).toBe(true);
+    expect(panel(tabs['GTFS routes']).hidden).toBe(true);
     expect(panel(tabs['Tags (1)']).hidden).toBe(false);
 
     window.PopupRenderer.toggleMatchDetail(tabs['Tags (1)']);

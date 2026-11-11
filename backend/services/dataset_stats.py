@@ -490,9 +490,10 @@ def _route_keys(row) -> Dict[str, Optional[str]]:
 def compute_route_link_stats(session) -> Dict[str, Any]:
     """Links between GTFS and OSM lines and between their itineraries.
 
-    The engine links lines and itineraries one to one, so the number of links
-    equals the linked lines on each side; coverage and the reasons a line stays
-    unlinked carry the information.
+    A line can have several links: the timetable splits one line into several
+    GTFS lines, and OSM can hold one line twice. So the links, the linked
+    lines of each side and the lines with several links are counted apart;
+    coverage and the reasons a line stays unlinked carry the information.
     """
     from backend.models import Itinerary, ItineraryMatch, LineFamily, LineFamilyMatch
 
@@ -503,8 +504,9 @@ def compute_route_link_stats(session) -> Dict[str, Any]:
     osm_lines = [row for row in families if row.source == 'osm']
     links = session.query(LineFamilyMatch.atlas_line_family_id, LineFamilyMatch.osm_line_family_id,
                           LineFamilyMatch.match_method).all()
-    linked_gtfs = {gtfs_id for gtfs_id, _, _ in links}
-    linked_osm = {osm_id for _, osm_id, _ in links}
+    links_per_gtfs_line = Counter(gtfs_id for gtfs_id, _, _ in links)
+    links_per_osm_line = Counter(osm_id for _, osm_id, _ in links)
+    linked_gtfs, linked_osm = set(links_per_gtfs_line), set(links_per_osm_line)
 
     by_mode = {mode: {'mode': mode, 'gtfs_lines': 0, 'gtfs_linked': 0, 'osm_lines': 0, 'osm_linked': 0}
                for mode in MODES}
@@ -521,10 +523,11 @@ def compute_route_link_stats(session) -> Dict[str, Any]:
         by_mode[mode]['osm_lines'] += 1
         by_mode[mode]['osm_linked'] += row.id in linked_osm
 
-    # The engine's candidate rule: OSM gtfs_route_id, normalized ID or display ID
-    # equal to the GTFS route ID (normalized IDs compare with each other). The
-    # engine refuses a normalized candidate whose lines differ in number or share
-    # no stop, so a candidate left unlinked on both sides is such a refusal.
+    # Which OSM line carries the route ID of which GTFS line: OSM gtfs_route_id,
+    # normalized ID or display ID equal to the GTFS route ID (normalized IDs
+    # compare with each other). The engine links such a pair when their stops
+    # agree, or on the ID alone when they share a stop and, for a normalized
+    # ID, the line number. A pair left unlinked is one the engine refused.
     gtfs_by_route_id = defaultdict(set)
     gtfs_by_normalized = defaultdict(set)
     for row in gtfs_lines:
@@ -564,17 +567,11 @@ def compute_route_link_stats(session) -> Dict[str, Any]:
             osm_unlinked['several_route_ids'] += 1
         else:
             osm_unlinked['route_id_not_in_gtfs'] += 1
-    gtfs_unlinked = Counter({'no_osm_line': 0, 'osm_line_already_linked': 0, 'osm_line_not_confirmed': 0})
+    gtfs_unlinked = Counter({'no_osm_line': 0, 'osm_line_not_confirmed': 0})
     for row in gtfs_lines:
         if row.id in linked_gtfs:
             continue
-        candidates = osm_candidates_by_gtfs.get(row.id, set())
-        if not candidates:
-            gtfs_unlinked['no_osm_line'] += 1
-        elif candidates & linked_osm:
-            gtfs_unlinked['osm_line_already_linked'] += 1
-        else:
-            gtfs_unlinked['osm_line_not_confirmed'] += 1
+        gtfs_unlinked['osm_line_not_confirmed' if osm_candidates_by_gtfs.get(row.id) else 'no_osm_line'] += 1
 
     method_counts = Counter(method or 'other' for _, _, method in links)
 
@@ -590,9 +587,13 @@ def compute_route_link_stats(session) -> Dict[str, Any]:
     gaps = [itinerary_counts[gtfs_id] - itinerary_counts[osm_id] for gtfs_id, osm_id, _ in links]
     return {
         'line_links': len(links),
-        'gtfs_lines': {'total': len(gtfs_lines), 'linked': len(linked_gtfs), 'unlinked': dict(gtfs_unlinked)},
+        'gtfs_lines': {'total': len(gtfs_lines), 'linked': len(linked_gtfs),
+                       'with_several_links': sum(count > 1 for count in links_per_gtfs_line.values()),
+                       'unlinked': dict(gtfs_unlinked)},
         'osm_lines': {'total': len(osm_lines), 'public_transport': osm_public_transport,
-                      'linked': len(linked_osm), 'unlinked': dict(osm_unlinked)},
+                      'linked': len(linked_osm),
+                      'with_several_links': sum(count > 1 for count in links_per_osm_line.values()),
+                      'unlinked': dict(osm_unlinked)},
         'by_mode': [row for row in by_mode.values() if row['gtfs_lines'] or row['osm_lines']],
         'by_match_method': dict(method_counts.most_common()),
         'itineraries': {

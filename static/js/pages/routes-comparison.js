@@ -285,7 +285,7 @@
 
   function createSavedController(section) {
     var panel = section.closest('details');
-    var sourceLabel = section.dataset.sourceLabel || 'ATLAS';
+    var sourceLabel = section.dataset.sourceLabel || 'GTFS';
     var list = section.querySelector('[data-comparison-results]');
     var summary = section.querySelector('[data-comparison-summary]');
     var empty = section.querySelector('[data-comparison-empty]');
@@ -324,7 +324,7 @@
   function createExploreController(section) {
     function find(name) { return section.querySelector('[data-comparison-' + name + ']'); }
     var panel = section.closest('details');
-    var sourceLabel = section.dataset.sourceLabel || 'ATLAS';
+    var sourceLabel = section.dataset.sourceLabel || 'GTFS';
     var fixedSource = section.dataset.fixedSource;
     var fixedId = section.dataset.fixedItineraryId;
     var candidateSource = fixedSource === 'atlas' ? 'osm' : 'atlas';

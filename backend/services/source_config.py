@@ -5,11 +5,14 @@ import os
 import re
 from pathlib import Path
 
-from flask import current_app
+from flask import current_app, has_app_context
 
 
+# ``source_label`` names the stop registry. ``route_source_label`` names the
+# side of a route comparison that comes from the timetable: routes, variants
+# and their stop lists are built from the GTFS feed, not from the registry.
 DEFAULTS = {
-    "title": "OSM & ATLAS Synchronization", "source_label": "ATLAS",
+    "title": "OSM & ATLAS Synchronization", "source_label": "ATLAS", "route_source_label": "GTFS",
     "source_id_label": "SLOID", "flag": "🇨🇭", "map_center": [46.8, 8.2], "map_zoom": 8,
     "map_bounds": [[45.5, 5.5], [48, 11]], "map_min_zoom": 8,
     "capabilities": {"routes": True, "gtfs_identity": True},
@@ -27,6 +30,12 @@ def load_review_config(path=None):
         config.update(configured)
         config["capabilities"] = {**DEFAULTS["capabilities"], **configured.get("capabilities", {})}
     return config
+
+
+def route_source_label():
+    """The name of the timetable side of a route comparison, such as GTFS."""
+    config = current_app.config.get("REVIEW_CONFIG", DEFAULTS) if has_app_context() else DEFAULTS
+    return config.get("route_source_label") or DEFAULTS["route_source_label"]
 
 
 def normalize_route_search_id(route_id):

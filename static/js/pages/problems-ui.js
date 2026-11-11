@@ -324,7 +324,7 @@ window.ProblemsUI = (function () {
                 </div>
                 <div class="attribute-mini-popups">
                     <div class="atlas-match attribute-mini-popup">
-                        <h5>${SharedUtils.sourceLabelHtml()} Routes</h5>
+                        <h5>${SharedUtils.escapeHtml(SharedUtils.routeSourceLabel())} Routes</h5>
                         <table class="popup-table mb-0">${atlasRowsHtml}</table>
                     </div>
                     <div class="osm-match attribute-mini-popup">

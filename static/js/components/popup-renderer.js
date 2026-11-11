@@ -920,7 +920,7 @@
             const routeOptions = { enableRouteLink: options.enableRouteLinks !== false };
             details.push({
                 source: 'atlas',
-                label: `${SharedUtils.sourceLabelHtml()} routes`,
+                label: `${SharedUtils.escapeHtml(SharedUtils.routeSourceLabel())} routes`,
                 html: PopupUtils.normalizeRoutes(atlas.routes_atlas).length ? PopupUtils.formatAtlasRouteList(atlas.routes_atlas, routeOptions) : null,
             });
             details.push({

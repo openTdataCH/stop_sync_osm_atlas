@@ -3,7 +3,7 @@
 {% from "components/_components.html" import stats_overlay with context %}
 {% from "components/routes-comparison.html" import variant_comparison with context %}
 {% block title %}{% if active_view == 'non_gtfs_routes' %}Non-GTFS Routes{% elif active_view == 'gtfs_stop_id_sloid' %}GTFS stop_id and SLOID{% else %}Public Transport Routes{% endif %} | {{ review_config.title }}{% endblock %}
-{% block meta_description %}{% if active_view == 'non_gtfs_routes' %}Inspect OpenStreetMap public transport routes that are absent from the configured {{ review_config.source_label }} route dataset.{% elif active_view == 'gtfs_stop_id_sloid' %}Compare GTFS stop identifiers with Swiss ATLAS service location identifiers and inspect their map coverage.{% else %}Compare matched and unmatched public transport routes from OpenStreetMap and {{ review_config.source_label }}.{% endif %}{% endblock %}
+{% block meta_description %}{% if active_view == 'non_gtfs_routes' %}Inspect OpenStreetMap public transport routes that are absent from the {{ review_config.route_source_label }} route dataset.{% elif active_view == 'gtfs_stop_id_sloid' %}Compare GTFS stop identifiers with Swiss ATLAS service location identifiers and inspect their map coverage.{% else %}Compare matched and unmatched public transport routes from OpenStreetMap and {{ review_config.route_source_label }}.{% endif %}{% endblock %}
 
 {% block page_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/routes.css') }}">
@@ -14,11 +14,11 @@
 
 {% macro render_route_meta(route, side, solo=False) %}
 {% set is_atlas = side == 'atlas' %}
-{% set title = review_config.source_label if is_atlas else 'OSM' %}
+{% set title = review_config.route_source_label if is_atlas else 'OSM' %}
 {% set base_class = 'route-meta route-meta--atlas' if is_atlas else 'route-meta route-meta--osm' %}
 {% set base_class = base_class + (' route-meta--matched' if route.is_matched else ' route-meta--unmatched') %}
 {% if solo %}{% set base_class = base_class + ' route-meta--solo' %}{% endif %}
-{% set display_name = (route.atlas_route_short_name or route.atlas_route_name or (review_config.source_label ~ ' route')) if is_atlas else (route.osm_route_name or 'OSM route') %}
+{% set display_name = (route.atlas_route_short_name or route.atlas_route_name or (review_config.route_source_label ~ ' route')) if is_atlas else (route.osm_route_name or 'OSM route') %}
 {% set secondary_name = route.atlas_route_long_name if is_atlas else route.osm_ref %}
 {% set route_id_text = ('ID: ' ~ (route.atlas_route_id or '-')) if is_atlas else (route.osm_route_id_label ~ ': ' ~ ((route.osm_gtfs_route_id or route.osm_route_display_id) or '-')) %}
 {% set operator_text = route.atlas_operators_summary if is_atlas else route.osm_operator %}
@@ -48,7 +48,7 @@
         {% if route.atlas_route_type %}<dt>Route type</dt><dd>{{ route.atlas_route_type }}</dd>{% endif %}
         {% if route.atlas_family_origin %}<dt>Family origin</dt><dd>{{ route.atlas_family_origin }}</dd>{% endif %}
         {% if route.atlas_normalized_route_id %}<dt>Normalized route ID</dt><dd>{{ route.atlas_normalized_route_id }}</dd>{% endif %}
-        {% if route.atlas_line_id %}<dt>{{ review_config.source_label }} line ID</dt><dd>{{ route.atlas_line_id }}</dd>{% endif %}
+        {% if route.atlas_line_id %}<dt>{{ review_config.route_source_label }} line ID</dt><dd>{{ route.atlas_line_id }}</dd>{% endif %}
         {% if route.atlas_network %}<dt>Network</dt><dd>{{ route.atlas_network }}</dd>{% endif %}
         {% if route.atlas_operator_wikidata %}<dt>Operator Wikidata</dt><dd>{{ route.atlas_operator_wikidata }}</dd>{% endif %}
         {% if route.atlas_network_wikidata %}<dt>Network Wikidata</dt><dd>{{ route.atlas_network_wikidata }}</dd>{% endif %}
@@ -79,9 +79,9 @@
       <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ route.osm_route_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View relation {{ route.osm_route_id }} on OSM</a>
       {% endif %}
       {% if route.is_non_gtfs %}
-      <div class="route-meta__note">Not part of the configured {{ review_config.source_label }} route dataset. Excluded from route matching.</div>
+      <div class="route-meta__note">Not part of the {{ review_config.route_source_label }} route dataset. Excluded from route matching.</div>
       {% elif route.display_mode == 'osm_only' %}
-      <div class="route-meta__note">No matched {{ review_config.source_label }} route.</div>
+      <div class="route-meta__note">No matched {{ review_config.route_source_label }} route.</div>
       {% endif %}
     {% endif %}
   </div>
@@ -118,7 +118,7 @@
     {% if active_view != 'gtfs_stop_id_sloid' %}
     <header class="routes-header">
       {% if active_view == 'non_gtfs_routes' %}
-      <p>These are OSM public transport routes that do not appear in the configured {{ review_config.source_label }} route dataset but we still display them. We do not attempt to match these routes.</p>
+      <p>These are OSM public transport routes that do not appear in the {{ review_config.route_source_label }} route dataset but we still display them. We do not attempt to match these routes.</p>
       {% else %}
       <div class="routes-heading-row">
         <div><h1>Explore route matches</h1><p>Expand an unmatched variant to compare stop sequences. Each variant keeps its own comparison.</p></div>
@@ -158,7 +158,7 @@
             </div>
             <div id="routesSearchHint" class="smart-search-hint d-none">
               <div class="smart-search-hint__title">Route search</div>
-              <div class="smart-search-hint__item">Use {{ review_config.source_label }} route IDs or OSM GTFS route IDs.</div>
+              <div class="smart-search-hint__item">Use a {{ review_config.route_source_label }} route ID, line number or name, or an OSM route master or relation ID.</div>
             </div>
           </div>
 
@@ -212,7 +212,7 @@
                 <div class="ps-3 mt-2">
                   <div class="form-check">
                     <input type="checkbox" class="form-check-input routes-status-checkbox" id="unmatchedAtlasOnly" data-value="unmatched_atlas" {% if matched_filter == 'unmatched_atlas' %}checked{% endif %}>
-                    <label class="form-check-label" for="unmatchedAtlasOnly">Unmatched {{ review_config.source_label }}</label>
+                    <label class="form-check-label" for="unmatchedAtlasOnly">Unmatched {{ review_config.route_source_label }}</label>
                   </div>
                   <div class="form-check">
                     <input type="checkbox" class="form-check-input routes-status-checkbox" id="unmatchedOsmOnly" data-value="unmatched_osm" {% if matched_filter == 'unmatched_osm' %}checked{% endif %}>
@@ -279,8 +279,25 @@
           <span class="route-card__badge {{ 'route-card__badge--matched' if route.is_matched else 'route-card__badge--unmatched' }}">{{ route.match_label }}</span>
         </div>
 
+        {# A line can have several matches; each is a card of its own, so this one names the others. #}
+        {% for lines, own, other, reason in [
+          (route.also_matched_atlas_routes, 'OSM line', review_config.route_source_label ~ ' route', 'The timetable splits this line into several routes.'),
+          (route.also_matched_osm_lines, review_config.route_source_label ~ ' route', 'OSM line', 'OSM may hold this line twice, or in two parts.'),
+        ] %}
+        {% if lines %}
+        <p class="route-card__also-matched">
+          <i class="fas fa-code-branch" aria-hidden="true"></i>
+          This {{ own }} is also matched to {{ other }}{{ 's' if lines|length > 1 }}
+          {% for line in lines -%}
+          <a href="{{ url_for('routes.routes_page', q=line.query) }}">{{ line.label }}</a>{{ ', ' if not loop.last else '.' }}
+          {% endfor -%}
+          <span class="route-card__also-matched-reason">{{ reason }}</span>
+        </p>
+        {% endif %}
+        {% endfor %}
+
         {% if route.variant_count is defined and route.variant_count > 0 %}
-        <p class="route-card__summary">{{ review_config.source_label }} variants: {{ route.atlas_variant_count }} | OSM variants: {{ route.osm_variant_count }} | Matched: {{ route.matched_variant_count }}</p>
+        <p class="route-card__summary">{{ review_config.route_source_label }} variants: {{ route.atlas_variant_count }} | OSM variants: {{ route.osm_variant_count }} | Matched: {{ route.matched_variant_count }}</p>
         {% endif %}
 
         {% if route.direction_groups %}
@@ -327,7 +344,7 @@
               {% elif active_view == 'routes' and not direction.is_matched and (direction.atlas_itinerary_id or direction.osm_itinerary_id) %}
               {# Precomputed at import: itinerary_best_overlaps (see the Routes pages documentation). #}
               {% set best = direction.best_overlap %}
-              {% set other_label = 'OSM' if direction.has_atlas_variant else review_config.source_label %}
+              {% set other_label = 'OSM' if direction.has_atlas_variant else review_config.route_source_label %}
               {% if best and best.candidate_label %}
               <span class="route-card__overlap route-card__overlap--suggested" title="Best {{ other_label }} variant: {{ best.candidate_label }} ({{ best.matched_stop_count }} stop{{ '' if best.matched_stop_count == 1 else 's' }} shared in order)">Highest overlap: {{ best.percentage|round(1) }}%</span>
               {% elif best %}
@@ -357,7 +374,7 @@
                   {% if direction.has_atlas_variant %}
                   <div class="stops-column">
                     <div class="stops-column-header">
-                      <h4>{{ review_config.source_label }} Stops</h4>
+                      <h4>{{ review_config.route_source_label }} Stops</h4>
                     </div>
                     {% if direction.atlas_uic_groups %}
                     <ol class="stops-list">
@@ -376,7 +393,7 @@
                       {% endfor %}
                     </ol>
                     {% else %}
-                    <p class="stops-empty">No {{ review_config.source_label }} stops in this direction.</p>
+                    <p class="stops-empty">No {{ review_config.route_source_label }} stops in this direction.</p>
                     {% endif %}
                   </div>
                   {% endif %}
@@ -629,7 +646,7 @@
   "selectedAtlasOperators": {{ selected_atlas_operators | tojson }},
   "selectedOsmOperators": {{ selected_osm_operators | tojson }},
   "matchedFilter": {{ matched_filter | tojson }},
-  "matchFilterLabels": {{ dict(match_filter_labels, unmatched_atlas="Unmatched " ~ review_config.source_label) | tojson }},
+  "matchFilterLabels": {{ match_filter_labels | tojson }},
   "q": {{ q | tojson }},
   "baseUrl": {{ url_for('routes.routes_page') | tojson }},
   "mainMapUrl": {{ url_for('pages.index') | tojson }}

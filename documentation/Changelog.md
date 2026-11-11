@@ -21,7 +21,9 @@ The matching code moves to its own package, the [matching engine](../engine/docu
 
 - **New match rules** — OSM elements tagged with an ATLAS SLOID (`ref:sloid`, `railway:ref:sloid`) are matched first, as **SLOID in OSM**. Each match type names the rule that decided it, and the map's Matched filter groups them by rule.
 - **New problem types** — **OSM SLOID** for a SLOID that names a distant or unknown platform, and **disused** for retired OSM elements that still look in use. Disused elements are drawn as grey rings. See [A2.4](2.4%20Problems%20page.md).
-- **More routes linked** — Lines are also linked by line number and shared stops, and variants are compared by station, so a stop at another platform of the same station counts as shared. An OSM relation without `ref_trips` is paired with a variant on its stops in order. See [A2.6](2.6%20Routes%20pages.md).
+- **More routes linked** — Lines are linked when their variants have the same stops in order, also without a route ID, and variants are compared by station, so a stop at another platform of the same station counts as shared. An OSM relation without `ref_trips` is paired with a variant on its stops in order. See [A2.6](2.6%20Routes%20pages.md).
+- **Several matches per line** — A line can be matched to several lines of the other side: the timetable splits one line into several routes, and OSM can hold a line twice. Each match is a route card, which names the others. See [A2.6](2.6%20Routes%20pages.md#lines-with-several-matches).
+- **GTFS, not ATLAS, on the route side** — Routes and variants come from the timetable, so the Routes pages, route filters and popups call that side GTFS. ATLAS stays the name of the stop registry.
 
 ### Map and Problems page
 

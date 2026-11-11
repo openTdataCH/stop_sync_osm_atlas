@@ -19,6 +19,7 @@ from backend.models import (
     StopCall,
 )
 from backend.services.route_comparison import attach_stop_matches, compare_stop_calls, load_best_overlaps
+from backend.services.source_config import route_source_label
 
 
 ROUTE_MATCH_ALL = 'all'
@@ -346,7 +347,7 @@ def _route_item_from_summary(row, atlas_operator_map):
     if row.display_mode == 'matched':
         match_label = 'Matched'
     elif row.display_mode == 'atlas_only':
-        match_label = 'Unmatched ATLAS'
+        match_label = f'Unmatched {route_source_label()}'
     else:
         match_label = 'Non-GTFS OSM' if is_non_gtfs else 'Unmatched OSM'
 
@@ -400,6 +401,63 @@ def _route_item_from_summary(row, atlas_operator_map):
         'is_non_gtfs': is_non_gtfs,
         'primary_route_id': atlas_source_family_id or osm_display_route_id,
     }
+
+
+def _other_line(family):
+    """A line named in a sentence: its number or name, its ID, and the route search that finds it."""
+    if family.source == 'atlas':
+        name = _clean_text(family.ref) or _clean_text(family.public_name)
+        identity = _clean_text(family.source_family_id)
+        query = identity
+    else:
+        name = _clean_text(family.ref) or _clean_text(family.public_name) or _clean_text(family.display_route_id)
+        master, relation = _clean_text(family.route_master_id), _clean_text(family.representative_relation_id)
+        identity = f'route master {master}' if master else (f'relation {relation}' if relation else None)
+        query = master or relation or _clean_text(family.display_route_id)
+    return {
+        'label': ' · '.join(part for part in (name, identity) if part) or 'Unnamed line',
+        'query': query,
+    }
+
+
+def _attach_other_matches(items):
+    """Tell each matched card which other lines its two lines are also matched to.
+
+    A line can have several matches: the timetable splits one line into
+    several GTFS routes, and OSM can hold one line twice or in two parts. Each
+    match is a card of its own, so a card names the others.
+    """
+    for item in items:
+        item['also_matched_osm_lines'] = []
+        item['also_matched_atlas_routes'] = []
+    matched = [item for item in items if item.get('line_family_match_id') is not None]
+    if not matched:
+        return
+    links = (
+        db.session.query(LineFamilyMatch.atlas_line_family_id, LineFamilyMatch.osm_line_family_id)
+        .filter(or_(
+            LineFamilyMatch.atlas_line_family_id.in_({item['atlas_family_id'] for item in matched}),
+            LineFamilyMatch.osm_line_family_id.in_({item['osm_family_id'] for item in matched}),
+        ))
+        .all()
+    )
+    families = {
+        family.id: family
+        for family in db.session.query(LineFamily)
+        .filter(LineFamily.id.in_({family_id for link in links for family_id in link}))
+        .all()
+    }
+
+    def other_lines(family_ids):
+        lines = [_other_line(families[family_id]) for family_id in family_ids if family_id in families]
+        return sorted(lines, key=lambda line: line['label'])
+
+    for item in matched:
+        atlas_id, osm_id = item['atlas_family_id'], item['osm_family_id']
+        item['also_matched_osm_lines'] = other_lines(
+            {link_osm for link_atlas, link_osm in links if link_atlas == atlas_id and link_osm != osm_id})
+        item['also_matched_atlas_routes'] = other_lines(
+            {link_atlas for link_atlas, link_osm in links if link_osm == osm_id and link_atlas != atlas_id})
 
 
 def _route_listing_statement(
@@ -477,10 +535,12 @@ def query_route_page(*, page, per_page, **filters):
         if row.atlas_family_id is not None
     }
     atlas_operator_map = _load_atlas_operator_map(atlas_family_ids)
-    return [
+    items = [
         _route_item_from_summary(row, atlas_operator_map)
         for row in page_rows
-    ], total
+    ]
+    _attach_other_matches(items)
+    return items, total
 
 
 def locate_route_variant_page(*, atlas_variant, osm_variant, per_page, **filters):
@@ -675,7 +735,7 @@ def _build_direction_group(atlas_itinerary, osm_itinerary, atlas_calls, osm_call
         match_label = 'Matched variant'
         match_status = 'matched'
     elif atlas_itinerary is not None:
-        match_label = 'Unmatched ATLAS variant'
+        match_label = f'Unmatched {route_source_label()} variant'
         match_status = 'unmatched-atlas'
     else:
         match_label = 'Unmatched OSM variant'

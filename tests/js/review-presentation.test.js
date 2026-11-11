@@ -10,7 +10,7 @@ describe('dataset presentation across primary map surfaces', () => {
 
   beforeEach(() => {
     window.ReviewConfig = {
-      source_label: 'City & Transit', source_id_label: 'Stop ID',
+      source_label: 'City & Transit', route_source_label: 'Feed & GTFS', source_id_label: 'Stop ID',
       capabilities: { routes: true, gtfs_identity: false }, source_url_template: ''
     };
   });
@@ -23,7 +23,8 @@ describe('dataset presentation across primary map surfaces', () => {
     expect(popup).not.toContain('ATLAS');
     expect(popup).not.toContain('atlas.app.sbb.ch');
     const problem = ProblemsUI.renderSingleProblemUI({ ...stop, id: 1, problem: 'contradicts_route_matching' }, 0, 0, 1);
-    expect(problem).toContain('City &amp; Transit Routes');
+    // Routes come from the timetable feed, which has its own label.
+    expect(problem).toContain('Feed &amp; GTFS Routes');
     expect(problem).toContain('Stop ID:');
     expect(problem).not.toContain('ATLAS');
   });

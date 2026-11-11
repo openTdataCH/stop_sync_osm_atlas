@@ -1073,12 +1073,12 @@ function routeVariantName(variant) {
     return String(variant.name || variant.key).replace(/\s*->\s*/g, ' → ');
 }
 
-// The chip's label: the variant's name (ATLAS first), and which source it is
+// The chip's label: the variant's name (GTFS first), and which source it is
 // when only one side is shown.
 function routeVariantLabel(atlas, osm) {
     var name = routeVariantName(atlas || osm);
     if (atlas && osm) return name;
-    return name + ' · ' + (atlas ? SharedUtils.sourceLabel() : 'OSM') + ' only';
+    return name + ' · ' + (atlas ? SharedUtils.routeSourceLabel() : 'OSM') + ' only';
 }
 
 // The request parameter: a JSON list aligned with station_filter, or null
@@ -1129,7 +1129,7 @@ function addRouteVariantFilter(data) {
 
 // Both sides, named as their sources name them: the tooltip of a variant.
 function routeVariantTitle(atlas, osm) {
-    return [atlas && SharedUtils.sourceLabel() + ': ' + atlas.name, osm && 'OSM: ' + osm.name].filter(Boolean).join('\n');
+    return [atlas && SharedUtils.routeSourceLabel() + ': ' + atlas.name, osm && 'OSM: ' + osm.name].filter(Boolean).join('\n');
 }
 
 // One variant option: its name once, the OSM name below when the pair's names
@@ -1144,7 +1144,7 @@ function routeVariantOptionHtml(entry, i, isCurrent) {
         '<span class="variant-option__name">' + esc(name) +
         (other ? '<span class="variant-option__other">OSM: ' + esc(other) + '</span>' : '') + '</span>' +
         '<span class="variant-option__sources">' +
-        (entry.atlas ? '<span class="source-tag source-tag--atlas">' + SharedUtils.sourceLabelHtml() + '</span>' : '') +
+        (entry.atlas ? '<span class="source-tag source-tag--atlas">' + SharedUtils.escapeHtml(SharedUtils.routeSourceLabel()) + '</span>' : '') +
         (entry.osm ? '<span class="source-tag source-tag--osm">OSM</span>' : '') +
         '</span></div>';
 }

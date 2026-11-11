@@ -20,6 +20,8 @@
     // Presentation labels stay separate from the app's compatibility field names.
     SharedUtils.sourceLabel = () => String((global.ReviewConfig || {}).source_label || 'ATLAS');
     SharedUtils.sourceIdLabel = () => String((global.ReviewConfig || {}).source_id_label || 'SLOID');
+    // The timetable side of a route comparison: routes and variants come from GTFS, not from the stop registry.
+    SharedUtils.routeSourceLabel = () => String((global.ReviewConfig || {}).route_source_label || 'GTFS');
     SharedUtils.sourceLabelHtml = () => SharedUtils.escapeHtml(SharedUtils.sourceLabel());
     SharedUtils.sourceIdLabelHtml = () => SharedUtils.escapeHtml(SharedUtils.sourceIdLabel());
     // 49452 -> "49,452": counts shown to people, grouped by thousands.

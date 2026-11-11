@@ -50,16 +50,19 @@ def test_route_links_report_coverage_and_why_lines_stay_unlinked(sqlite_tables):
         LineFamilyMatch(id=1000, atlas_line_family_id=1, osm_line_family_id=10, match_method='exact_gtfs_route_id'),
         LineFamilyMatch(id=1001, atlas_line_family_id=2, osm_line_family_id=11, match_method='normalized_gtfs_route_id'),
         LineFamilyMatch(id=1002, atlas_line_family_id=5, osm_line_family_id=19, match_method='line_number_and_stops'),
+        # A line can have several links: GTFS line 5 has two OSM lines, OSM line 10 two GTFS lines.
+        LineFamilyMatch(id=1003, atlas_line_family_id=5, osm_line_family_id=10, match_method='line_number_and_stops'),
         ItineraryMatch(id=2000, line_family_match_id=1000, atlas_itinerary_id=100, osm_itinerary_id=200),
     ])
     session.commit()
 
     stats = compute_route_link_stats(session)
 
-    assert stats['line_links'] == 3
-    assert stats['gtfs_lines'] == {'total': 5, 'linked': 3, 'unlinked': {
-        'no_osm_line': 1, 'osm_line_already_linked': 0, 'osm_line_not_confirmed': 1}}
+    assert stats['line_links'] == 4
+    assert stats['gtfs_lines'] == {'total': 5, 'linked': 3, 'with_several_links': 1, 'unlinked': {
+        'no_osm_line': 1, 'osm_line_not_confirmed': 1}}
     assert stats['osm_lines']['public_transport'] == 9
+    assert (stats['osm_lines']['linked'], stats['osm_lines']['with_several_links']) == (3, 1)
     # A normalized ID taken from the ref alone does not count as a route ID.
     assert stats['osm_lines']['unlinked'] == {
         'not_public_transport': 1, 'non_gtfs': 1, 'no_route_id': 1, 'several_route_ids': 1,
@@ -68,13 +71,14 @@ def test_route_links_report_coverage_and_why_lines_stay_unlinked(sqlite_tables):
     bus = next(row for row in stats['by_mode'] if row['mode'] == 'bus')
     assert bus == {'mode': 'bus', 'gtfs_lines': 4, 'gtfs_linked': 3, 'osm_lines': 9, 'osm_linked': 3}
     assert stats['by_match_method'] == {
-        'exact_gtfs_route_id': 1, 'normalized_gtfs_route_id': 1, 'line_number_and_stops': 1}
+        'line_number_and_stops': 2, 'exact_gtfs_route_id': 1, 'normalized_gtfs_route_id': 1}
     assert stats['itineraries'] == {
         'links': 1, 'gtfs_in_linked_lines': 3, 'gtfs_linked': 1,
         'osm_in_linked_lines': 3, 'osm_linked': 1, 'osm_in_linked_lines_without_direction': 1,
     }
+    # One gap per link: GTFS line 5 has no itinerary, OSM line 10 has two.
     assert stats['linked_line_itinerary_gap'] == {
-        'mean': 0.0, 'median': 0.0, 'gtfs_has_more': 0, 'same': 3, 'osm_has_more': 0,
+        'mean': -0.5, 'median': 0.0, 'gtfs_has_more': 0, 'same': 3, 'osm_has_more': 1,
     }
 
 

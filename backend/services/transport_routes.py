@@ -120,7 +120,11 @@ def get_osm_routes_for_node(osm_node_id):
 
 
 def route_family_ids(route_id):
-    """ATLAS and OSM line families a route filter names, with the families linked to them."""
+    """GTFS and OSM line families a route filter names, with the families linked to them.
+
+    A line can have several links, so the GTFS lines linked to the same OSM
+    line come along: the two timetable routes of one public line show together.
+    """
     normalized_input = normalize_route_search_id(route_id) if route_id else None
     direct_family_rows = (
         db.session.query(LineFamily.id, LineFamily.source)
@@ -255,7 +259,11 @@ def _variant_summary(itinerary):
 
 
 def _route_filter_value(family_id):
-    """The route filter value of a line: the ATLAS line, or an OSM line linked to none."""
+    """The route filter value of a line: the GTFS line, or an OSM line linked to none.
+
+    An OSM line linked to several GTFS lines takes the first; the filter then
+    shows every line linked to it (``route_family_ids``).
+    """
     family = db.session.get(LineFamily, family_id)
     if family.source == 'osm':
         linked = (db.session.query(LineFamily)
