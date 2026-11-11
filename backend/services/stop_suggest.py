@@ -10,7 +10,7 @@ Picking an entry adds the same search filter as typing its number.
 Names are compared without case, accents or punctuation: "zurich hb" finds
 "Zürich HB". The index is built from the published snapshot on the first
 request and rebuilt when another snapshot is published.
-See documentation/2.2 Filters and Search logic.md.
+See documentation/2.2 Filter and search logic.md.
 """
 
 import re

@@ -214,7 +214,7 @@ def test_docs_pdf_cache_invalidates_when_generator_changes(tmp_path, monkeypatch
     generator_path = generator_dir / 'build_docs_pdf.py'
     css_path = generator_dir / 'docs_print.css'
     mermaid_config_path = generator_dir / 'mermaid_render_config.json'
-    markdown_path = docs_dir / '0. Intro.md'
+    markdown_path = docs_dir / '0. User guide.md'
     pdf_path.write_bytes(b'%PDF-placeholder')
     generator_path.write_text('# generator', encoding='utf-8')
     css_path.write_text('body {}', encoding='utf-8')

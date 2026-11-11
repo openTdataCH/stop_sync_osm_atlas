@@ -20,7 +20,7 @@ def app():
     return app
 
 
-def _render(app, markdown, doc='documentation/2.8 Documentation Page Delivery.md'):
+def _render(app, markdown, doc='documentation/2.8 Documentation portal.md'):
     from backend.services.docs_render import convert_markdown_to_html
     from backend.services.docs_sources import build_doc_slug_maps, list_markdown_files
 
@@ -33,21 +33,21 @@ def test_code_keeps_paths_links_placeholders_and_alerts_literal(app):
     html = _render(app, '\n'.join([
         '```text',
         'backend/app.py {{stat:summary.match_rate_percent}} [[canonical_palette]]',
-        '[Statistics](2.3%20Global%20Stats.md)',
+        '[Statistics](2.3%20Global%20statistics.md)',
         '> [!NOTE]',
         '```',
         '',
         'Inline: `{{stat:summary.match_rate_percent}}` and `[[canonical_palette]]`.',
         '',
-        'Write `[Statistics](2.3%20Global%20Stats.md)` or `![Alt text](images/route-model.svg)`.',
+        'Write `[Statistics](2.3%20Global%20statistics.md)` or `![Alt text](images/route-model.svg)`.',
     ]))
     code_block = re.search(r'<pre><code[^>]*>(.*?)</code></pre>', html, re.DOTALL).group(1)
     assert 'backend/app.py {{stat:summary.match_rate_percent}} [[canonical_palette]]' in code_block
-    assert '[Statistics](2.3%20Global%20Stats.md)' in code_block
+    assert '[Statistics](2.3%20Global%20statistics.md)' in code_block
     assert '&gt; [!NOTE]' in code_block
     assert '<code>{{stat:summary.match_rate_percent}}</code>' in html
     assert '<code>[[canonical_palette]]</code>' in html
-    assert '<code>[Statistics](2.3%20Global%20Stats.md)</code>' in html
+    assert '<code>[Statistics](2.3%20Global%20statistics.md)</code>' in html
     assert '<code>![Alt text](images/route-model.svg)</code>' in html
 
 
@@ -75,8 +75,8 @@ def test_only_written_out_urls_become_links(app):
 
 def test_a_list_of_card_items_becomes_cards(app):
     html = _render(app, '\n'.join([
-        '- <i class="fas fa-map"></i> **Map** · [Find a stop](2.1%20Map%20Data%20Loading%20and%20Rendering.md#zoom-levels) — Every stop, with `filters`.',
-        '- <i class="fas fa-route"></i> **Routes** · [Compare lines](2.6%20Routes%20Pages.md) — Lines and variants.',
+        '- <i class="fas fa-map"></i> **Map** · [Find a stop](2.1%20Map%20data%20loading%20and%20rendering.md#zoom-levels) — Every stop, with `filters`.',
+        '- <i class="fas fa-route"></i> **Routes** · [Compare lines](2.6%20Routes%20pages.md) — Lines and variants.',
     ]))
     assert '<ul>' not in html
     cards = re.findall(r'<a class="docs-card" href="([^"]+)"', html)
@@ -89,8 +89,8 @@ def test_a_list_of_card_items_becomes_cards(app):
 
 def test_a_list_with_one_ordinary_item_stays_a_list(app):
     html = _render(app, '\n'.join([
-        '- <i class="fas fa-map"></i> **Map** · [Find a stop](2.6%20Routes%20Pages.md) — Every stop.',
-        '- An ordinary item with a [link](2.6%20Routes%20Pages.md).',
+        '- <i class="fas fa-map"></i> **Map** · [Find a stop](2.6%20Routes%20pages.md) — Every stop.',
+        '- An ordinary item with a [link](2.6%20Routes%20pages.md).',
     ]))
     assert '<ul>' in html and 'docs-card' not in html
 
@@ -109,14 +109,14 @@ def test_engine_source_links_point_at_the_pinned_commit(app):
 
 
 def test_svg_diagrams_are_inlined_so_their_links_work(app):
-    html = _render(app, '![Overview](images/overview-big-picture.svg)', doc='documentation/0. Intro.md')
+    html = _render(app, '![Overview](images/overview-big-picture.svg)', doc='documentation/0. User guide.md')
     assert '<span class="docs-diagram"><svg ' in html
     assert '<img' not in html
     assert 'href="https://github.com/openTdataCH/osm-public-transport-matcher"' in html
 
     # Other images, SVGs not drawn by the kit (they may carry stylesheets)
     # and SVGs outside an images/ directory stay images.
-    intro, matching = 'documentation/0. Intro.md', 'engine/documentation/2. Matching process.md'
+    intro, matching = 'documentation/0. User guide.md', 'engine/documentation/2. Matching process.md'
     for markdown, doc in (('![Map](images/review-app-map-screenshot.png)', intro),
                           ('![Pair](images/osm-pair-match-illustration.svg)', matching),
                           ('![Logo](images/../../static/osm.svg)', intro),

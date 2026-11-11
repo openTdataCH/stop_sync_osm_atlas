@@ -13,7 +13,7 @@ def filtered_stops_query(args):
     """The stops_matched rows the map's filters in ``args`` keep: attributes, scope and duplicates.
 
     The map data, the summary statistics, the random stop and the Top N overlay
-    all start from this query. See documentation/2.2 Filters and Search logic.md.
+    all start from this query. See documentation/2.2 Filter and search logic.md.
     """
     query = apply_common_filters(StopsMatched.query, parse_filter_params(args))
     resolved_filters = resolve_stop_type_match_filters(args.get('stop_filter'), args.get('match_method'))

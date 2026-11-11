@@ -3,7 +3,7 @@
 The Problems page narrows its list by problem type, priority and a drawn
 area; the map keeps the stops that have such a problem. Both read the same
 parameters: problem_type, priority and, on the Problems page, bbox.
-See documentation/2.4 Problems Page.md and documentation/2.2 Filters and Search logic.md.
+See documentation/2.4 Problems page.md and documentation/2.2 Filter and search logic.md.
 """
 
 from sqlalchemy import and_, or_

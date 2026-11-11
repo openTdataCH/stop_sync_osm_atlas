@@ -1,6 +1,6 @@
 """The map summary: ATLAS stops, OSM stop units and matches among the rows the map's filters keep.
 
-See documentation/2.3 Global Stats.md.
+See documentation/2.3 Global statistics.md.
 """
 from sqlalchemy import case, func
 

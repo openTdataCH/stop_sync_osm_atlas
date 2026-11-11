@@ -1,7 +1,7 @@
 // Suggestions under the map's search box: source stations and OSM elements
 // whose name or number matches the typed text, from /api/search/suggest.
 // Picking one adds the same search filter as typing its number.
-// See documentation/2.2 Filters and Search logic.md#names-and-suggestions.
+// See documentation/2.2 Filter and search logic.md#names-and-suggestions.
 (function (global) {
     'use strict';
 

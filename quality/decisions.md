@@ -50,5 +50,5 @@ force layout in the dashboard script instead of a vendored library: it places th
 the same picture for the same code map. Findings are never read from it.
 
 Criticality stays a declared judgment of the worst defect's impact, chosen with
-the rubric in `documentation/4.3 Code Quality.md`. It is not derived from coverage or size, which
+the rubric in `documentation/4.3 Code quality.md`. It is not derived from coverage or size, which
 would let weak tests lower the bar.

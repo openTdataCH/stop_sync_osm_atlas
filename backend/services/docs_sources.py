@@ -30,7 +30,7 @@ DOC_SOURCES = {
 
 
 # The sidebar groups: the user guide, then the two projects for developers.
-# The start page (documentation/0. Intro.md) introduces them.
+# The start page (documentation/0. User guide.md) introduces them.
 # A collection's owner (its source unless stated) sets its colour.
 _DOC_COLLECTIONS = (
     {

@@ -124,7 +124,7 @@ def test_one_page_pdf_builds(tmp_path, monkeypatch):
     output_path = tmp_path / "page.pdf"
 
     result = docs_builder._build_pdf(
-        included_pages=['documentation/2.8 Documentation Page Delivery.md'],
+        included_pages=['documentation/2.8 Documentation portal.md'],
         include_cover=False,
         output_path=output_path,
     )

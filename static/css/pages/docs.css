@@ -454,7 +454,7 @@
   box-shadow: var(--shadow-sm);
 }
 
-/* Inlined SVG diagrams (see 2.8 Documentation Page Delivery), so their
+/* Inlined SVG diagrams (see 2.8 Documentation portal), so their
    links work. The wrapper takes the image frame; the SVG scales inside it. */
 .docs-content .docs-diagram {
   width: fit-content;

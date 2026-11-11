@@ -123,7 +123,7 @@ def test_ordinary_document_does_not_read_artifacts(monkeypatch):
 def test_pdf_export_expands_quality_evidence(tmp_path, monkeypatch):
     from documentation.pdf_generator import build_docs_pdf
 
-    document = 'documentation/4.3 Code Quality.md'
+    document = 'documentation/4.3 Code quality.md'
     # Read the evidence from an empty folder; the rest of the bundle uses the real checkout.
     monkeypatch.setattr(build_docs_pdf, 'replace_quality_placeholder',
                         lambda text, root: quality_report.replace_quality_placeholder(text, tmp_path))

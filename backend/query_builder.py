@@ -1,7 +1,7 @@
 """The map's attribute filters as conditions on stops_matched: search tokens, ATLAS and OSM attributes, problems.
 
 ``apply_common_filters`` reads the filters ``parse_filter_params`` (backend/queries/helpers.py) builds.
-See documentation/2.2 Filters and Search logic.md.
+See documentation/2.2 Filter and search logic.md.
 """
 
 from backend.extensions import db

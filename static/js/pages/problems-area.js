@@ -6,7 +6,7 @@
 // sent to /api/problems as bbox=west,south,east,north. The Problems map shows
 // the area as a dashed outline. "Clear selection" wipes the rectangle; with
 // an area already applied, applying nothing then removes it. See
-// documentation/2.4 Problems Page.md#area.
+// documentation/2.4 Problems page.md#area.
 
 window.ProblemsArea = (function () {
     'use strict';

@@ -1,4 +1,4 @@
-"""The Problems page's list and type counts. See documentation/2.4 Problems Page.md."""
+"""The Problems page's list and type counts. See documentation/2.4 Problems page.md."""
 from collections import defaultdict
 
 from flask import Blueprint, request, jsonify, current_app as app

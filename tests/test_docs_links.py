@@ -78,6 +78,19 @@ def test_documentation_links():
         pytest.fail("\n".join(message))
 
 
+def test_file_names_match_page_titles():
+    """A page's file is named after its title without the owner's letter: `# E1 Input …` is `1. Input ….md`."""
+    mismatched = []
+    for path in (path for docs_dir in _documentation_roots() for path in docs_dir.glob('*.md')):
+        if path.name == 'Changelog.md':
+            continue
+        title = next((line[2:].strip() for line in path.read_text(encoding='utf-8').splitlines() if line.startswith('# ')), '')
+        expected = re.sub(r'^(\d+) ', r'\1. ', re.sub(r'^[EA](?=\d)', '', title)) + '.md'
+        if path.name != expected:
+            mismatched.append(f'{_document_id(path)}: expected {expected!r}')
+    assert not mismatched, '\n'.join(mismatched)
+
+
 def _page_header(soup):
     """Return the eyebrow (collection and number) and title of a docs page."""
     header = soup.select_one('#docs-page-header')
@@ -127,7 +140,7 @@ def test_docs_portal_labels_engine_and_application_boundaries():
         assert navbar_version is not None
         assert navbar_version.get_text(' ', strip=True) == f'Version {APP_VERSION}'
 
-        overview_link = soup.find('a', href='/docs/intro')
+        overview_link = soup.find('a', href='/docs/user_guide')
         assert overview_link is not None
         assert overview_link.get_text(' ', strip=True) == '0 User guide'
 
@@ -155,7 +168,7 @@ def test_docs_portal_labels_engine_and_application_boundaries():
         assert _page_header(overview) == ('User guide · 0', 'User guide')
         assert overview.select_one('.docs-page-eyebrow')['data-owner'] == 'shared'
 
-        partial = client.get('/docs/database', headers={'X-Docs-Partial': '1'})
+        partial = client.get('/docs/database_bundle_import', headers={'X-Docs-Partial': '1'})
         assert partial.status_code == 200
         payload = partial.get_json()
         header = BeautifulSoup(payload['header_html'], 'html.parser')
@@ -179,12 +192,12 @@ def test_docs_portal_uses_project_scoped_section_numbers():
         soup = BeautifulSoup(response.data.decode('utf-8'), 'html.parser')
 
         for href, number, title in (
-            ('/docs/download_and_process_data', 'E.1', 'Input integrations & acquisition'),
+            ('/docs/input_integrations_acquisition', 'E.1', 'Input integrations & acquisition'),
             ('/docs/source_snapshot_caching', 'E.5.1', 'Source snapshot caching'),
-            ('/docs/pipeline_tests', 'E.6', 'Engine tests'),
-            ('/docs/database', 'A.1', 'Database & bundle import'),
+            ('/docs/engine_tests', 'E.6', 'Engine tests'),
+            ('/docs/database_bundle_import', 'A.1', 'Database & bundle import'),
             ('/docs/frontend_asset_management', 'A.3.4', 'Frontend asset management'),
-            ('/docs/test', 'A.4', 'Tests & code quality'),
+            ('/docs/tests_code_quality', 'A.4', 'Tests & code quality'),
             ('/docs/backend_tests', 'A.4.1', 'Backend tests'),
             ('/docs/using_the_map', '0.1', 'Using the map'),
             ('/docs/working_through_problems', '0.2', 'Working through problems'),
@@ -201,7 +214,7 @@ def test_docs_portal_uses_project_scoped_section_numbers():
         assert contributing.select_one('.docs-nav-number') is None
         assert contributing.get_text(' ', strip=True) == 'Contributing'
 
-        web_tests = BeautifulSoup(client.get('/docs/test').data.decode('utf-8'), 'html.parser')
+        web_tests = BeautifulSoup(client.get('/docs/tests_code_quality').data.decode('utf-8'), 'html.parser')
         assert _page_header(web_tests) == ('Review application · A.4', 'Tests & code quality')
 
         contributing_page = BeautifulSoup(client.get('/docs/contributing').data.decode('utf-8'), 'html.parser')
@@ -269,7 +282,7 @@ def test_pdf_document_selection_keeps_engine_and_app_sections_distinct():
     from documentation.pdf_generator.build_docs_pdf import _prepare_document, _sorted_docs
 
     all_docs = _sorted_docs()
-    assert all_docs[0] == 'documentation/0. Intro.md'
+    assert all_docs[0] == 'documentation/0. User guide.md'
     assert 'engine/documentation/2. Matching process.md' in all_docs
     assert 'documentation/2. Web app.md' in all_docs
     assert all_docs.index('engine/documentation/2. Matching process.md') < all_docs.index('documentation/2. Web app.md')
@@ -282,7 +295,7 @@ def test_pdf_document_selection_keeps_engine_and_app_sections_distinct():
     app_only = _sorted_docs(['app:2'])
     assert app_only
     assert all(doc.startswith('documentation/2') for doc in app_only)
-    assert {'documentation/2. Web app.md', 'documentation/2.8 Documentation Page Delivery.md'} <= set(app_only)
+    assert {'documentation/2. Web app.md', 'documentation/2.8 Documentation portal.md'} <= set(app_only)
 
     # A single page, alone or with sections, keeps the sidebar order.
     page = _sorted_docs(included_pages=['engine/documentation/2.1 Reference matching.md'])
@@ -325,7 +338,7 @@ def test_auto_linking_of_repo_files():
 
     with app.test_client() as client:
         # Check a page with plain-text code file mentions outside Mermaid.
-        response = client.get('/docs/documentation_page_delivery')
+        response = client.get('/docs/documentation_portal')
         assert response.status_code == 200
         html = response.data.decode('utf-8')
         soup = BeautifulSoup(html, 'html.parser')
@@ -341,7 +354,7 @@ def test_auto_linking_of_repo_files():
         assert repo_scanner_link is not None, "repo_scanner.py was not automatically linked"
 
         # 2. Mermaid nodes named after files must not receive Markdown links
-        response = client.get('/docs/osm_data')
+        response = client.get('/docs/osm_input_and_acquisition')
         assert response.status_code == 200
         html = response.data.decode('utf-8')
         soup = BeautifulSoup(html, 'html.parser')

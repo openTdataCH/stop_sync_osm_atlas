@@ -2,8 +2,8 @@
 
 This folder holds the inputs and outputs of the application's and engine's quality checks. The guides live in the documentation, so they read the same on the site, in the PDF and here:
 
-- [A4.3 Code quality](../documentation/4.3%20Code%20Quality.md): the code quality dashboard, the criticality of modules, how to read the report and how it reaches the site.
-- [A4.4 Running the quality checks](../documentation/4.4%20Running%20Quality%20Checks.md): commands, local and CI setup, maintaining the module catalog, baselines, exceptions and troubleshooting.
+- [A4.3 Code quality](../documentation/4.3%20Code%20quality.md): the code quality dashboard, the criticality of modules, how to read the report and how it reaches the site.
+- [A4.4 Running the quality checks](../documentation/4.4%20Running%20the%20quality%20checks.md): commands, local and CI setup, maintaining the module catalog, baselines, exceptions and troubleshooting.
 
 | File | Contents |
 |---|---|

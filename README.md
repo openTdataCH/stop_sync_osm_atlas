@@ -35,7 +35,7 @@ python -m pip install -e '../engine[gtfs,test]'
 osm-public-transport-matcher gtfs --source ../engine/examples/gtfs --namespace demo --osm ../engine/examples/osm.xml --output /tmp/transport-demo
 ```
 
-The example is synthetic and uses no Swiss identifiers. The core library only needs NumPy/SciPy; curated integrations install through optional extras. Other datasets can use their own adapters, which implement the public adapter contract without changes to the engine ([what belongs in the engine](../engine/documentation/1.%20Download%20and%20process%20data.md#what-belongs-in-this-distribution)). See the sibling engine repository README for its Python API and Swiss workflow.
+The example is synthetic and uses no Swiss identifiers. The core library only needs NumPy/SciPy; curated integrations install through optional extras. Other datasets can use their own adapters, which implement the public adapter contract without changes to the engine ([what belongs in the engine](../engine/documentation/1.%20Input%20integrations%20%26%20acquisition.md#what-belongs-in-this-distribution)). See the sibling engine repository README for its Python API and Swiss workflow.
 
 Run `deactivate` before setting up a separate application environment.
 
@@ -47,11 +47,11 @@ Run `deactivate` before setting up a separate application environment.
 ./scripts/verify_engine_checkout.sh
 ```
 
-To upgrade the engine, put the new SHA in `engine.ref` and commit it. The meaning of package versions, Git tags, SHA pins and schema versions is documented in [Dependencies and builds](documentation/3.1%20Dependency%20Management%20&%20Build%20Strategy.md#engine-release-identity-and-deployment-pin).
+To upgrade the engine, put the new SHA in `engine.ref` and commit it. The meaning of package versions, Git tags, SHA pins and schema versions is documented in [Dependencies and builds](documentation/3.1%20Dependencies%20and%20builds.md#engine-release-identity-and-deployment-pin).
 
 ## Run the review app with example results
 
-With Docker Desktop and Compose v2, a small synthetic bundle runs the website without a matching run or an engine installation: follow [Try it with the example bundle](documentation/1.1%20Import%20Process.md#try-it-with-the-example-bundle). Its commands set `REVIEW_CONFIG` to a presentation without Swiss specifics; matching policies live in the engine, not in that configuration.
+With Docker Desktop and Compose v2, a small synthetic bundle runs the website without a matching run or an engine installation: follow [Try it with the example bundle](documentation/1.1%20Bundle%20import%20and%20publication.md#try-it-with-the-example-bundle). Its commands set `REVIEW_CONFIG` to a presentation without Swiss specifics; matching policies live in the engine, not in that configuration.
 
 ## Run the Swiss deployment pipeline
 
@@ -61,9 +61,9 @@ docker compose up --build -d
 docker exec stop_sync_osm_atlas_scheduler python -m backend.jobs.job_runner --mode full --trigger manual
 ```
 
-The scheduler starts the `osm-public-transport-matcher` executable, which writes a complete result bundle, and asks the app importer to publish it. Scheduled runs start every `PIPELINE_SCHEDULE_INTERVAL_HOURS` hours (one by default), the first one interval after the scheduler starts, so a new deployment has no data until you start a run by hand as above. [Background scheduler](documentation/3.3%20Background%20Scheduler.md) describes the run modes (`full`, `match-import`, `import`), who writes the shared status, how a dead run is detected and the settings. Its [operational checks](documentation/3.3%20Background%20Scheduler.md#operational-checks) cover a scheduler container that needs rebuilding.
+The scheduler starts the `osm-public-transport-matcher` executable, which writes a complete result bundle, and asks the app importer to publish it. Scheduled runs start every `PIPELINE_SCHEDULE_INTERVAL_HOURS` hours (one by default), the first one interval after the scheduler starts, so a new deployment has no data until you start a run by hand as above. [Background scheduler](documentation/3.3%20Background%20scheduler.md) describes the run modes (`full`, `match-import`, `import`), who writes the shared status, how a dead run is detected and the settings. Its [operational checks](documentation/3.3%20Background%20scheduler.md#operational-checks) cover a scheduler container that needs rebuilding.
 
-The engine requires no database credentials. The importer validates the bundle and loads it into a private PostGIS schema while readers keep the published snapshot, then switches in one transaction ([Bundle import and publication](documentation/1.1%20Import%20Process.md)).
+The engine requires no database credentials. The importer validates the bundle and loads it into a private PostGIS schema while readers keep the published snapshot, then switches in one transaction ([Bundle import and publication](documentation/1.1%20Bundle%20import%20and%20publication.md)).
 
 ## Configuration and development
 
@@ -89,24 +89,24 @@ make quality-down           # remove the disposable quality services and volumes
 
 The full command builds the Python 3.13 and Node 22 tooling, keeps the app and engine Python environments apart and starts its own disposable PostGIS database. For fast native iteration, use `make quality-fast` after installing the supported toolchain. An ordinary app-only test run skips the PostGIS publication and engine contract tests, so it does not replace the full run.
 
-[Running the quality checks](documentation/4.4%20Running%20Quality%20Checks.md) covers native setup, the commands and evidence files, the module catalog, baselines, CI and troubleshooting. [Code quality](documentation/4.3%20Code%20Quality.md#how-the-report-reaches-the-site) explains how the report reaches the site with `make deploy-report` before each deployment.
+[Running the quality checks](documentation/4.4%20Running%20the%20quality%20checks.md) covers native setup, the commands and evidence files, the module catalog, baselines, CI and troubleshooting. [Code quality](documentation/4.3%20Code%20quality.md#how-the-report-reaches-the-site) explains how the report reaches the site with `make deploy-report` before each deployment.
 
 ## Contributing and documentation
 
 Start with the [contributor guide](documentation/Contributing.md). A matching-rule contribution can use a tiny offline fixture; a UI contribution can use the example bundle. No national download is required to begin.
 
-- [Documentation overview](documentation/0.%20Intro.md)
+- [Documentation overview](documentation/0.%20User%20guide.md)
 - [Glossary](documentation/0.5%20Glossary.md)
-- [Engine documentation](../engine/documentation/1.%20Download%20and%20process%20data.md)
+- [Engine documentation](../engine/documentation/1.%20Input%20integrations%20%26%20acquisition.md)
 - [Review application changelog](documentation/Changelog.md)
 - [Matching engine changelog](../engine/documentation/Changelog.md)
-- [Engine and app architecture](documentation/3.%20System%20Architecture.md)
+- [Engine and app architecture](documentation/3.%20Application%20architecture%20%26%20deployment.md)
 - [Result bundle format](../engine/documentation/Result%20bundle%20format.md)
-- [Bundle import and publication](documentation/1.1%20Import%20Process.md)
-- [Tests and CI](documentation/4.%20Test.md)
-- [Code quality and the dashboard](documentation/4.3%20Code%20Quality.md) (the dashboard itself is at `/quality` on the running site)
-- [Running the quality checks](documentation/4.4%20Running%20Quality%20Checks.md)
+- [Bundle import and publication](documentation/1.1%20Bundle%20import%20and%20publication.md)
+- [Tests and CI](documentation/4.%20Tests%20%26%20code%20quality.md)
+- [Code quality and the dashboard](documentation/4.3%20Code%20quality.md) (the dashboard itself is at `/quality` on the running site)
+- [Running the quality checks](documentation/4.4%20Running%20the%20quality%20checks.md)
 
 This repository's code is AGPL-3.0-or-later. Source dataset attribution is recorded separately in result metadata.
 
-For GTFS acceleration, independent source caches, COPY imports, configuration and benchmark commands, see [Pipeline performance](../engine/documentation/5.2%20Pipeline%20Performance.md).
+For GTFS acceleration, independent source caches, COPY imports, configuration and benchmark commands, see [Pipeline performance](../engine/documentation/5.2%20Pipeline%20performance.md).

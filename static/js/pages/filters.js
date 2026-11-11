@@ -397,7 +397,7 @@ function showSmartSearchError(message, showHint = true) {
     const hint = document.getElementById('smartSearchHint');
 
     if (message) {
-        const docLink = ' <a href="/docs/filters_and_search_logic" class="doc-link" target="_blank" rel="noopener noreferrer" title="Open docs"><i class="fas fa-info-circle"></i></a>';
+        const docLink = ' <a href="/docs/filter_and_search_logic" class="doc-link" target="_blank" rel="noopener noreferrer" title="Open docs"><i class="fas fa-info-circle"></i></a>';
         errorEl.innerHTML = SharedUtils.escapeHtml(message) + docLink;
         errorEl.classList.remove('d-none');
         // Keep hint hidden if it's not relevant to this error (like "not found")

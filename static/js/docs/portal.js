@@ -1,5 +1,5 @@
 /**
- * Documentation portal (documentation/2.8 Documentation Page Delivery.md):
+ * Documentation portal (documentation/2.8 Documentation portal.md):
  * partial page loads, the sidebar (expanded sections, active page, filter),
  * the "On this page" contents and the PDF export dialog.
  */

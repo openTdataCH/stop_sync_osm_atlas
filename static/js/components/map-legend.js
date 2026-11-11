@@ -1,7 +1,7 @@
 // The main map's legend: what the marker colours, rings, letters and lines mean.
 // A Leaflet control above the layer switcher. It opens on a first visit on a
 // wide screen, then stays as the viewer left it.
-// See documentation/2.1 Map Data Loading and Rendering.md#legend.
+// See documentation/2.1 Map data loading and rendering.md#legend.
 (function (global) {
     'use strict';
 

@@ -130,7 +130,7 @@ def ensure_docs_pdf_generated() -> bool:
 # Pages that describe another page of the site link to it from their header,
 # next to the PDF export.
 _PAGE_HEADER_LINKS = {
-    'documentation/4.3 Code Quality.md': (
+    'documentation/4.3 Code quality.md': (
         {'endpoint': 'quality.quality_dashboard', 'label': 'Open the dashboard', 'icon': 'fa-project-diagram'},
     ),
 }

@@ -53,13 +53,13 @@
       },
       "docs": {
         "explanation": [
-          "documentation/1.1 Import Process.md"
+          "documentation/1.1 Bundle import and publication.md"
         ],
         "reference": [
-          "documentation/1. Database.md"
+          "documentation/1. Database & bundle import.md"
         ],
         "operations": [
-          "documentation/1.1 Import Process.md"
+          "documentation/1.1 Bundle import and publication.md"
         ],
         "decision": [
           "quality/decisions.md"
@@ -111,13 +111,13 @@
       },
       "docs": {
         "explanation": [
-          "documentation/3.3 Background Scheduler.md"
+          "documentation/3.3 Background scheduler.md"
         ],
         "reference": [
-          "documentation/3.5 Pipeline Progress.md"
+          "documentation/3.5 Pipeline progress.md"
         ],
         "operations": [
-          "documentation/3.3 Background Scheduler.md"
+          "documentation/3.3 Background scheduler.md"
         ]
       },
       "invariants": [
@@ -208,11 +208,11 @@
       },
       "docs": {
         "explanation": [
-          "documentation/2.2 Filters and Search logic.md",
+          "documentation/2.2 Filter and search logic.md",
           "documentation/2.10 Public API.md"
         ],
         "reference": [
-          "documentation/3.2 Security and Rate Limits.md"
+          "documentation/3.2 Security and rate limits.md"
         ]
       },
       "invariants": [
@@ -260,10 +260,10 @@
       },
       "docs": {
         "explanation": [
-          "documentation/2.1 Map Data Loading and Rendering.md"
+          "documentation/2.1 Map data loading and rendering.md"
         ],
         "reference": [
-          "documentation/2.2 Filters and Search logic.md"
+          "documentation/2.2 Filter and search logic.md"
         ]
       },
       "invariants": [
@@ -314,10 +314,10 @@
       },
       "docs": {
         "explanation": [
-          "documentation/2.8 Documentation Page Delivery.md"
+          "documentation/2.8 Documentation portal.md"
         ],
         "reference": [
-          "documentation/4.3 Code Quality.md"
+          "documentation/4.3 Code quality.md"
         ]
       },
       "invariants": [
@@ -380,14 +380,14 @@
       },
       "docs": {
         "explanation": [
-          "documentation/3. System Architecture.md"
+          "documentation/3. Application architecture & deployment.md"
         ],
         "reference": [
-          "documentation/3.1 Dependency Management & Build Strategy.md"
+          "documentation/3.1 Dependencies and builds.md"
         ],
         "operations": [
-          "documentation/3.3 Background Scheduler.md",
-          "documentation/4.4 Running Quality Checks.md"
+          "documentation/3.3 Background scheduler.md",
+          "documentation/4.4 Running the quality checks.md"
         ],
         "decision": [
           "quality/decisions.md"
@@ -440,7 +440,7 @@
           "documentation/2.7 Colours and styles.md"
         ],
         "reference": [
-          "documentation/3.4 Frontend Asset Management.md"
+          "documentation/3.4 Frontend asset management.md"
         ]
       },
       "invariants": [
@@ -469,7 +469,7 @@
         "tests/test_import_projection.py"
       ],
       "docs": [
-        "documentation/1.1 Import Process.md"
+        "documentation/1.1 Bundle import and publication.md"
       ]
     },
     {
@@ -485,7 +485,7 @@
         "tests/test_engine_import_contract.py"
       ],
       "docs": [
-        "documentation/3.5 Pipeline Progress.md"
+        "documentation/3.5 Pipeline progress.md"
       ]
     }
   ]
