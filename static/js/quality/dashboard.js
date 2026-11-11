@@ -68,6 +68,11 @@
     const LAYER_GAP = 46;
     const COLUMN_GAP = 300;
     const ARC = 0.42;
+    // The piles of module circles on the Functions level: how far above a dependency a module sits as a share of their
+    // radii, the room between piles, and how many places are tried for a circle on each side of where it wants to be.
+    const STACK_LIFT = 0.6;
+    const STACK_GAP = 60;
+    const STACK_STEPS = 400;
     // A code file longer than this is listed as large and ringed on the Files level.
     const FILE_BUDGET = 1000;
     const CODE_FILE = /\.(py|js|mjs|cjs|css|html)$/;
@@ -319,6 +324,60 @@
         return centres;
     }
 
+    /**
+     * The modules as the map stacks them: repository by repository, the largest first, and in each from the module on
+     * top to the modules everything else depends on.
+     */
+    function moduleHierarchy(codeMap) {
+        const levels = moduleLevels(codeMap);
+        const columns = moduleColumns(codeMap);
+        return codeMap.modules.map((module) => module.id)
+            .sort((a, b) => columns[a] - columns[b] || levels[b] - levels[a] || a.localeCompare(b));
+    }
+
+    /**
+     * Centres for the module circles of the Functions level, by module id. The circles are far larger than on the other
+     * levels, so a column would be too tall: each repository is a pile instead. Its modules are dropped in from the
+     * bottom level up; each comes to rest on the floor or on the ones below it, as low as it can while staying above
+     * every module it declares as a dependency, and as close to them as it can. The piles stand on the same floor, in
+     * the order of the columns.
+     */
+    function stackedCentres(codeMap, radii, gap = REGION_GAP) {
+        const modules = indexBy(codeMap.modules, 'id');
+        const levels = moduleLevels(codeMap);
+        const columnOf = moduleColumns(codeMap);
+        const piles = [];
+        Object.keys(radii).sort().forEach((id) => (piles[columnOf[id]] = piles[columnOf[id]] || []).push(id));
+        const centres = {};
+        let left = 0;
+        piles.forEach((ids) => {
+            const span = ids.reduce((sum, id) => sum + 2 * radii[id] + gap, 0);
+            const placed = [];
+            ids.sort((a, b) => levels[a] - levels[b] || radii[b] - radii[a] || a.localeCompare(b)).forEach((id) => {
+                const r = radii[id];
+                const below = (modules[id].dependencies || []).map((dependency) => placed.find((disc) => disc.id === dependency)).filter(Boolean);
+                const wanted = below.length ? below.reduce((sum, disc) => sum + disc.x, 0) / below.length : 0;
+                let best = null;
+                for (let step = -STACK_STEPS; step <= STACK_STEPS; step++) {
+                    const x = wanted + span * step / STACK_STEPS;
+                    let height = r;
+                    placed.forEach((disc) => {
+                        const reach = r + disc.r + gap;
+                        if (Math.abs(x - disc.x) < reach) height = Math.max(height, disc.height + Math.sqrt(reach * reach - (x - disc.x) * (x - disc.x)));
+                    });
+                    below.forEach((disc) => { height = Math.max(height, disc.height + (r + disc.r) * STACK_LIFT); });
+                    height = Math.round(height);
+                    if (!best || height < best.height || (height === best.height && Math.abs(x - wanted) < Math.abs(best.x - wanted))) best = { id, x, height, r };
+                }
+                placed.push(best);
+            });
+            const start = Math.min(...placed.map((disc) => disc.x - disc.r));
+            placed.forEach((disc) => { centres[disc.id] = { x: left + disc.x - start, y: -disc.height }; });
+            left += Math.max(...placed.map((disc) => disc.x + disc.r)) - start + STACK_GAP;
+        });
+        return centres;
+    }
+
     /** File-level links touching ``focusId`` (all links when null), summed over kinds, and the files they connect. */
     function fileGraph(codeMap, focusId) {
         const owners = fileOwners(codeMap);
@@ -544,9 +603,8 @@
             (files[node.group] = files[node.group] || []).push(i);
         });
         const footprint = (i) => Math.PI * room[i] * room[i] * DOT_SPREAD;
-        // The regions of ``order`` first, as given, so connected modules are neighbours; the others by name, so a folder stays together.
-        const listed = options.order || [];
-        const ring = listed.concat(Object.keys(byRegion).filter((id) => !listed.includes(id)).sort()).filter((id) => byRegion[id]);
+        // By name, so a folder stays together.
+        const ring = Object.keys(byRegion).sort();
         const discs = {};
         ring.forEach((regionId) => {
             const files = byRegion[regionId];
@@ -740,22 +798,24 @@
 
     /**
      * What one level of the map draws: its dots, their positions and the circles around them, each laid out once.
-     * Modules and Files share one layout, the files in module circles placed in columns. Functions is a cloud of module
-     * circles, or, with ``moduleId``, that module alone with a circle for each file, so it fills the map.
+     * Modules and Files share one layout, the files in module circles placed in columns. Functions piles its larger
+     * module circles in the same order, or, with ``moduleId``, draws that module alone with a circle for each file.
      */
     function mapView(context, level, moduleId) {
         const codeMap = context.data.code_map;
         const alone = level === 'symbols' && Boolean(moduleId);
         const key = level !== 'symbols' ? 'files' : 'symbols:' + (moduleId || '');
         if (!context.views[key]) {
+            // Module circles go where the hierarchy puts them: in columns, or in piles for the larger circles of Functions.
+            const hierarchy = (centresOf) => ({ place: (ids, radii) => {
+                const centres = centresOf(codeMap, Object.fromEntries(ids.map((id, index) => [id, radii[index]])));
+                return ids.map((id) => centres[id]);
+            } });
             let graph = context.symbolGraph;
-            let options = { order: moduleRing(codeMap) };
+            let options = hierarchy(stackedCentres);
             if (level !== 'symbols') {
                 graph = fileDots(codeMap);
-                options = { place: (ids, radii) => {
-                    const centres = layeredCentres(codeMap, Object.fromEntries(ids.map((id, index) => [id, radii[index]])));
-                    return ids.map((id) => centres[id]);
-                } };
+                options = hierarchy(layeredCentres);
             } else if (alone) {
                 graph = moduleSymbolGraph(context.symbolGraph, moduleId);
                 options = { regionOf: (node) => node.file };
@@ -1311,6 +1371,19 @@
                 + '<small>' + escapeHtml(kindsText(item.kinds)) + '</small>'), 'None.');
     }
 
+    /** Several modules in focus: what they are and every dependency between them, the lines the map keeps lit. */
+    function modulesHtml(context, moduleIds) {
+        const chosen = new Set(moduleIds);
+        const between = context.moduleLinks.filter((link) => chosen.has(link.source) && chosen.has(link.target));
+        return CLOSE_BUTTON
+            + '<p class="quality-eyebrow">' + moduleIds.length + ' modules</p>'
+            + '<h2 class="quality-panel__title">' + moduleIds.map(moduleButton).join(' + ') + '</h2>'
+            + '<p class="quality-muted">The map keeps these modules and lights the lines that go from one to another. The others fade.</p>'
+            + '<h3 class="quality-panel__subtitle">Dependencies between them (' + between.length + ')</h3>'
+            + list(between.map((link) => [linkButton(link), link.count ? plural(link.count, 'reference') : 'declared only',
+                link.declared ? '' : 'Not declared in the catalog']), 'No code of one refers to code of another.');
+    }
+
     function fileHtml(context, fileId) {
         const codeMap = context.data.code_map;
         const file = context.files[fileId];
@@ -1582,7 +1655,7 @@
         const element = (selector) => root.querySelector(selector);
         // The level drawn, the module in focus on it (selected on Modules, its files lit on Files, drawn alone on
         // Functions), the colour encoding and the Edges and Labels switches. The focus survives a change of level.
-        const state = { level: 'modules', module: null, colorBy: 'module', showEdges: true, showLabels: true, expanded: false, panelOpen: true };
+        const state = { level: 'modules', module: null, modules: [], colorBy: 'module', showEdges: true, showLabels: true, expanded: false, panelOpen: true };
         const mapElement = element('#qualityMap');
         const search = element('#qualitySearch');
         const searchResults = element('#qualitySearchResults');
@@ -1632,15 +1705,62 @@
             nameDots();
         }
 
+        function setModules(moduleIds) {
+            state.modules = [].concat(moduleIds || []);
+            state.module = state.modules.length === 1 ? state.modules[0] : null;
+        }
+
+        /** What the modules in focus cover on the map: their circles on Files, their dots among every function. */
+        function focusArea() {
+            const chosen = new Set(state.modules);
+            if (state.level === 'files' && chosen.size) return cy.nodes('.region').filter((node) => chosen.has(node.data('region')));
+            if (state.level === 'symbols' && chosen.size > 1) return cy.nodes('.dot').filter((node) => chosen.has(node.data('module')));
+            return null;
+        }
+
+        /**
+         * The modules in focus stay and every other module fades, also the ones they depend on. The lines lit are those
+         * of a single module on Modules, where they are its dependencies, and with several modules the lines from one
+         * of them to another. The files of a single module keep their lines faint: there are hundreds.
+         */
+        function highlightModules() {
+            const chosen = new Set(state.modules);
+            const single = chosen.size === 1;
+            const moduleOf = (node) => (node.data('kind') === 'module' ? node.id() : node.data('module'));
+            const end = (edge, side) => cy.getElementById(edge.data(side));
+            cy.batch(() => {
+                cy.elements().removeClass('faded lit named');
+                cy.nodes('.module, .dot').forEach((node) => {
+                    if (!chosen.has(moduleOf(node))) node.addClass('faded');
+                });
+                cy.edges().forEach((edge) => {
+                    const source = moduleOf(end(edge, 'source'));
+                    const target = moduleOf(end(edge, 'target'));
+                    // A contract hangs on the modules it joins: its line counts when the module at its other end is in focus.
+                    const contract = edge.data('kind') === 'contract-link';
+                    const between = single ? state.level === 'modules' && (chosen.has(source) || chosen.has(target))
+                        : !contract && source !== target && chosen.has(source) && chosen.has(target);
+                    if (between) edge.addClass('lit');
+                    else if (!single || state.level === 'modules') edge.addClass('faded');
+                });
+                cy.nodes('.contract').forEach((node) => {
+                    if (!node.connectedEdges().filter((edge) => edge.hasClass('lit')).length) node.addClass('faded');
+                });
+            });
+            named = null;
+            nameDots();
+        }
+
         /** With nothing selected: the module in focus, selected on Modules and with its files lit on Files, or the guide. */
         function showFocus() {
-            const disc = state.module && state.level === 'modules' ? cy.getElementById(state.module) : null;
-            if (disc) {
-                disc.select();
-                highlight(disc);
-            } else {
-                highlight(state.module && state.level === 'files' ? cy.nodes('.dot').filter((dot) => dot.data('module') === state.module) : null, true);
+            // One module drawn alone needs no fading: it is all there is.
+            if (state.modules.length && !(state.level === 'symbols' && state.module)) highlightModules();
+            else highlight(null);
+            if (state.modules.length > 1) {
+                setPanel(modulesHtml(context, state.modules));
+                return;
             }
+            if (state.module && state.level === 'modules') cy.getElementById(state.module).select();
             // A module drawn alone is the map itself: its × hides the panel. Elsewhere it gives up the focus.
             setPanel(state.module ? moduleHtml(context, state.module, state.level === 'symbols' ? HIDE_PANEL_BUTTON : CLOSE_BUTTON) : HIDE_PANEL_BUTTON + overviewHtml(state));
         }
@@ -1648,8 +1768,8 @@
         function select(target) {
             cy.elements().unselect();
             const kind = target && target.length ? target.data('kind') : null;
-            if (kind === 'module') state.module = target.id();
-            else if (state.level === 'modules') state.module = null;
+            if (kind === 'module') setModules(target.id());
+            else if (state.level === 'modules') setModules(null);
             if (!kind || kind === 'module') {
                 showFocus();
                 chrome();
@@ -1675,7 +1795,7 @@
         /** One step back: the selection first, then the module in focus. A module drawn alone stays unless ``leave``. */
         function clear(leave) {
             if (selected().filter((item) => item.data('kind') !== 'module').length) select(null);
-            else if (state.module && (state.level !== 'symbols' || leave)) go(state.level, null);
+            else if (state.modules.length && (state.level !== 'symbols' || leave || !state.module)) go(state.level, null);
         }
 
         /** Brings ``target`` into the middle of the map, for selections made outside it. */
@@ -1686,9 +1806,9 @@
 
         function crumbsHtml() {
             const all = LEVELS[state.level].all;
-            if (!state.module) return '<i class="fas fa-sitemap" aria-hidden="true"></i> ' + all;
+            if (!state.modules.length) return '<i class="fas fa-sitemap" aria-hidden="true"></i> ' + all;
             return '<button type="button" data-reset title="' + all + ' (Esc)"><i class="fas fa-arrow-left" aria-hidden="true"></i> ' + all + '</button>'
-                + '<span class="quality-crumbs__sep" aria-hidden="true"><i class="fas fa-chevron-right"></i></span><span>' + escapeHtml(shortName(state.module)) + '</span>';
+                + '<span class="quality-crumbs__sep" aria-hidden="true"><i class="fas fa-chevron-right"></i></span><span>' + escapeHtml(state.modules.map(shortName).join(' + ')) + '</span>';
         }
 
         function setPressed(selector, active) {
@@ -1699,7 +1819,7 @@
             });
         }
 
-        /** The module list: colour as on the map, largest first by what the level counts. It is also the colour key. */
+        /** The module list, in the order the map stacks the modules, with what the level counts. It is also the colour key. */
         function renderExplorer() {
             const codeMap = context.data.code_map;
             const counts = state.level === 'modules' ? moduleLines(codeMap) : {};
@@ -1707,17 +1827,20 @@
             if (state.level === 'symbols') context.symbolGraph.nodes.forEach((node) => addCount(counts, node.module, 1));
             element('#qualityExplorer').dataset.shows = state.level;
             element('#qualityExplorerUnit').textContent = LEVELS[state.level].unit;
-            element('#qualityExplorerModules').innerHTML = codeMap.modules.map((module) => module.id)
-                .sort((a, b) => (counts[b] || 0) - (counts[a] || 0) || a.localeCompare(b)).map((moduleId) => {
+            element('#qualityExplorerModules').innerHTML = moduleHierarchy(codeMap).map((moduleId, index, ids) => {
                     const module = context.modules[moduleId];
-                    const on = state.module === moduleId;
-                    return '<li><button type="button" class="quality-explorer__module' + (on ? ' is-active' : '') + '" data-explorer-module="' + escapeHtml(moduleId)
+                    const first = index && module.repository !== context.modules[ids[index - 1]].repository;
+                    const on = state.modules.includes(moduleId);
+                    const pick = (on ? 'Remove ' : 'Add ') + shortName(moduleId) + (on ? ' from' : ' to') + ' the modules shown together';
+                    return '<li' + (first ? ' class="quality-explorer__repository"' : '') + '><button type="button" class="quality-explorer__pick" role="checkbox" aria-checked="' + on + '" data-explorer-pick="' + escapeHtml(moduleId)
+                        + '" title="' + escapeHtml(pick) + '" aria-label="' + escapeHtml(pick) + '"><i class="fas fa-check" aria-hidden="true"></i></button>'
+                        + '<button type="button" class="quality-explorer__module' + (on ? ' is-active' : '') + '" data-explorer-module="' + escapeHtml(moduleId)
                         + '" aria-pressed="' + on + '" title="' + escapeHtml(module.title) + '">'
                         + '<span class="quality-swatch quality-swatch--dot" style="background:' + nodeColor(module, context.report, state.colorBy, context.colors) + '" aria-hidden="true"></span>'
                         + '<span class="quality-explorer__name">' + escapeHtml(shortName(moduleId)) + '</span>'
                         + '<span class="quality-explorer__count">' + (counts[moduleId] || 0).toLocaleString('en') + '</span></button></li>';
                 }).join('');
-            element('#qualityExplorerReset').disabled = !state.module && !selected().length && !search.value;
+            element('#qualityExplorerReset').disabled = !state.modules.length && !selected().length && !search.value;
         }
 
         /** Everything around the map that names the level, the module in focus and the colours. */
@@ -1776,8 +1899,8 @@
                 cy.center();
             }
             // On Files the module in focus fills the map: its circle is where it was on Modules.
-            const circle = state.level === 'files' && state.module ? cy.getElementById('region:' + state.module) : null;
-            if (circle && circle.length) cy.fit(circle, fitPadding());
+            const area = focusArea();
+            if (area && area.length) cy.fit(area, fitPadding());
             applySwitches();
             showFocus();
             chrome();
@@ -1796,9 +1919,12 @@
 
         /** Shows ``level`` with ``moduleId`` in focus, drawing again only when the picture changes, then runs ``after``. */
         function go(level, moduleId, after) {
-            const redraw = level !== state.level || (level === 'symbols' && (moduleId || null) !== state.module);
+            const before = state.module;
+            const levelChanged = level !== state.level;
             state.level = level;
-            state.module = moduleId || null;
+            setModules(moduleId);
+            // On Functions one module is drawn alone; none or several are shown among every function.
+            const redraw = levelChanged || (level === 'symbols' && state.module !== before);
             if (redraw) {
                 switchView(after);
                 return;
@@ -1811,13 +1937,15 @@
 
         /** Brings the module in focus, or the whole map, into view. */
         function frame() {
-            const circle = state.level === 'files' && state.module ? cy.getElementById('region:' + state.module) : cy.elements();
-            cy.animate({ fit: { eles: circle, padding: fitPadding() } }, { duration: 260, easing: 'ease-in-out-cubic' });
+            const area = focusArea();
+            cy.animate({ fit: { eles: area && area.length ? area : cy.elements(), padding: fitPadding() } }, { duration: 260, easing: 'ease-in-out-cubic' });
         }
 
         /** The module to draw on Functions for something in ``fileId``: its own, unless every function is already drawn. */
         function moduleFor(fileId) {
-            return state.level === 'symbols' && !state.module ? null : context.owners[fileId];
+            const owner = context.owners[fileId];
+            if (state.level !== 'symbols' || state.module) return owner;
+            return state.modules.includes(owner) ? state.modules : null;
         }
 
         function showSymbol(symbolId) {
@@ -2035,7 +2163,7 @@
         });
 
         root.addEventListener('click', (event) => {
-            const target = event.target.closest('[data-select-module], [data-select-link], [data-select-function], [data-select-file], [data-select-clone], [data-show-functions], [data-go-level], [data-explorer-module], [data-level], [data-color-by], [data-zoom], [data-clear-selection], [data-hide-panel], [data-reset]');
+            const target = event.target.closest('[data-select-module], [data-select-link], [data-select-function], [data-select-file], [data-select-clone], [data-show-functions], [data-go-level], [data-explorer-module], [data-explorer-pick], [data-level], [data-color-by], [data-zoom], [data-clear-selection], [data-hide-panel], [data-reset]');
             if (!target || !cy) return;
             event.preventDefault();
             const data = target.dataset;
@@ -2047,8 +2175,12 @@
             else if (data.selectClone) showEdge('files', 'clone:' + data.selectClone);
             else if (data.showFunctions) showFunctionsOf(data.showFunctions);
             else if (data.goLevel) go(data.goLevel, data.goModule);
-            else if (data.explorerModule) go(state.level, state.module === data.explorerModule ? null : data.explorerModule, frame);
-            else if (data.level) go(data.level, state.module);
+            else if (data.explorerPick || (data.explorerModule && (event.ctrlKey || event.metaKey || event.shiftKey))) {
+                // The box, or a click with Ctrl, ⌘ or Shift, adds a module to the ones in focus or takes it out.
+                const moduleId = data.explorerPick || data.explorerModule;
+                go(state.level, state.modules.includes(moduleId) ? state.modules.filter((id) => id !== moduleId) : state.modules.concat(moduleId), frame);
+            } else if (data.explorerModule) go(state.level, state.module === data.explorerModule ? null : data.explorerModule, frame);
+            else if (data.level) go(data.level, state.modules);
             else if (data.colorBy) {
                 state.colorBy = data.colorBy;
                 recolor();
@@ -2239,6 +2371,8 @@
         cleanup,
         moduleLevels,
         moduleColumns,
+        moduleHierarchy,
+        stackedCentres,
         layeredCentres,
         fileGraph,
         fileDots,

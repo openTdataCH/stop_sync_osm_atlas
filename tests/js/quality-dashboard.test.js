@@ -161,6 +161,26 @@ describe('QualityDashboard', () => {
     expect(Math.abs(at['app.ui'].x - at['app.api'].x)).toBeGreaterThan(radii['app.api'] + radii['app.ui']);
     expect(at['engine.core'].x - radii['engine.core']).toBeGreaterThan(Math.max(at['app.api'].x + radii['app.api'], at['app.ui'].x + radii['app.ui']));
     expect(at['engine.core'].y + radii['engine.core']).toBe(at['app.api'].y + radii['app.api']);
+    // The list beside the map follows the same order: a repository after the other, each from its top module down.
+    expect(window.QualityDashboard.moduleHierarchy(map)).toEqual(['app.import', 'app.api', 'app.ui', 'engine.core']);
+  });
+
+  test('on Functions the module circles are piled: a module above its dependencies, the repositories side by side', () => {
+    const map = codeMap();
+    const radii = { 'app.api': 120, 'app.import': 60, 'app.ui': 40, 'engine.core': 90 };
+    const at = window.QualityDashboard.stackedCentres(map, radii, 10);
+    const ids = Object.keys(radii);
+    ids.forEach((a) => ids.forEach((b) => {
+      if (a < b) expect(Math.hypot(at[a].x - at[b].x, at[a].y - at[b].y)).toBeGreaterThanOrEqual(radii[a] + radii[b] + 9);
+    }));
+    // The importer rests on the API it depends on, higher up; the unrelated module stands on the floor beside it.
+    expect(at['app.import'].y).toBeLessThan(at['app.api'].y);
+    expect(at['app.ui'].y + radii['app.ui']).toBe(at['app.api'].y + radii['app.api']);
+    expect(at['engine.core'].y + radii['engine.core']).toBe(at['app.api'].y + radii['app.api']);
+    ['app.api', 'app.import', 'app.ui'].forEach((id) => expect(at[id].x + radii[id]).toBeLessThan(at['engine.core'].x - radii['engine.core']));
+    // A pile is lower than the column the same circles would make.
+    expect(at['app.api'].y - at['app.import'].y).toBeLessThan(radii['app.api'] + radii['app.import']);
+    expect(window.QualityDashboard.stackedCentres(map, radii, 10)).toEqual(at);
   });
 
   test('a focused file graph keeps the whole module and marks files entered from outside', () => {
@@ -655,9 +675,12 @@ describe('QualityDashboard', () => {
       expect(cy.getElementById('region-label:app.api').hasClass('labelled')).toBe(true);
       expect(pressed('[data-level="modules"]')).toBe('true');
       expect(pressed('[data-color-by="module"]')).toBe('true');
-      // The list counts lines on this level and is the colour key.
+      // The list counts lines on this level, in the order of the map, and is the colour key.
       expect(document.getElementById('qualityExplorerUnit').textContent).toBe('lines');
-      expect(Array.from(document.querySelectorAll('[data-explorer-module]')).map((button) => button.textContent)).toEqual(['core1,200', 'import900', 'api500', 'ui50']);
+      expect(Array.from(document.querySelectorAll('[data-explorer-module]')).map((button) => button.textContent)).toEqual(['import900', 'api500', 'ui50', 'core1,200']);
+      // A thin line parts the repositories.
+      expect(document.querySelector('.quality-explorer__repository [data-explorer-module]').dataset.explorerModule).toBe('engine.core');
+      expect(document.querySelectorAll('.quality-explorer__repository').length).toBe(1);
       expect(document.getElementById('qualityLegend').textContent).toContain('Circle size: lines of code');
     });
 
@@ -723,7 +746,7 @@ describe('QualityDashboard', () => {
       expect(cy.edges('.dot-link').length).toBe(3);
       expect(cy.nodes('.dot.unused').map((node) => node.id())).toEqual(['app:backend/importer.py:run@5']);
       expect(cy.getElementById('app:backend/api.py:serve@3').data('color')).toBe('#2a78d6');
-      expect(Array.from(document.querySelectorAll('[data-explorer-module]')).map((button) => button.textContent)).toEqual(['api3', 'import1', 'ui0', 'core0']);
+      expect(Array.from(document.querySelectorAll('[data-explorer-module]')).map((button) => button.textContent)).toEqual(['import1', 'api3', 'ui0', 'core0']);
       expect(panel()).toContain('How to read the functions');
       expect(document.getElementById('qualityLegend').textContent).toContain('Nothing mentions it');
       expect(document.getElementById('qualityBreadcrumb').textContent).toContain('All functions');
@@ -749,7 +772,8 @@ describe('QualityDashboard', () => {
       click('[data-explorer-module="app.api"]');
       expect(pressed('[data-explorer-module="app.api"]')).toBe('true');
       expect(cy.$(':selected').id()).toBe('app.api');
-      expect(cy.getElementById('engine.core').hasClass('faded')).toBe(true);
+      // Only the module itself stays: the modules at the other end of its lines fade as every other does.
+      expect(cy.nodes('.module.faded').map((node) => node.id()).sort()).toEqual(['app.import', 'app.ui', 'engine.core']);
       expect(cy.getElementById('link:app.import>app.api').hasClass('lit')).toBe(true);
       expect(panel()).toContain('Serve data.');
       expect(panel()).toContain('To clean up');
@@ -791,6 +815,48 @@ describe('QualityDashboard', () => {
       escape();
       expect(cy.nodes('.dot').length).toBe(4);
       expect(panel()).toContain('How to read the functions');
+    });
+
+    test('the box before a module adds it to the modules in focus, which keep only the lines between them', async () => {
+      const cy = await open();
+      const picked = () => Array.from(document.querySelectorAll('[data-explorer-pick][aria-checked="true"]')).map((box) => box.dataset.explorerPick);
+      click('[data-explorer-pick="app.api"]');
+      // One module picked is the module in focus, as with a click on its name.
+      expect(cy.$(':selected').id()).toBe('app.api');
+      click('[data-explorer-pick="app.import"]');
+      expect(picked().sort()).toEqual(['app.api', 'app.import']);
+      expect(pressed('[data-explorer-module="app.import"]')).toBe('true');
+      expect(cy.nodes('.module.faded').map((node) => node.id()).sort()).toEqual(['app.ui', 'engine.core']);
+      expect(cy.edges('.lit').map((edge) => edge.id()).sort()).toEqual(['link:app.api>app.import', 'link:app.import>app.api']);
+      expect(panel()).toContain('2 modules');
+      expect(panel()).toContain('Dependencies between them (2)');
+      expect(document.getElementById('qualityBreadcrumb').textContent).toMatch(/All modules.*api \+ import/);
+
+      // On Files both circles are fitted, and only the lines from one module to the other are lit.
+      cy.fit.mockClear();
+      click('[data-level="files"]');
+      await nextFrame();
+      expect(picked().sort()).toEqual(['app.api', 'app.import']);
+      expect(cy.fit.mock.calls[0][0].map((node) => node.id()).sort()).toEqual(['region:app.api', 'region:app.import']);
+      expect(cy.nodes('.dot.faded').map((node) => node.id()).sort()).toEqual(['app:static/js/ui.js', 'engine:src/core.py']);
+      // Copied code between the two counts as a connection as well.
+      expect(cy.edges('.lit').map((edge) => edge.id()).sort()).toEqual(['clone:0', 'dot-link:app:backend/api.py>app:backend/importer.py', 'dot-link:app:backend/importer.py>app:backend/api.py']);
+
+      // On Functions several modules stay among every function; one alone is drawn alone.
+      click('[data-level="symbols"]');
+      await nextFrame();
+      expect(cy.nodes('.dot').length).toBe(4);
+      click('[data-explorer-pick="app.import"]');
+      await nextFrame();
+      expect(picked()).toEqual(['app.api']);
+      expect(cy.nodes('.dot').length).toBe(3);
+      // A click on a name with Ctrl adds it; a plain click keeps that module only; Esc gives up several at once.
+      document.querySelector('[data-explorer-module="app.import"]').dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
+      await nextFrame();
+      expect(picked().sort()).toEqual(['app.api', 'app.import']);
+      escape();
+      expect(picked()).toEqual([]);
+      expect(document.getElementById('qualityExplorerReset').disabled).toBe(true);
     });
 
     test('a double-click goes one level in; a click on a circle of dots is a click on the background', async () => {

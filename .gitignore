@@ -24,6 +24,8 @@ wheels/
 *.egg
 MANIFEST
 .ruff_cache/
+# Quality evidence the site downloaded for its commit
+.cache/
 .hypothesis/
 coverage.xml
 .coverage
