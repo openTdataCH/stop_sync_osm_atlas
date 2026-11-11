@@ -24,7 +24,7 @@
   min-width: 180px;
   box-shadow: var(--shadow-md);
   border: var(--border-width) solid var(--color-border);
-  max-width: min(360px, calc(100vw - 2rem));
+  max-width: min(420px, calc(100vw - 2rem));
   pointer-events: auto;
   backdrop-filter: blur(4px);
 }

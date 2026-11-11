@@ -345,4 +345,24 @@ describe('Index map adapter', () => {
         expect(window.MapRenderer.renderEntities).not.toHaveBeenCalled();
         activeFilters.stopType = [];
     });
+
+    test('loads the Top N overlay for a matching-rule sub-filter, with the banner filters', () => {
+        window.fetch = global.fetch = jest.fn(() => new Promise(() => {}));
+        activeFilters.topN = 50;
+        activeFilters.stopType = [];
+        activeFilters.matchMethods = ['name'];
+        activeFilters.osmEntityTypes = ['node'];
+
+        window.loadTopNMatches();
+
+        expect(fetch).toHaveBeenCalledTimes(1);
+        const query = new URLSearchParams(fetch.mock.calls[0][0].split('?')[1]);
+        expect(query.get('limit')).toBe('50');
+        expect(query.get('match_method')).toBe('name');
+        expect(query.get('osm_entity_types')).toBe('node');
+        activeFilters.topN = null;
+        activeFilters.matchMethods = [];
+        activeFilters.osmEntityTypes = [];
+        window.loadDataForViewport();
+    });
 });

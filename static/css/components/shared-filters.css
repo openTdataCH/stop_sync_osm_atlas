@@ -231,3 +231,15 @@
 .header-summary #activeFilters .filter-chip-separator {
   margin: 0 !important;
 }
+
+/* Tighter chips in the summary, so a few filters share one line. */
+.header-summary #activeFilters .filter-chip-badge {
+  padding: 0.1rem 0.4rem !important;
+  gap: 0.1rem !important;
+  white-space: nowrap;
+}
+
+.header-summary #activeFilters .filter-chip-badge a {
+  font-size: 0.85rem !important;
+  margin-left: 0.1rem;
+}

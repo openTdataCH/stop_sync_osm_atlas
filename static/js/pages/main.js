@@ -348,45 +348,11 @@ function loadTopNMatches() {
     clearTopNMarkers();
     setTopNMessage('');
 
-    if (activeFilters.topN && activeFilters.stopType.includes("matched")) {
-        var params = { limit: activeFilters.topN };
-        // Send specific, active match methods
-        if (activeFilters.matchMethods.length > 0) {
-            params.match_method = activeFilters.matchMethods.join(',');
-        }
-
-        // Add station filter values and type if available
-        if (activeFilters.station.length > 0) {
-            params.station_filter = activeFilters.station.join(',');
-            params.filter_types = activeFilters.stationTypes.join(',');
-            params.route_directions = activeFilters.routeDirections.join(',');
-            if (routeVariantsParam()) params.route_variants = routeVariantsParam();
-        }
-
-        // Add transport type filters to params (New)
-        if (activeFilters.transportTypes.length > 0) {
-            params.transport_types = activeFilters.transportTypes.join(',');
-        }
-
-        // Add atlas operator filters to params
-        if (activeFilters.atlasOperators.length > 0) {
-            params.atlas_operator = activeFilters.atlasOperators.join(',');
-        }
-
-        // Add OSM operator filters to params
-        if (activeFilters.osmOperators.length > 0) {
-            params.osm_operator = activeFilters.osmOperators.join(',');
-        }
-        if (activeFilters.osmOperatorWikidata && activeFilters.osmOperatorWikidata.length > 0) {
-            params.osm_operator_wikidata = activeFilters.osmOperatorWikidata.join(',');
-        }
-        if (activeFilters.missingOsmOperatorWikidata) params.missing_osm_operator_wikidata = 'true';
-        if (activeFilters.showDuplicatesOnly) {
-            params.show_duplicates_only = 'true';
-        }
-        appendProblemFilterParams(params);
-
-        appendOsmGroupParams(params);
+    // updateActiveFilters() keeps topN only while the matched scope is on (All Matched
+    // Stops or any matching-rule sub-filter). The overlay sends the same filters as
+    // /api/global_stats, so the map shows exactly the matches the summary banner counts.
+    if (activeFilters.topN) {
+        var params = appendCurrentFilterParams({ limit: activeFilters.topN }, { includeShowDuplicates: true });
 
         var requestSequence = ++topNRequestSequence;
         var request = new AbortController();

@@ -44,7 +44,7 @@ const REMOVE_TOP_N_HTML = '<i class="fas fa-times-circle"></i> Remove Top N';
 // type; backend/services/matching_rules.py expands it to match types.
 const MATCH_METHOD_FILTERS = {
     methods: [
-        { value: 'identifier', selector: '#filterIdentifier', label: 'SLOID in OSM' },
+        { value: 'identifier', selector: '#filterIdentifier', label: 'SLOID' },
         { value: 'two_sided_stop', selector: '#filterTwoSidedStop', label: 'UIC two-sided stop' },
         { value: 'reference', selector: '#filterReference', label: 'UIC reference' },
         { value: 'name', selector: '#filterName', label: 'Name' }
@@ -807,7 +807,7 @@ function updateFiltersUI() {
 
     appendProblemFilterChips(finalGroupStrings, buildRemovableChip, buildOrGroup);
 
-    if (activeFilters.topN) finalGroupStrings.push(buildRemovableChip({ label: 'Top N Distances (' + activeFilters.topN + ')', badgeClass: 'filter-chip-secondary', data: { type: 'topN', filter: 'topN' } }));
+    if (activeFilters.topN) finalGroupStrings.push(buildRemovableChip({ label: 'Top ' + activeFilters.topN + ' Distances', badgeClass: 'filter-chip-secondary', data: { type: 'topN', filter: 'topN' } }));
     if (activeFilters.showDuplicatesOnly) finalGroupStrings.push(buildRemovableChip({ label: 'Duplicate ' + SharedUtils.sourceLabel(), badgeClass: 'filter-chip-atlas', data: { type: 'showDuplicatesOnly' } }));
 
     if (container) {
