@@ -23,7 +23,7 @@ function sidebarHtml() {
   return `<nav id="docsSidebar">
     <input id="docsSidebarFilter">
     <div class="docs-collection" id="overview">
-      ${section('overview-0', ['intro', '0', 'User guide'], [['using_the_map', '0.1', 'Using the map'], ['glossary', '0.5', 'Glossary']])}
+      ${section('overview-0', ['intro', '0', 'User guide'], [['working_through_problems', '0.1', 'Working through problems'], ['glossary', '0.4', 'Glossary']])}
     </div>
     <p class="docs-audience-heading" data-audience="For developers">For developers</p>
     <div class="docs-collection" id="engine" data-audience="For developers">

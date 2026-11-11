@@ -199,9 +199,9 @@ def test_docs_portal_uses_project_scoped_section_numbers():
             ('/docs/frontend_asset_management', 'A.3.4', 'Frontend asset management'),
             ('/docs/tests_code_quality', 'A.4', 'Tests & code quality'),
             ('/docs/backend_tests', 'A.4.1', 'Backend tests'),
-            ('/docs/using_the_map', '0.1', 'Using the map'),
-            ('/docs/working_through_problems', '0.2', 'Working through problems'),
-            ('/docs/glossary', '0.5', 'Glossary'),
+            ('/docs/comparing_routes', '0.2', 'Comparing routes'),
+            ('/docs/working_through_problems', '0.1', 'Working through problems'),
+            ('/docs/glossary', '0.4', 'Glossary'),
         ):
             node = soup.find('a', href=href)
             assert node is not None, href

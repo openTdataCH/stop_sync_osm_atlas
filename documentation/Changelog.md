@@ -44,7 +44,7 @@ The matching code moves to its own package, the [matching engine](../engine/docu
 
 ### Documentation and code quality
 
-- **User guide** — Pages for mappers and data stewards on the map, problems, routes, links and the API, plus a [glossary](0.5%20Glossary.md). See [A0](0.%20User%20guide.md).
+- **User guide** — Pages for mappers and data stewards on problems, routes, links and the API, plus a [glossary](0.4%20Glossary.md). See [0. User guide](0.%20User%20guide.md).
 - **New addresses** — Page files are named after their titles, so some addresses change (`/docs/intro` is now `/docs/user_guide`); old addresses are not redirected. Any page can be downloaded alone as a PDF.
 - **Code quality dashboard** — `/quality` maps the modules, files and functions of both repositories and their dependencies in one style, lists what to clean up (functions nothing mentions, copied code, long files) and shows the test and coverage results that CI measured on the running commit, down to each file. The site downloads those results from GitHub by its own commit, so no report is committed any more. See [A4.3](4.3%20Code%20quality.md).
 

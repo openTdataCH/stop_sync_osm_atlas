@@ -96,7 +96,7 @@ The full command builds the Python 3.13 and Node 22 tooling, keeps the app and e
 Start with the [contributor guide](documentation/Contributing.md). A matching-rule contribution can use a tiny offline fixture; a UI contribution can use the example bundle. No national download is required to begin.
 
 - [Documentation overview](documentation/0.%20User%20guide.md)
-- [Glossary](documentation/0.5%20Glossary.md)
+- [Glossary](documentation/0.4%20Glossary.md)
 - [Engine documentation](../engine/documentation/1.%20Input%20integrations%20%26%20acquisition.md)
 - [Review application changelog](documentation/Changelog.md)
 - [Matching engine changelog](../engine/documentation/Changelog.md)
