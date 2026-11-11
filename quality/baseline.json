@@ -2,18 +2,10 @@
   "findings": [
     {
       "files": [
-        "engine:src/osm_public_transport_matcher/adapters/osm.py",
-        "engine:src/osm_public_transport_matcher/core/state.py"
+        "app:backend/importing/timing.py",
+        "engine:src/osm_public_transport_matcher/timing.py"
       ],
-      "id": "0c0f8b080e0feb442bb31c835b19e539465e557a69510684579fe3b767e9c01c",
-      "kind": "clone"
-    },
-    {
-      "files": [
-        "app:static/js/components/map-popup-controller.js",
-        "app:static/js/components/map-viewport-loader.js"
-      ],
-      "id": "15d5dd7b3c496501c3cccbfac0233957bce024781d0019764a6dfe7af781ab47",
+      "id": "1cf07f06023c8c7b15d005362f5eb7b6f201b16029d896d694497fb8964242c2",
       "kind": "clone"
     },
     {
@@ -34,46 +26,6 @@
     },
     {
       "files": [
-        "app:backend/services/async_export_state_store.py",
-        "app:backend/services/pipeline_state_store.py"
-      ],
-      "id": "52006a9f751307cd06ea80a76b3b8aea12d10e1224753635991f35d9c8421469",
-      "kind": "clone"
-    },
-    {
-      "files": [
-        "app:static/js/components/popup-renderer.js",
-        "app:static/js/components/popup-renderer.js"
-      ],
-      "id": "58e40bfa92a4016cec35aee576156594eb9b06bacc6f8ce3314108e482dabc64",
-      "kind": "clone"
-    },
-    {
-      "files": [
-        "app:backend/importing/timing.py",
-        "engine:src/osm_public_transport_matcher/timing.py"
-      ],
-      "id": "668efc69f23ecb7b7fe64c8f835cdbb0932ab0ce6ee1fdd4fa74925ec70b5a87",
-      "kind": "clone"
-    },
-    {
-      "files": [
-        "app:backend/importing/importer.py",
-        "app:backend/importing/importer.py"
-      ],
-      "id": "76d0e3793fc61316951bdd3100f1f2dc85f8c9c652dd60bbf08108953a963a0a",
-      "kind": "clone"
-    },
-    {
-      "files": [
-        "app:templates/reports/report.html",
-        "app:templates/reports/report.html"
-      ],
-      "id": "9c66e2d8cc811d33291ad6c7112d4751c6c47143fe61f0ed527395cd64bd98f1",
-      "kind": "clone"
-    },
-    {
-      "files": [
         "app:backend/importing/bundle.py",
         "engine:src/osm_public_transport_matcher/results/validation.py"
       ],
@@ -82,34 +34,10 @@
     },
     {
       "files": [
-        "app:backend/blueprints/reports.py",
-        "app:backend/blueprints/reports.py"
-      ],
-      "id": "bc883fdbd8630d168ca22166fb32c7eacb96ec5fa99694fcdcef84dc9d9849fa",
-      "kind": "clone"
-    },
-    {
-      "files": [
         "app:backend/importing/bundle.py",
         "engine:src/osm_public_transport_matcher/results/validation.py"
       ],
-      "id": "d28a7e8fb07f219dfd764e47e4279cff9b2c7e3879554f30514b88883b4f77fb",
-      "kind": "clone"
-    },
-    {
-      "files": [
-        "app:backend/importing/bundle.py",
-        "engine:src/osm_public_transport_matcher/results/validation.py"
-      ],
-      "id": "d8e34dbe47b9d82757e9dc84f0119f0fc715ca006817d8ae836778ceb177c4c7",
-      "kind": "clone"
-    },
-    {
-      "files": [
-        "app:backend/blueprints/problems.py",
-        "app:backend/blueprints/problems.py"
-      ],
-      "id": "410d34c41ca0f7b5d1d54a03aac0b814ae238ba955abd9ee6eef902b23ecf3a7",
+      "id": "e3325b67a6aa33cbe4c8a5fee358de80d1bb1f4052d8751cf9683749a8f7e494",
       "kind": "clone"
     }
   ],

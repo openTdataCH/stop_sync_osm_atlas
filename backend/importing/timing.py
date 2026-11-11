@@ -22,13 +22,18 @@ def stage(name, **details):
     emit("stage_started")
     worker = threading.Thread(target=heartbeat, daemon=True)
     worker.start()
+    error = None
     try:
         yield
-    except BaseException:
-        emit("stage_failed", cpu_seconds=round(time.process_time() - cpu, 3))
+    except BaseException as exc:
+        error = exc
         raise
-    else:
-        emit("stage_finished", cpu_seconds=round(time.process_time() - cpu, 3))
     finally:
+        # Stop the heartbeat first, so no progress line follows the final one.
         done.set()
         worker.join()
+        cpu_seconds = round(time.process_time() - cpu, 3)
+        if error is None:
+            emit("stage_finished", cpu_seconds=cpu_seconds)
+        else:
+            emit("stage_failed", cpu_seconds=cpu_seconds, error=str(error))

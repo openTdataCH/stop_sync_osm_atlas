@@ -50,35 +50,25 @@
     {% else %}
     <table class="table table-sm table-bordered">
         <thead class="thead-light">
-            {% if report_type == 'unmatched' %}
             <tr>
+                {% if report_type == 'unmatched' %}
                 <th class="col-source">Source</th>
+                {% elif report_type == 'problems' %}
+                <th class="col-problem-type">Problem Type</th>
+                <th class="col-priority">Priority</th>
+                {% endif %}
                 <th class="col-sloid">ATLAS Sloid</th>
                 <th>Official Designation</th>
                 <th class="col-operator">ATLAS Operator</th>
                 <th class="col-osm-id">OSM Node ID</th>
+                {% if report_type == 'unmatched' %}
                 <th>OSM Local Ref</th>
                 <th>OSM Name</th>
                 <th>UIC Ref</th>
-                {% if include_fields and 'atlas_coords' in include_fields %}
-                <th>Atlas Lat</th>
-                <th>Atlas Lon</th>
-                {% endif %}
-                {% if include_fields and 'osm_coords' in include_fields %}
-                <th>OSM Lat</th>
-                <th>OSM Lon</th>
-                {% endif %}
-            </tr>
-            {% elif report_type == 'problems' %}
-            <tr>
-                <th class="col-problem-type">Problem Type</th>
-                <th class="col-priority">Priority</th>
-                <th class="col-sloid">ATLAS Sloid</th>
-                <th>Official Designation</th>
-                <th class="col-operator">ATLAS Operator</th>
-                <th class="col-osm-id">OSM Node ID</th>
+                {% else %}
                 <th class="col-distance">Distance (m)</th>
                 <th class="col-method">Matching Method</th>
+                {% endif %}
                 {% if include_fields and 'atlas_coords' in include_fields %}
                 <th>Atlas Lat</th>
                 <th>Atlas Lon</th>
@@ -88,92 +78,38 @@
                 <th>OSM Lon</th>
                 {% endif %}
             </tr>
-            {% else %}
-            <tr>
-                <th class="col-sloid">ATLAS Sloid</th>
-                <th>Official Designation</th>
-                <th class="col-operator">ATLAS Operator</th>
-                <th class="col-osm-id">OSM Node ID</th>
-                <th class="col-distance">Distance (m)</th>
-                <th class="col-method">Matching Method</th>
-                {% if include_fields and 'atlas_coords' in include_fields %}
-                <th>Atlas Lat</th>
-                <th>Atlas Lon</th>
-                {% endif %}
-                {% if include_fields and 'osm_coords' in include_fields %}
-                <th>OSM Lat</th>
-                <th>OSM Lon</th>
-                {% endif %}
-            </tr>
-            {% endif %}
         </thead>
         <tbody>
             {% for item in report_items %}
+            {# Problems reports list Problem rows; the other reports list Stop rows. #}
+            {% set stop = item.stop if report_type == 'problems' else item %}
+            {% set atlas = stop.atlas_stop_details if stop else none %}
             <tr>
                 {% if report_type == 'unmatched' %}
-                {# item is Stop #}
-                <td class="col-source">{{ 'ATLAS' if item.stop_type == 'atlas_unmatched' else 'OSM' }}</td>
-                <td class="col-sloid">{{ item.sloid or 'N/A' }}</td>
-                <td>{{ item.atlas_stop_details.atlas_designation_official if item.atlas_stop_details and item.atlas_stop_details.atlas_designation_official else 'N/A' }}</td>
-                <td class="col-operator">{{ item.atlas_stop_details.atlas_business_org_abbr if item.atlas_stop_details and item.atlas_stop_details.atlas_business_org_abbr else 'N/A' }}</td>
-                <td class="col-osm-id">{{ item.osm_node_id or 'N/A' }}</td>
-                <td>{{ item.osm_node_details.osm_local_ref if item.osm_node_details and item.osm_node_details.osm_local_ref else 'N/A' }}</td>
-                <td>{{ item.osm_node_details.osm_name if item.osm_node_details and item.osm_node_details.osm_name else 'N/A' }}</td>
-                <td>{{ (item.atlas_stop_details.uic_ref if item.atlas_stop_details and item.atlas_stop_details.uic_ref else (item.osm_node_details.osm_uic_ref if item.osm_node_details else None)) or 'N/A' }}</td>
-                {% if include_fields and 'atlas_coords' in include_fields %}
-                <td>{{ ('%.6f'|format(item.atlas_lat)) if item.atlas_lat is not none else 'N/A' }}</td>
-                <td>{{ ('%.6f'|format(item.atlas_lon)) if item.atlas_lon is not none else 'N/A' }}</td>
-                {% endif %}
-                {% if include_fields and 'osm_coords' in include_fields %}
-                <td>{{ ('%.6f'|format(item.osm_lat)) if item.osm_lat is not none else 'N/A' }}</td>
-                <td>{{ ('%.6f'|format(item.osm_lon)) if item.osm_lon is not none else 'N/A' }}</td>
-                {% endif %}
+                <td class="col-source">{{ 'ATLAS' if stop.stop_type == 'atlas_unmatched' else 'OSM' }}</td>
                 {% elif report_type == 'problems' %}
-                {# item is Problem #}
                 <td class="col-problem-type">{{ item.problem_type }}</td>
                 <td class="col-priority">{{ item.priority if item.priority is not none else 'N/A' }}</td>
-                <td class="col-sloid">{{ item.stop.sloid if item.stop and item.stop.sloid else 'N/A' }}</td>
-                <td>{{ item.stop.atlas_stop_details.atlas_designation_official if item.stop and item.stop.atlas_stop_details and item.stop.atlas_stop_details.atlas_designation_official else 'N/A' }}</td>
-                <td class="col-operator">{{ item.stop.atlas_stop_details.atlas_business_org_abbr if item.stop and item.stop.atlas_stop_details and item.stop.atlas_stop_details.atlas_business_org_abbr else 'N/A' }}</td>
-                <td class="col-osm-id">{{ item.stop.osm_node_id if item.stop and item.stop.osm_node_id else 'N/A' }}</td>
-                <td class="col-distance">
-                    {% if item.stop and item.stop.distance_m is not none %}
-                        {{ '%.1f'|format(item.stop.distance_m) }}
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </td>
-                <td class="col-method">{{ item.stop.match_type if item.stop and item.stop.match_type else 'N/A' }}</td>
-                {% if include_fields and 'atlas_coords' in include_fields %}
-                <td>{{ ('%.6f'|format(item.stop.atlas_lat)) if item.stop and item.stop.atlas_lat is not none else 'N/A' }}</td>
-                <td>{{ ('%.6f'|format(item.stop.atlas_lon)) if item.stop and item.stop.atlas_lon is not none else 'N/A' }}</td>
                 {% endif %}
-                {% if include_fields and 'osm_coords' in include_fields %}
-                <td>{{ ('%.6f'|format(item.stop.osm_lat)) if item.stop and item.stop.osm_lat is not none else 'N/A' }}</td>
-                <td>{{ ('%.6f'|format(item.stop.osm_lon)) if item.stop and item.stop.osm_lon is not none else 'N/A' }}</td>
-                {% endif %}
+                <td class="col-sloid">{{ stop.sloid if stop and stop.sloid else 'N/A' }}</td>
+                <td>{{ atlas.atlas_designation_official if atlas and atlas.atlas_designation_official else 'N/A' }}</td>
+                <td class="col-operator">{{ atlas.atlas_business_org_abbr if atlas and atlas.atlas_business_org_abbr else 'N/A' }}</td>
+                <td class="col-osm-id">{{ stop.osm_node_id if stop and stop.osm_node_id else 'N/A' }}</td>
+                {% if report_type == 'unmatched' %}
+                <td>{{ stop.osm_node_details.osm_local_ref if stop.osm_node_details and stop.osm_node_details.osm_local_ref else 'N/A' }}</td>
+                <td>{{ stop.osm_node_details.osm_name if stop.osm_node_details and stop.osm_node_details.osm_name else 'N/A' }}</td>
+                <td>{{ (atlas.uic_ref if atlas and atlas.uic_ref else (stop.osm_node_details.osm_uic_ref if stop.osm_node_details else none)) or 'N/A' }}</td>
                 {% else %}
-                {# distance: item is Stop #}
-                <td class="col-sloid">{{ item.sloid }}</td>
-                <td>{{ item.atlas_stop_details.atlas_designation_official if item.atlas_stop_details and item.atlas_stop_details.atlas_designation_official else 'N/A' }}</td>
-                <td class="col-operator">{{ item.atlas_stop_details.atlas_business_org_abbr if item.atlas_stop_details and item.atlas_stop_details.atlas_business_org_abbr else 'N/A' }}</td>
-                <td class="col-osm-id">{{ item.osm_node_id if item.osm_node_id else 'N/A' }}</td>
-                <td class="col-distance">
-                    {% if item.distance_m %}
-                        {{ '%.1f'|format(item.distance_m) }}
-                    {% else %}
-                        N/A
-                    {% endif %}
-                </td>
-                <td class="col-method">{{ item.match_type if item.match_type else 'N/A' }}</td>
+                <td class="col-distance">{{ '%.1f'|format(stop.distance_m) if stop and stop.distance_m is not none else 'N/A' }}</td>
+                <td class="col-method">{{ stop.match_type if stop and stop.match_type else 'N/A' }}</td>
+                {% endif %}
                 {% if include_fields and 'atlas_coords' in include_fields %}
-                <td>{{ ('%.6f'|format(item.atlas_lat)) if item.atlas_lat is not none else 'N/A' }}</td>
-                <td>{{ ('%.6f'|format(item.atlas_lon)) if item.atlas_lon is not none else 'N/A' }}</td>
+                <td>{{ ('%.6f'|format(stop.atlas_lat)) if stop and stop.atlas_lat is not none else 'N/A' }}</td>
+                <td>{{ ('%.6f'|format(stop.atlas_lon)) if stop and stop.atlas_lon is not none else 'N/A' }}</td>
                 {% endif %}
                 {% if include_fields and 'osm_coords' in include_fields %}
-                <td>{{ ('%.6f'|format(item.osm_lat)) if item.osm_lat is not none else 'N/A' }}</td>
-                <td>{{ ('%.6f'|format(item.osm_lon)) if item.osm_lon is not none else 'N/A' }}</td>
-                {% endif %}
+                <td>{{ ('%.6f'|format(stop.osm_lat)) if stop and stop.osm_lat is not none else 'N/A' }}</td>
+                <td>{{ ('%.6f'|format(stop.osm_lon)) if stop and stop.osm_lon is not none else 'N/A' }}</td>
                 {% endif %}
             </tr>
             {% endfor %}

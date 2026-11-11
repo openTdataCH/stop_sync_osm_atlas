@@ -14,7 +14,7 @@ from backend.services.pipeline_progress import (
     finalize_stage_states,
 )
 from backend.services.pipeline_state_store import get_pipeline_state_store
-from backend.services.time_utils import format_zurich_display_timestamp
+from backend.services.time_utils import format_zurich_display_timestamp, parse_utc_timestamp
 
 _DEFAULT_LOCK_TTL_SECONDS = int(os.getenv("PIPELINE_LOCK_TTL_SECONDS", "14400"))
 _DEFAULT_HEARTBEAT_SECONDS = int(
@@ -29,18 +29,6 @@ PIPELINE_PHASES = [stage.id for stage in PIPELINE_PHASE_STAGES]
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-
-def _parse_iso_timestamp(value: Any) -> datetime | None:
-    if not value or not isinstance(value, str):
-        return None
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
 
 
 def _process_start_ticks(pid: int) -> str | None:
@@ -157,7 +145,7 @@ def _patch_raw_status(fields: Dict[str, Any], *, expected_run_id=None) -> Dict[s
 
 def _has_active_run_lock() -> bool:
     lock_state = get_pipeline_state_store().read_lock()
-    expires_at = _parse_iso_timestamp(lock_state.get("expires_at"))
+    expires_at = parse_utc_timestamp(lock_state.get("expires_at"))
     return bool(lock_state.get("token") and (expires_at is None or expires_at > datetime.now(timezone.utc)))
 
 
@@ -196,7 +184,7 @@ def _data_warning(data: Dict[str, Any]) -> str | None:
     shown = f"showing data from {format_zurich_display_timestamp(published)}" if published else "no data is published yet"
     if data.get("status") == "failed" and not data.get("dataset_published"):
         return f"Latest update failed; {shown}"
-    published_at = _parse_iso_timestamp(published)
+    published_at = parse_utc_timestamp(published)
     interval = data.get("schedule_interval_hours")
     if published_at and isinstance(interval, (int, float)) and interval > 0:
         if datetime.now(timezone.utc) - published_at > timedelta(hours=2 * interval):
@@ -358,8 +346,8 @@ def _closed_phase_history(current: Dict[str, Any], ts: str, **extra: Any) -> lis
     phase_started_at = current.get("phase_started_at")
     active_phase = current.get("phase")
     if active_phase and active_phase not in {"idle", "failed"} and phase_started_at:
-        started = _parse_iso_timestamp(phase_started_at)
-        ended = _parse_iso_timestamp(ts)
+        started = parse_utc_timestamp(phase_started_at)
+        ended = parse_utc_timestamp(ts)
         duration = max(0.0, (ended - started).total_seconds()) if started and ended else None
         history.append({
             "phase": active_phase,
@@ -466,7 +454,7 @@ def reconcile_orphaned_run(
 
     token = lock_state.get("token")
     owner_alive = _lock_owner_is_alive(lock_state) if token else False
-    heartbeat_at = _parse_iso_timestamp(lock_state.get("heartbeat_at")) if token else None
+    heartbeat_at = parse_utc_timestamp(lock_state.get("heartbeat_at")) if token else None
     heartbeat_stale = (
         heartbeat_at is None
         or datetime.now(timezone.utc) - heartbeat_at > timedelta(seconds=max(1, stale_after_seconds))
@@ -499,8 +487,8 @@ def acquire_run_lock(ttl_seconds: int = _DEFAULT_LOCK_TTL_SECONDS) -> Optional[s
 
     status = get_status()
     lock_state = store.read_lock()
-    lock_acquired_at = _parse_iso_timestamp(lock_state.get("acquired_at"))
-    status_updated_at = _parse_iso_timestamp(status.get("updated_at"))
+    lock_acquired_at = parse_utc_timestamp(lock_state.get("acquired_at"))
+    status_updated_at = parse_utc_timestamp(status.get("updated_at"))
     should_clear_stale_lock = (
         status.get("status") != "running"
         and lock_acquired_at is not None

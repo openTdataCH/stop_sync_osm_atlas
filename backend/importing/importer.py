@@ -119,6 +119,24 @@ def _remember_atlas_operator(operator_rows_by_abbr: dict[str, dict], atlas_node)
         existing['atlas_business_org_name'] = record['atlas_business_org_name']
 
 
+def _remember_atlas_stop(atlas_stops_by_sloid: dict, operator_rows_by_abbr: dict[str, dict], atlas_node, duplicate_sloid_map) -> None:
+    """Keep one ATLAS stop row per sloid, the first one seen, with its duplicate group and operator."""
+    sloid = atlas_node.sloid
+    if not sloid or sloid in atlas_stops_by_sloid:
+        return
+    dup_group = duplicate_sloid_map.get(str(sloid))
+    _remember_atlas_operator(operator_rows_by_abbr, atlas_node)
+    atlas_stops_by_sloid[sloid] = {
+        'sloid': sloid,
+        'uic_ref': atlas_node.uic_ref,
+        'atlas_designation': atlas_node.designation,
+        'atlas_designation_official': atlas_node.designation_official,
+        'atlas_business_org_abbr': _normalize_text(atlas_node.business_org_abbr),
+        'representative_sloid': dup_group[0] if dup_group and str(sloid) != dup_group[0] else None,
+        'duplicate_group_sloids': dup_group,
+    }
+
+
 def _write_gtfs_atlas_stats(stats_payload: dict[str, object]) -> None:
     # Nothing in the application reads this file. The engine reads
     # <workspace>/data/gtfs_atlas_stats.json when its source metadata lacks the
@@ -276,14 +294,13 @@ def build_fast_insert_payloads(
                 'member_role': member.member_role,
             })
 
-    # ---- Track processed sloids/osm_node_ids ----
-    processed_sloids = set()
+    # ---- Track processed osm_node_ids ----
     processed_osm_node_ids = set()
 
     # ---- 1. Matched stops ----
     stops_matched_dicts = []
     atlas_operator_rows_by_abbr = {}
-    atlas_stop_dicts = []
+    atlas_stops_by_sloid = {}
     # problems_dicts will be keyed by a temporary stop sequence number.
     # We use a list of (stop_sequence, problem_dicts) to pair them up later.
     problem_rows = []  # list of (temp_stop_idx, problem_type, priority)
@@ -320,22 +337,7 @@ def build_fast_insert_payloads(
         for p in problems:
             problem_rows.append((stop_idx, p.problem_type, p.priority))
 
-        if sloid and sloid not in processed_sloids:
-            dup_group = duplicate_sloid_map.get(str(sloid))
-            rep_sloid = None
-            if dup_group and str(sloid) != dup_group[0]:
-                rep_sloid = dup_group[0]
-            _remember_atlas_operator(atlas_operator_rows_by_abbr, current_match.atlas_node)
-            atlas_stop_dicts.append({
-                'sloid': sloid,
-                'uic_ref': current_match.atlas_node.uic_ref,
-                'atlas_designation': current_match.atlas_node.designation,
-                'atlas_designation_official': current_match.atlas_node.designation_official,
-                'atlas_business_org_abbr': _normalize_text(current_match.atlas_node.business_org_abbr),
-                'representative_sloid': rep_sloid,
-                'duplicate_group_sloids': dup_group,
-            })
-            processed_sloids.add(sloid)
+        _remember_atlas_stop(atlas_stops_by_sloid, atlas_operator_rows_by_abbr, current_match.atlas_node, duplicate_sloid_map)
 
         if osm_node_id:
             processed_osm_node_ids.add(osm_node_id)
@@ -373,22 +375,7 @@ def build_fast_insert_payloads(
         for p in problems:
             problem_rows.append((stop_idx, p.problem_type, p.priority))
 
-        if sloid and sloid not in processed_sloids:
-            dup_group = duplicate_sloid_map.get(str(sloid))
-            rep_sloid = None
-            if dup_group and str(sloid) != dup_group[0]:
-                rep_sloid = dup_group[0]
-            _remember_atlas_operator(atlas_operator_rows_by_abbr, atlas_node)
-            atlas_stop_dicts.append({
-                'sloid': sloid,
-                'uic_ref': atlas_node.uic_ref,
-                'atlas_designation': atlas_node.designation,
-                'atlas_designation_official': atlas_node.designation_official,
-                'atlas_business_org_abbr': _normalize_text(atlas_node.business_org_abbr),
-                'representative_sloid': rep_sloid,
-                'duplicate_group_sloids': dup_group,
-            })
-            processed_sloids.add(sloid)
+        _remember_atlas_stop(atlas_stops_by_sloid, atlas_operator_rows_by_abbr, atlas_node, duplicate_sloid_map)
 
         stop_idx += 1
 
@@ -484,7 +471,8 @@ def build_fast_insert_payloads(
         atlas_operator_rows_by_abbr.values(),
         key=lambda row: row['atlas_business_org_abbr'],
     )
-    importable_sloids = {row['sloid'] for row in atlas_stop_dicts if row.get('sloid')}
+    atlas_stop_dicts = list(atlas_stops_by_sloid.values())
+    importable_sloids = set(atlas_stops_by_sloid)
     gtfs_stop_dicts = base_data.gtfs_stops
     gtfs_identity_resolution_dicts = base_data.gtfs_atlas_state
     gtfs_identity_resolution_dicts = _filter_gtfs_identity_rows_to_known_sloids(

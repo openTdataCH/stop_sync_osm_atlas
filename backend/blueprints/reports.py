@@ -59,103 +59,54 @@ def _parse_include_fields(raw):
     return [field.strip() for field in include_fields_str.split(',') if field.strip()]
 
 
+_CSV_HEADERS = {
+    'unmatched': ['Source', 'ATLAS Sloid', 'Official Designation', 'ATLAS Operator', 'OSM Node ID', 'OSM Local Ref', 'OSM Name', 'UIC Ref'],
+    'problems': ['Problem Type', 'Priority', 'ATLAS Sloid', 'Official Designation', 'ATLAS Operator', 'OSM Node ID', 'Distance (m)', 'Matching Method'],
+    'distance': ['ATLAS Sloid', 'Official Designation', 'ATLAS Operator', 'OSM Node ID', 'Distance (m)', 'Matching Method'],
+}
+_CSV_COORDINATES = {
+    'atlas_coords': (('Atlas Lat', 'atlas_lat'), ('Atlas Lon', 'atlas_lon')),
+    'osm_coords': (('OSM Lat', 'osm_lat'), ('OSM Lon', 'osm_lon')),
+}
+
+
+def _csv_coordinates(include_fields):
+    """(header, Stop attribute) of each coordinate column the user asked for, in report order."""
+    return [column for field, columns in _CSV_COORDINATES.items() if field in include_fields for column in columns]
+
+
+def _csv_row(item, report_type):
+    """The columns before the coordinates. ``item`` is a Problem in problems reports and a Stop otherwise."""
+    stop = item.stop if report_type == 'problems' else item
+    atlas = getattr(stop, 'atlas_stop_details', None)
+    sloid = stop.sloid if stop and stop.sloid else 'N/A'
+    designation = atlas.atlas_designation_official if atlas and atlas.atlas_designation_official else 'N/A'
+    operator = atlas.atlas_business_org_abbr if atlas and atlas.atlas_business_org_abbr else 'N/A'
+    osm_node_id = stop.osm_node_id if stop and stop.osm_node_id else 'N/A'
+    if report_type == 'unmatched':
+        osm = stop.osm_node_details
+        uic_ref = atlas.uic_ref if atlas and atlas.uic_ref else (osm.osm_uic_ref if osm else None)
+        return ['ATLAS' if stop.stop_type == 'atlas_unmatched' else 'OSM', sloid, designation, operator, osm_node_id,
+                osm.osm_local_ref if osm and osm.osm_local_ref else 'N/A',
+                osm.osm_name if osm and osm.osm_name else 'N/A',
+                uic_ref or 'N/A']
+    row = [sloid, designation, operator, osm_node_id,
+           '{:.1f}'.format(stop.distance_m) if stop and stop.distance_m is not None else 'N/A',
+           stop.match_type if stop and stop.match_type else 'N/A']
+    if report_type == 'problems':
+        return [item.problem_type, item.priority if item.priority is not None else 'N/A', *row]
+    return row
+
+
 def _serialize_report_csv(data_for_report, report_type, include_fields):
     si = StringIO()
     writer = csv.writer(si)
-
-    if report_type == 'unmatched':
-        headers = ['Source', 'ATLAS Sloid', 'Official Designation', 'ATLAS Operator', 'OSM Node ID', 'OSM Local Ref', 'OSM Name', 'UIC Ref']
-        if 'atlas_coords' in include_fields:
-            headers.extend(['Atlas Lat', 'Atlas Lon'])
-        if 'osm_coords' in include_fields:
-            headers.extend(['OSM Lat', 'OSM Lon'])
-        writer.writerow(headers)
-        for stop in data_for_report:
-            source = 'ATLAS' if stop.stop_type == 'atlas_unmatched' else 'OSM'
-            atlas_details = getattr(stop, 'atlas_stop_details', None)
-            osm_details = getattr(stop, 'osm_node_details', None)
-            row = [
-                source,
-                stop.sloid or 'N/A',
-                (atlas_details.atlas_designation_official if atlas_details and atlas_details.atlas_designation_official else 'N/A'),
-                (atlas_details.atlas_business_org_abbr if atlas_details and atlas_details.atlas_business_org_abbr else 'N/A'),
-                stop.osm_node_id or 'N/A',
-                (osm_details.osm_local_ref if osm_details and osm_details.osm_local_ref else 'N/A'),
-                (osm_details.osm_name if osm_details and osm_details.osm_name else 'N/A'),
-                ((stop.atlas_stop_details.uic_ref if stop.atlas_stop_details and stop.atlas_stop_details.uic_ref else (stop.osm_node_details.osm_uic_ref if stop.osm_node_details else None)) or 'N/A')
-            ]
-            if 'atlas_coords' in include_fields:
-                row.extend([
-                    '{:.6f}'.format(stop.atlas_lat) if stop.atlas_lat is not None else 'N/A',
-                    '{:.6f}'.format(stop.atlas_lon) if stop.atlas_lon is not None else 'N/A'
-                ])
-            if 'osm_coords' in include_fields:
-                row.extend([
-                    '{:.6f}'.format(stop.osm_lat) if stop.osm_lat is not None else 'N/A',
-                    '{:.6f}'.format(stop.osm_lon) if stop.osm_lon is not None else 'N/A'
-                ])
-            writer.writerow(row)
-
-    elif report_type == 'problems':
-        headers = ['Problem Type', 'Priority', 'ATLAS Sloid', 'Official Designation', 'ATLAS Operator', 'OSM Node ID', 'Distance (m)', 'Matching Method']
-        if 'atlas_coords' in include_fields:
-            headers.extend(['Atlas Lat', 'Atlas Lon'])
-        if 'osm_coords' in include_fields:
-            headers.extend(['OSM Lat', 'OSM Lon'])
-        writer.writerow(headers)
-        for pr in data_for_report:
-            st = pr.stop
-            atlas_details = getattr(st, 'atlas_stop_details', None)
-            row = [
-                pr.problem_type,
-                pr.priority if pr.priority is not None else 'N/A',
-                st.sloid if st and st.sloid else 'N/A',
-                (atlas_details.atlas_designation_official if atlas_details and atlas_details.atlas_designation_official else 'N/A'),
-                (atlas_details.atlas_business_org_abbr if atlas_details and atlas_details.atlas_business_org_abbr else 'N/A'),
-                st.osm_node_id if st and st.osm_node_id else 'N/A',
-                ('{:.1f}'.format(st.distance_m) if st and st.distance_m is not None else 'N/A'),
-                st.match_type if st and st.match_type else 'N/A',
-            ]
-            if 'atlas_coords' in include_fields:
-                row.extend([
-                    '{:.6f}'.format(st.atlas_lat) if st and st.atlas_lat is not None else 'N/A',
-                    '{:.6f}'.format(st.atlas_lon) if st and st.atlas_lon is not None else 'N/A'
-                ])
-            if 'osm_coords' in include_fields:
-                row.extend([
-                    '{:.6f}'.format(st.osm_lat) if st and st.osm_lat is not None else 'N/A',
-                    '{:.6f}'.format(st.osm_lon) if st and st.osm_lon is not None else 'N/A'
-                ])
-            writer.writerow(row)
-
-    else:
-        headers = ['ATLAS Sloid', 'Official Designation', 'ATLAS Operator', 'OSM Node ID', 'Distance (m)', 'Matching Method']
-        if 'atlas_coords' in include_fields:
-            headers.extend(['Atlas Lat', 'Atlas Lon'])
-        if 'osm_coords' in include_fields:
-            headers.extend(['OSM Lat', 'OSM Lon'])
-        writer.writerow(headers)
-        for stop in data_for_report:
-            row = [
-                stop.sloid if stop.sloid else 'N/A',
-                stop.atlas_stop_details.atlas_designation_official if stop.atlas_stop_details and stop.atlas_stop_details.atlas_designation_official else 'N/A',
-                stop.atlas_stop_details.atlas_business_org_abbr if stop.atlas_stop_details and stop.atlas_stop_details.atlas_business_org_abbr else 'N/A',
-                stop.osm_node_id if stop.osm_node_id else 'N/A',
-                '{:.1f}'.format(stop.distance_m) if stop.distance_m is not None else 'N/A',
-                stop.match_type if stop.match_type else 'N/A'
-            ]
-            if 'atlas_coords' in include_fields:
-                row.extend([
-                    '{:.6f}'.format(stop.atlas_lat) if stop.atlas_lat is not None else 'N/A',
-                    '{:.6f}'.format(stop.atlas_lon) if stop.atlas_lon is not None else 'N/A'
-                ])
-            if 'osm_coords' in include_fields:
-                row.extend([
-                    '{:.6f}'.format(stop.osm_lat) if stop.osm_lat is not None else 'N/A',
-                    '{:.6f}'.format(stop.osm_lon) if stop.osm_lon is not None else 'N/A'
-                ])
-            writer.writerow(row)
-
+    coordinates = _csv_coordinates(include_fields)
+    writer.writerow(_CSV_HEADERS.get(report_type, _CSV_HEADERS['distance']) + [header for header, _ in coordinates])
+    for item in data_for_report:
+        stop = item.stop if report_type == 'problems' else item
+        values = [getattr(stop, name, None) for _, name in coordinates]
+        writer.writerow(_csv_row(item, report_type) + ['N/A' if value is None else '{:.6f}'.format(value) for value in values])
     return si.getvalue()
 
 

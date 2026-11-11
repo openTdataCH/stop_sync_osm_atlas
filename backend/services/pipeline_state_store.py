@@ -2,7 +2,6 @@
 
 import os
 from datetime import datetime, timedelta, timezone
-from email.utils import parsedate_to_datetime
 from typing import Any, Dict
 
 from backend.services.json_files import (
@@ -11,6 +10,7 @@ from backend.services.json_files import (
     resolve_state_dir,
     write_json_atomic,
 )
+from backend.services.time_utils import parse_utc_timestamp
 
 
 def _now_utc() -> datetime:
@@ -19,21 +19,6 @@ def _now_utc() -> datetime:
 
 def _expiry_iso(ttl_seconds: int) -> str:
     return (_now_utc() + timedelta(seconds=max(1, ttl_seconds))).isoformat()
-
-
-def _parse_expiry(value: Any) -> datetime | None:
-    if not value or not isinstance(value, str):
-        return None
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        try:
-            parsed = parsedate_to_datetime(value)
-        except (TypeError, ValueError):
-            return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
 
 
 def _accept_run_update(current: dict, run_id: str) -> bool:
@@ -73,7 +58,7 @@ class FilePipelineStateStore:
     def acquire_lock(self, token: str, ttl_seconds: int, owner: Dict[str, Any] | None = None) -> bool:
         with self._guard_lock():
             current = read_json_object(self._lock_path)
-            expires_at = _parse_expiry(current.get("expires_at"))
+            expires_at = parse_utc_timestamp(current.get("expires_at"))
             if current.get("token") and expires_at and expires_at > _now_utc():
                 return False
             now = _now_utc().isoformat()

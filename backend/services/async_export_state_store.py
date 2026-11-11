@@ -2,7 +2,6 @@
 
 import os
 from datetime import datetime, timezone
-from email.utils import parsedate_to_datetime
 from typing import Any, Dict
 
 from backend.services.json_files import (
@@ -24,30 +23,6 @@ def _normalize_mapping(raw: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
             continue
         normalized[key] = value
     return normalized
-
-
-def _parse_iso_timestamp(value: Any) -> datetime | None:
-    if not value or not isinstance(value, str):
-        return None
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        try:
-            parsed = parsedate_to_datetime(value)
-        except (TypeError, ValueError):
-            return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
-
-
-def parse_created_at(value: Any) -> datetime | None:
-    if isinstance(value, datetime):
-        parsed = value
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
-        return parsed.astimezone(timezone.utc)
-    return _parse_iso_timestamp(value)
 
 
 def now_iso() -> str:

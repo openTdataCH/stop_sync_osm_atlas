@@ -15,8 +15,8 @@ from flask import current_app
 from backend.services.async_export_state_store import (
     get_async_export_state_store,
     now_iso,
-    parse_created_at,
 )
+from backend.services.time_utils import parse_utc_timestamp
 
 # Cleanup configuration
 TASK_MAX_AGE_SECONDS = 604800    # 1 week
@@ -30,7 +30,7 @@ def _now_utc() -> datetime:
 
 
 def _task_age_seconds(created_at_value) -> float | None:
-    created_at = parse_created_at(created_at_value)
+    created_at = parse_utc_timestamp(created_at_value)
     if created_at is None:
         return None
     return (_now_utc() - created_at).total_seconds()
