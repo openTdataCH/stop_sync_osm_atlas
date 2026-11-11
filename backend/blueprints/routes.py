@@ -98,15 +98,18 @@ def _comparison_integer(name, *, default=None, maximum=2_147_483_647):
 @routes_bp.route('/api/routes/comparison')
 def routes_comparison_api():
     try:
-        atlas_id = _comparison_integer('atlas_itinerary_id')
+        # ``atlas_itinerary_id`` is the parameter's name before release 0.7; accepted for one release.
+        gtfs_id = _comparison_integer('gtfs_itinerary_id')
+        if gtfs_id is None:
+            gtfs_id = _comparison_integer('atlas_itinerary_id')
         osm_id = _comparison_integer('osm_itinerary_id')
-        if atlas_id is None and osm_id is None:
+        if gtfs_id is None and osm_id is None:
             raise ValueError('Select at least one itinerary.')
     except (TypeError, ValueError):
         return jsonify({'error': 'Select at least one valid itinerary ID.'}), 400
 
     try:
-        return jsonify(build_route_comparison(atlas_id, osm_id))
+        return jsonify(build_route_comparison(gtfs_id, osm_id))
     except LookupError as exc:
         return jsonify({'error': str(exc)}), 404
     except Exception as exc:
@@ -117,7 +120,9 @@ def routes_comparison_api():
 def routes_comparison_options_api():
     try:
         source = (request.args.get('source') or '').strip().lower()
-        if source not in {'atlas', 'osm'}:
+        # ``atlas`` names the GTFS side before release 0.7; accepted for one release.
+        source = {'atlas': 'gtfs'}.get(source, source)
+        if source not in {'gtfs', 'osm'}:
             raise ValueError('Invalid source')
         q = (request.args.get('q') or '').strip()
         if len(q) > 255:
@@ -159,7 +164,7 @@ def routes_variants_api():
     if not any(values.values()) or any(len(value) > ROUTE_VARIANT_KEY_MAX_LENGTH
                                        for value in values.values() if value):
         return jsonify({'error': 'Name a route_id, an atlas_variant or an osm_variant.'}), 400
-    variants = ({'atlas': values['atlas_variant'], 'osm': values['osm_variant']}
+    variants = ({'gtfs': values['atlas_variant'], 'osm': values['osm_variant']}
                 if values['atlas_variant'] or values['osm_variant'] else None)
     try:
         return jsonify(list_route_variants(values['route_id'], variants))

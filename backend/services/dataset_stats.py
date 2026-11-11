@@ -422,7 +422,7 @@ def compute_gtfs_stats(session) -> Dict[str, Any]:
     used_stop_ids = {
         stop_id for (stop_id,) in session.query(StopCall.source_stop_id)
         .join(Itinerary, Itinerary.id == StopCall.itinerary_id)
-        .filter(Itinerary.source == 'atlas', StopCall.source_stop_id.isnot(None))
+        .filter(Itinerary.source == 'gtfs', StopCall.source_stop_id.isnot(None))
         .distinct()
     }
     levels = {}
@@ -446,14 +446,14 @@ def compute_gtfs_stats(session) -> Dict[str, Any]:
 
     atlas_platforms = session.query(func.count(AtlasStop.sloid)).scalar() or 0
 
-    line_rows = session.query(LineFamily.id, LineFamily.route_type).filter(LineFamily.source == 'atlas').all()
+    line_rows = session.query(LineFamily.id, LineFamily.route_type).filter(LineFamily.source == 'gtfs').all()
     lines_by_mode = Counter(gtfs_route_mode(route_type) for _, route_type in line_rows)
     itinerary_rows = (session.query(Itinerary.line_family_id, Itinerary.direction_id, Itinerary.trip_count)
-                      .filter(Itinerary.source == 'atlas').all())
+                      .filter(Itinerary.source == 'gtfs').all())
     calls, resolved_calls = (
         session.query(func.count(StopCall.id), func.count(StopCall.source_sloid))
         .join(Itinerary, Itinerary.id == StopCall.itinerary_id)
-        .filter(Itinerary.source == 'atlas')
+        .filter(Itinerary.source == 'gtfs')
         .one()
     )
     return {
@@ -500,9 +500,9 @@ def compute_route_link_stats(session) -> Dict[str, Any]:
     families = session.query(LineFamily.id, LineFamily.source, LineFamily.route_type, LineFamily.is_non_gtfs,
                              LineFamily.gtfs_route_id, LineFamily.normalized_route_id,
                              LineFamily.display_route_id).all()
-    gtfs_lines = [row for row in families if row.source == 'atlas']
+    gtfs_lines = [row for row in families if row.source == 'gtfs']
     osm_lines = [row for row in families if row.source == 'osm']
-    links = session.query(LineFamilyMatch.atlas_line_family_id, LineFamilyMatch.osm_line_family_id,
+    links = session.query(LineFamilyMatch.gtfs_line_family_id, LineFamilyMatch.osm_line_family_id,
                           LineFamilyMatch.match_method).all()
     links_per_gtfs_line = Counter(gtfs_id for gtfs_id, _, _ in links)
     links_per_osm_line = Counter(osm_id for _, osm_id, _ in links)
@@ -577,11 +577,11 @@ def compute_route_link_stats(session) -> Dict[str, Any]:
 
     itineraries = session.query(Itinerary.id, Itinerary.source, Itinerary.line_family_id, Itinerary.direction_id,
                                 Itinerary.trip_count).all()
-    itinerary_links = session.query(ItineraryMatch.atlas_itinerary_id, ItineraryMatch.osm_itinerary_id).all()
+    itinerary_links = session.query(ItineraryMatch.gtfs_itinerary_id, ItineraryMatch.osm_itinerary_id).all()
     linked_gtfs_itineraries = {gtfs_id for gtfs_id, _ in itinerary_links}
     linked_osm_itineraries = {osm_id for _, osm_id in itinerary_links}
     itinerary_counts = Counter(row.line_family_id for row in itineraries)
-    gtfs_in_linked = [row for row in itineraries if row.source == 'atlas' and row.line_family_id in linked_gtfs]
+    gtfs_in_linked = [row for row in itineraries if row.source == 'gtfs' and row.line_family_id in linked_gtfs]
     osm_in_linked = [row for row in itineraries if row.source == 'osm' and row.line_family_id in linked_osm]
 
     gaps = [itinerary_counts[gtfs_id] - itinerary_counts[osm_id] for gtfs_id, osm_id, _ in links]

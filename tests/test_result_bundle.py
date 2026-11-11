@@ -25,7 +25,7 @@ def test_example_projects_complete_entities_problems_and_groups():
     assert problems['unmatched_atlas_problem_map'][id(result.unmatched_atlas[0])]['problems']
     assert len(result.osm_stop_units) == 2
     payload = routes['route_write_payload']
-    assert all(payload[name] == [] for name in ('atlas_line_families', 'line_families', 'itineraries', 'stop_calls'))
+    assert all(payload[name] == [] for name in ('gtfs_line_families', 'line_families', 'itineraries', 'stop_calls'))
     assert payload['matched_routes'] == 0
 
 

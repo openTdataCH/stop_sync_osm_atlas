@@ -1075,10 +1075,10 @@ function routeVariantName(variant) {
 
 // The chip's label: the variant's name (GTFS first), and which source it is
 // when only one side is shown.
-function routeVariantLabel(atlas, osm) {
-    var name = routeVariantName(atlas || osm);
-    if (atlas && osm) return name;
-    return name + ' · ' + (atlas ? SharedUtils.routeSourceLabel() : 'OSM') + ' only';
+function routeVariantLabel(gtfs, osm) {
+    var name = routeVariantName(gtfs || osm);
+    if (gtfs && osm) return name;
+    return name + ' · ' + (gtfs ? SharedUtils.routeSourceLabel() : 'OSM') + ' only';
 }
 
 // The request parameter: a JSON list aligned with station_filter, or null
@@ -1087,7 +1087,7 @@ function routeVariantsParam() {
     if (!activeFilters.routeVariants.some(Boolean)) return null;
     return JSON.stringify(activeFilters.station.map(function (value, index) {
         var variants = activeFilters.routeVariants[index];
-        return variants ? { atlas: variants.atlas, osm: variants.osm } : null;
+        return variants ? { gtfs: variants.gtfs, osm: variants.osm } : null;
     }));
 }
 
@@ -1097,19 +1097,19 @@ function syncRouteVariantUrl() {
     activeFilters.routeVariants.forEach(function (variants) { if (variants) last = variants; });
     Permalinks.replaceUrl({
         search: Permalinks.buildSearch(window.location.search, ROUTE_VARIANT_KEYS,
-            last ? Permalinks.encodeParams({ atlas_variant: last.atlas, osm_variant: last.osm }) : '')
+            last ? Permalinks.encodeParams({ atlas_variant: last.gtfs, osm_variant: last.osm }) : '')
     });
 }
 
-// atlas and osm: variant summaries from /api/routes/variants, or null.
-function setRouteVariants(index, atlas, osm) {
-    if (index < 0 || index >= activeFilters.station.length || (!atlas && !osm)) return;
+// gtfs and osm: variant summaries from /api/routes/variants, or null.
+function setRouteVariants(index, gtfs, osm) {
+    if (index < 0 || index >= activeFilters.station.length || (!gtfs && !osm)) return;
     activeFilters.routeDirections[index] = '';
     activeFilters.routeVariants[index] = {
-        atlas: atlas ? atlas.key : null,
+        gtfs: gtfs ? gtfs.key : null,
         osm: osm ? osm.key : null,
-        label: routeVariantLabel(atlas, osm),
-        title: routeVariantTitle(atlas, osm)
+        label: routeVariantLabel(gtfs, osm),
+        title: routeVariantTitle(gtfs, osm)
     };
     syncRouteVariantUrl();
     updateFiltersUI();
@@ -1124,27 +1124,27 @@ function addRouteVariantFilter(data) {
     activeFilters.stationTypes.push('route');
     activeFilters.routeDirections.push('');
     activeFilters.routeVariants.push(null);
-    setRouteVariants(activeFilters.station.length - 1, data.selected.atlas, data.selected.osm);
+    setRouteVariants(activeFilters.station.length - 1, data.selected.gtfs, data.selected.osm);
 }
 
 // Both sides, named as their sources name them: the tooltip of a variant.
-function routeVariantTitle(atlas, osm) {
-    return [atlas && SharedUtils.routeSourceLabel() + ': ' + atlas.name, osm && 'OSM: ' + osm.name].filter(Boolean).join('\n');
+function routeVariantTitle(gtfs, osm) {
+    return [gtfs && SharedUtils.routeSourceLabel() + ': ' + gtfs.name, osm && 'OSM: ' + osm.name].filter(Boolean).join('\n');
 }
 
 // One variant option: its name once, the OSM name below when the pair's names
 // differ, and the sources it shows as small tags.
 function routeVariantOptionHtml(entry, i, isCurrent) {
     var esc = SharedUtils.escapeHtml;
-    var name = routeVariantName(entry.atlas || entry.osm);
-    var other = entry.atlas && entry.osm && routeVariantName(entry.osm) !== name ? routeVariantName(entry.osm) : '';
-    var title = routeVariantTitle(entry.atlas, entry.osm);
+    var name = routeVariantName(entry.gtfs || entry.osm);
+    var other = entry.gtfs && entry.osm && routeVariantName(entry.osm) !== name ? routeVariantName(entry.osm) : '';
+    var title = routeVariantTitle(entry.gtfs, entry.osm);
     return '<div class="direction-option direction-option--variant' + (isCurrent ? ' is-current' : '') +
         '" data-variant="' + i + '" title="' + esc(title) + '">' +
         '<span class="variant-option__name">' + esc(name) +
         (other ? '<span class="variant-option__other">OSM: ' + esc(other) + '</span>' : '') + '</span>' +
         '<span class="variant-option__sources">' +
-        (entry.atlas ? '<span class="source-tag source-tag--atlas">' + SharedUtils.escapeHtml(SharedUtils.routeSourceLabel()) + '</span>' : '') +
+        (entry.gtfs ? '<span class="source-tag source-tag--gtfs">' + SharedUtils.escapeHtml(SharedUtils.routeSourceLabel()) + '</span>' : '') +
         (entry.osm ? '<span class="source-tag source-tag--osm">OSM</span>' : '') +
         '</span></div>';
 }
@@ -1167,7 +1167,7 @@ function loadRouteVariantOptions(dropdown) {
                         direction + '<span class="direction-option__hint">all variants</span></div>'
                     : '<div class="direction-group">Other variants</div>';
             }
-            var isCurrent = selected && selected.atlas === (entry.atlas && entry.atlas.key) &&
+            var isCurrent = selected && selected.gtfs === (entry.gtfs && entry.gtfs.key) &&
                 selected.osm === (entry.osm && entry.osm.key);
             html += routeVariantOptionHtml(entry, i, isCurrent);
         });
@@ -1467,7 +1467,7 @@ function initFilterEventHandlers() {
 
         if (variant) {
             var entry = (loadedRouteVariants[dropdown.getAttribute('data-route-id')] || [])[Number(variant)];
-            if (entry) setRouteVariants(Number(index), entry.atlas, entry.osm);
+            if (entry) setRouteVariants(Number(index), entry.gtfs, entry.osm);
         } else {
             setRouteDirection(Number(index), direction);
         }

@@ -150,7 +150,7 @@
       link.appendChild(element('span', 'visually-hidden', 'same station, different platform'));
       return link;
     }
-    if (!row.match_type || !row.atlas || !row.osm) {
+    if (!row.match_type || !row.gtfs || !row.osm) {
       link.setAttribute('aria-hidden', 'true');
       return link;
     }
@@ -166,8 +166,8 @@
 
   function rowKind(row) {
     if (row.same_station) return 'platform';
-    if (row.atlas && row.osm) return row.match_type ? 'matched' : 'unlinked';
-    return row.atlas ? 'atlas-only' : 'osm-only';
+    if (row.gtfs && row.osm) return row.match_type ? 'matched' : 'unlinked';
+    return row.gtfs ? 'gtfs-only' : 'osm-only';
   }
 
   function foldMatchedRuns(list, items) {
@@ -205,11 +205,11 @@
     var items = (rows || []).map(function (row) {
       var kind = rowKind(row);
       var node = element('li', 'comparison-row comparison-row--' + kind);
-      node.appendChild(renderStop(row.atlas, 'atlas', single ? '' : 'Not in ' + sourceLabel));
+      node.appendChild(renderStop(row.gtfs, 'gtfs', single ? '' : 'Not in ' + sourceLabel));
       node.appendChild(renderLink(row));
       node.appendChild(renderStop(row.osm, 'osm', single ? '' : 'Not in OSM'));
       if (kind === 'platform') node.appendChild(element('span', 'comparison-row__note', 'Same station, other platform'));
-      var points = [stopPoint(row.atlas), stopPoint(row.osm)].filter(Boolean);
+      var points = [stopPoint(row.gtfs), stopPoint(row.osm)].filter(Boolean);
       if (points.length) node.dataset.points = JSON.stringify(points);
       list.appendChild(node);
       return { kind: kind, node: node };
@@ -225,11 +225,11 @@
     value.title = 'Stops shared in route order, divided by the stop count of the longer variant';
     container.appendChild(value);
     var text = element('span', 'comparison-score__text');
-    var longer = Math.max(data.atlas_stop_count || 0, data.osm_stop_count || 0);
+    var longer = Math.max(data.gtfs_stop_count || 0, data.osm_stop_count || 0);
     text.appendChild(element('strong', '', data.matched_stop_count + ' of ' + longer + ' stops match in order'));
     // A stop at another platform of the same station counts as shared.
     var platforms = (data.rows || []).filter(function (row) { return row.same_station; }).length;
-    text.appendChild(element('span', '', (data.atlas_stop_count - data.matched_stop_count) + ' only in ' + options.sourceLabel +
+    text.appendChild(element('span', '', (data.gtfs_stop_count - data.matched_stop_count) + ' only in ' + options.sourceLabel +
       ' · ' + (data.osm_stop_count - data.matched_stop_count) + ' only in OSM' +
       (platforms ? ' · ' + platforms + ' at another platform' : '')));
     container.appendChild(text);
@@ -327,9 +327,9 @@
     var sourceLabel = section.dataset.sourceLabel || 'GTFS';
     var fixedSource = section.dataset.fixedSource;
     var fixedId = section.dataset.fixedItineraryId;
-    var candidateSource = fixedSource === 'atlas' ? 'osm' : 'atlas';
-    var candidateLabel = candidateSource === 'atlas' ? sourceLabel : 'OSM';
-    var fixedLabel = fixedSource === 'atlas' ? sourceLabel : 'OSM';
+    var candidateSource = fixedSource === 'gtfs' ? 'osm' : 'gtfs';
+    var candidateLabel = candidateSource === 'gtfs' ? sourceLabel : 'OSM';
+    var fixedLabel = fixedSource === 'gtfs' ? sourceLabel : 'OSM';
     var picker = find('picker'), trigger = find('trigger'), popover = find('popover');
     var search = find('search'), optionsList = find('options'), more = find('more');
     var prev = find('prev'), next = find('next'), position = find('position');

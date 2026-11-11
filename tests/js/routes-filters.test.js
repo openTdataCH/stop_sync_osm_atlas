@@ -98,7 +98,7 @@ describe('Routes detail cards', () => {
   test('opening one side of a matched route opens the other side too', () => {
     document.body.innerHTML = `
       <header class="route-card__header route-card__header--matched">
-        <details class="route-meta route-meta--atlas"></details>
+        <details class="route-meta route-meta--gtfs"></details>
         <details class="route-meta route-meta--osm"></details>
       </header>
     `;
@@ -113,8 +113,8 @@ describe('Routes detail cards', () => {
 
   test('a single-sided route card opens on its own', () => {
     document.body.innerHTML = `
-      <header class="route-card__header route-card__header--atlas_only">
-        <details class="route-meta route-meta--atlas route-meta--solo"></details>
+      <header class="route-card__header route-card__header--gtfs_only">
+        <details class="route-meta route-meta--gtfs route-meta--solo"></details>
       </header>
       <header class="route-card__header route-card__header--osm_only">
         <details class="route-meta route-meta--osm route-meta--solo"></details>

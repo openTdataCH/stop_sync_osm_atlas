@@ -13,15 +13,15 @@
 {% endblock %}
 
 {% macro render_route_meta(route, side, solo=False) %}
-{% set is_atlas = side == 'atlas' %}
-{% set title = review_config.route_source_label if is_atlas else 'OSM' %}
-{% set base_class = 'route-meta route-meta--atlas' if is_atlas else 'route-meta route-meta--osm' %}
+{% set is_gtfs = side == 'gtfs' %}
+{% set title = review_config.route_source_label if is_gtfs else 'OSM' %}
+{% set base_class = 'route-meta route-meta--gtfs' if is_gtfs else 'route-meta route-meta--osm' %}
 {% set base_class = base_class + (' route-meta--matched' if route.is_matched else ' route-meta--unmatched') %}
 {% if solo %}{% set base_class = base_class + ' route-meta--solo' %}{% endif %}
-{% set display_name = (route.atlas_route_short_name or route.atlas_route_name or (review_config.route_source_label ~ ' route')) if is_atlas else (route.osm_route_name or 'OSM route') %}
-{% set secondary_name = route.atlas_route_long_name if is_atlas else route.osm_ref %}
-{% set route_id_text = ('ID: ' ~ (route.atlas_route_id or '-')) if is_atlas else (route.osm_route_id_label ~ ': ' ~ ((route.osm_gtfs_route_id or route.osm_route_display_id) or '-')) %}
-{% set operator_text = route.atlas_operators_summary if is_atlas else route.osm_operator %}
+{% set display_name = (route.gtfs_route_short_name or route.gtfs_route_name or (review_config.route_source_label ~ ' route')) if is_gtfs else (route.osm_route_name or 'OSM route') %}
+{% set secondary_name = route.gtfs_route_long_name if is_gtfs else route.osm_ref %}
+{% set route_id_text = ('ID: ' ~ (route.gtfs_route_id or '-')) if is_gtfs else (route.osm_route_id_label ~ ': ' ~ ((route.osm_gtfs_route_id or route.osm_route_display_id) or '-')) %}
+{% set operator_text = route.atlas_operators_summary if is_gtfs else route.osm_operator %}
 <details class="{{ base_class }}">
   <summary class="route-meta__summary">
     <div class="route-meta__summary-main">
@@ -40,18 +40,18 @@
   </summary>
   <div class="route-meta__content">
     <dl class="route-meta__attributes">
-      {% if is_atlas %}
-        {% if route.atlas_route_display_id %}<dt>Display route ID</dt><dd>{{ route.atlas_route_display_id }}</dd>{% endif %}
-        {% if route.atlas_gtfs_route_id %}<dt>GTFS route ID</dt><dd>{{ route.atlas_gtfs_route_id }}</dd>{% endif %}
-        {% if route.atlas_route_operator %}<dt>Route operator</dt><dd>{{ route.atlas_route_operator }}</dd>{% endif %}
+      {% if is_gtfs %}
+        {% if route.gtfs_route_display_id %}<dt>Display route ID</dt><dd>{{ route.gtfs_route_display_id }}</dd>{% endif %}
+        {% if route.gtfs_feed_route_id %}<dt>GTFS route ID</dt><dd>{{ route.gtfs_feed_route_id }}</dd>{% endif %}
+        {% if route.gtfs_route_operator %}<dt>Route operator</dt><dd>{{ route.gtfs_route_operator }}</dd>{% endif %}
         {% if route.atlas_operators_summary %}<dt>Observed stop operators</dt><dd>{{ route.atlas_operators_summary }}</dd>{% endif %}
-        {% if route.atlas_route_type %}<dt>Route type</dt><dd>{{ route.atlas_route_type }}</dd>{% endif %}
-        {% if route.atlas_family_origin %}<dt>Family origin</dt><dd>{{ route.atlas_family_origin }}</dd>{% endif %}
-        {% if route.atlas_normalized_route_id %}<dt>Normalized route ID</dt><dd>{{ route.atlas_normalized_route_id }}</dd>{% endif %}
-        {% if route.atlas_line_id %}<dt>{{ review_config.route_source_label }} line ID</dt><dd>{{ route.atlas_line_id }}</dd>{% endif %}
-        {% if route.atlas_network %}<dt>Network</dt><dd>{{ route.atlas_network }}</dd>{% endif %}
-        {% if route.atlas_operator_wikidata %}<dt>Operator Wikidata</dt><dd>{{ route.atlas_operator_wikidata }}</dd>{% endif %}
-        {% if route.atlas_network_wikidata %}<dt>Network Wikidata</dt><dd>{{ route.atlas_network_wikidata }}</dd>{% endif %}
+        {% if route.gtfs_route_type %}<dt>Route type</dt><dd>{{ route.gtfs_route_type }}</dd>{% endif %}
+        {% if route.gtfs_family_origin %}<dt>Family origin</dt><dd>{{ route.gtfs_family_origin }}</dd>{% endif %}
+        {% if route.gtfs_normalized_route_id %}<dt>Normalized route ID</dt><dd>{{ route.gtfs_normalized_route_id }}</dd>{% endif %}
+        {% if route.gtfs_line_id %}<dt>{{ review_config.route_source_label }} line ID</dt><dd>{{ route.gtfs_line_id }}</dd>{% endif %}
+        {% if route.gtfs_network %}<dt>Network</dt><dd>{{ route.gtfs_network }}</dd>{% endif %}
+        {% if route.gtfs_operator_wikidata %}<dt>Operator Wikidata</dt><dd>{{ route.gtfs_operator_wikidata }}</dd>{% endif %}
+        {% if route.gtfs_network_wikidata %}<dt>Network Wikidata</dt><dd>{{ route.gtfs_network_wikidata }}</dd>{% endif %}
       {% else %}
         {% if route.osm_route_master_id %}<dt>Route master ID</dt><dd>{{ route.osm_route_master_id }}</dd>{% endif %}
         {% if route.osm_route_id %}<dt>Representative relation</dt><dd>{{ route.osm_route_id }}</dd>{% endif %}
@@ -68,8 +68,8 @@
         {% if route.is_non_gtfs %}<dt>Non-GTFS</dt><dd>Yes</dd>{% endif %}
       {% endif %}
     </dl>
-    {% if is_atlas %}
-      {% if route.display_mode == 'atlas_only' %}
+    {% if is_gtfs %}
+      {% if route.display_mode == 'gtfs_only' %}
       <div class="route-meta__note">No matched OSM route.</div>
       {% endif %}
     {% else %}
@@ -266,10 +266,10 @@
       <article class="route-card route-card--{{ route.display_mode }}">
         <header class="route-card__header route-card__header--{{ route.display_mode }}">
           {% if route.display_mode == 'matched' %}
-          {{ render_route_meta(route, 'atlas') }}
+          {{ render_route_meta(route, 'gtfs') }}
           {{ render_route_meta(route, 'osm') }}
-          {% elif route.display_mode == 'atlas_only' %}
-          {{ render_route_meta(route, 'atlas', solo=True) }}
+          {% elif route.display_mode == 'gtfs_only' %}
+          {{ render_route_meta(route, 'gtfs', solo=True) }}
           {% elif route.display_mode == 'osm_only' %}
           {{ render_route_meta(route, 'osm', solo=True) }}
           {% endif %}
@@ -284,7 +284,7 @@
 
         {# A line can have several matches; each is a card of its own, so this one names the others. #}
         {% for lines, own, other, reason in [
-          (route.also_matched_atlas_routes, 'OSM line', review_config.route_source_label ~ ' route', 'The timetable splits this line into several routes.'),
+          (route.also_matched_gtfs_routes, 'OSM line', review_config.route_source_label ~ ' route', 'The timetable splits this line into several routes.'),
           (route.also_matched_osm_lines, review_config.route_source_label ~ ' route', 'OSM line', 'OSM may hold this line twice, or in two parts.'),
         ] %}
         {% if lines %}
@@ -300,19 +300,19 @@
         {% endfor %}
 
         {% if route.variant_count is defined and route.variant_count > 0 %}
-        <p class="route-card__summary">{{ review_config.route_source_label }} variants: {{ route.atlas_variant_count }} | OSM variants: {{ route.osm_variant_count }} | Matched: {{ route.matched_variant_count }}</p>
+        <p class="route-card__summary">{{ review_config.route_source_label }} variants: {{ route.gtfs_variant_count }} | OSM variants: {{ route.osm_variant_count }} | Matched: {{ route.matched_variant_count }}</p>
         {% endif %}
 
         {% if route.direction_groups %}
         {% for direction in route.direction_groups %}
         {% set direction_label = direction.direction_label %}
-        {% set atlas_headsign = direction.atlas_headsign or (direction.representative_headsign if direction.has_atlas_variant else None) %}
+        {% set gtfs_headsign = direction.gtfs_headsign or (direction.representative_headsign if direction.has_gtfs_variant else None) %}
         {% set osm_to_name = direction.osm_to_name %}
         {# Stable ids for permalinks (?atlas_variant= / ?osm_variant=); the numeric itinerary ids change with each import. #}
         <details class="route-card__panel route-card__panel--map" aria-label="Stops list panel for variant"
-                 {%- if direction.atlas_itinerary_id %} data-atlas-itinerary-id="{{ direction.atlas_itinerary_id }}"{% endif %}
+                 {%- if direction.gtfs_itinerary_id %} data-gtfs-itinerary-id="{{ direction.gtfs_itinerary_id }}"{% endif %}
                  {%- if direction.osm_itinerary_id %} data-osm-itinerary-id="{{ direction.osm_itinerary_id }}"{% endif %}
-                 {%- if direction.atlas_source_itinerary_id and active_view == 'routes' %} data-atlas-variant="{{ direction.atlas_source_itinerary_id }}"{% endif %}
+                 {%- if direction.gtfs_source_itinerary_id and active_view == 'routes' %} data-atlas-variant="{{ direction.gtfs_source_itinerary_id }}"{% endif %}
                  {%- if direction.osm_relation_id %} data-osm-variant="{{ direction.osm_relation_id }}"{% endif %}>
           <summary>
             <span class="route-card__panel-summary-main">
@@ -320,9 +320,9 @@
               {% if direction_label %}
               <span class="route-card__panel-summary-label">{{ direction_label }}</span>
               {% endif %}
-              {% if direction.is_matched and atlas_headsign %}
+              {% if direction.is_matched and gtfs_headsign %}
               <span class="route-card__panel-summary-label">
-                <span class="route-card__panel-summary-muted">Headsign:</span> {{ atlas_headsign }}
+                <span class="route-card__panel-summary-muted">Headsign:</span> {{ gtfs_headsign }}
               </span>
               {% endif %}
               {% if direction.is_matched and osm_to_name %}
@@ -330,24 +330,24 @@
                 <span class="route-card__panel-summary-muted">OSM to_name:</span> {{ osm_to_name }}
               </span>
               {% endif %}
-              {% if direction.has_osm_variant and not direction.has_atlas_variant and osm_to_name %}
+              {% if direction.has_osm_variant and not direction.has_gtfs_variant and osm_to_name %}
               <span class="route-card__panel-summary-label">
                 <span class="route-card__panel-summary-muted">to_name:</span> {{ osm_to_name }}
               </span>
               {% endif %}
-              {% if direction.has_atlas_variant and not direction.has_osm_variant and atlas_headsign %}
+              {% if direction.has_gtfs_variant and not direction.has_osm_variant and gtfs_headsign %}
               <span class="route-card__panel-summary-label">
-                <span class="route-card__panel-summary-muted">Headsign:</span> {{ atlas_headsign }}
+                <span class="route-card__panel-summary-muted">Headsign:</span> {{ gtfs_headsign }}
               </span>
               {% endif %}
             </span>
             <span class="route-card__panel-summary-badge">
               {% if direction.is_matched and direction.stop_comparison and direction.stop_comparison.percentage is not none %}
               <span class="route-card__overlap">{{ direction.stop_comparison.percentage|round(1) }}% stop overlap</span>
-              {% elif active_view == 'routes' and not direction.is_matched and (direction.atlas_itinerary_id or direction.osm_itinerary_id) %}
+              {% elif active_view == 'routes' and not direction.is_matched and (direction.gtfs_itinerary_id or direction.osm_itinerary_id) %}
               {# Precomputed at import: itinerary_best_overlaps (see the Routes pages documentation). #}
               {% set best = direction.best_overlap %}
-              {% set other_label = 'OSM' if direction.has_atlas_variant else review_config.route_source_label %}
+              {% set other_label = 'OSM' if direction.has_gtfs_variant else review_config.route_source_label %}
               {% if best and best.candidate_label %}
               <span class="route-card__overlap route-card__overlap--suggested" title="Best {{ other_label }} variant: {{ best.candidate_label }} ({{ best.matched_stop_count }} stop{{ '' if best.matched_stop_count == 1 else 's' }} shared in order)">Highest overlap: {{ best.percentage|round(1) }}%</span>
               {% elif best %}
@@ -361,7 +361,7 @@
           </summary>
           {% set map_index = route_index ~ '_' ~ loop.index %}
           <div class="route-card__panel-content">
-            {% if direction.osm_relation_id or (direction.atlas_source_itinerary_id and active_view == 'routes') %}
+            {% if direction.osm_relation_id or (direction.gtfs_source_itinerary_id and active_view == 'routes') %}
             <div class="route-card__panel-actions">
               <button type="button" class="route-copy-link" title="Copy a link that opens this variant">
                 <i class="fas fa-link" aria-hidden="true"></i> Copy link
@@ -369,19 +369,19 @@
             </div>
             {% endif %}
             <div class="variant-workspace{{ ' variant-workspace--with-map' if route.map_filter }}">
-              {% if active_view == 'routes' and (direction.is_matched or direction.atlas_itinerary_id or direction.osm_itinerary_id) %}
+              {% if active_view == 'routes' and (direction.is_matched or direction.gtfs_itinerary_id or direction.osm_itinerary_id) %}
               {{ variant_comparison(direction, map_index) }}
               {% else %}
               <section class="direction-block">
-                <div class="direction-block__columns{{ ' direction-block__columns--single' if not (direction.has_atlas_variant and direction.has_osm_variant) }}">
-                  {% if direction.has_atlas_variant %}
+                <div class="direction-block__columns{{ ' direction-block__columns--single' if not (direction.has_gtfs_variant and direction.has_osm_variant) }}">
+                  {% if direction.has_gtfs_variant %}
                   <div class="stops-column">
                     <div class="stops-column-header">
                       <h4>{{ review_config.route_source_label }} Stops</h4>
                     </div>
-                    {% if direction.atlas_uic_groups %}
+                    {% if direction.gtfs_uic_groups %}
                     <ol class="stops-list">
-                      {% for group in direction.atlas_uic_groups %}
+                      {% for group in direction.gtfs_uic_groups %}
                       <li>
                         <div class="stop-primary">
                           <span class="stop-label">{{ group.stop_label or '-' }}</span>

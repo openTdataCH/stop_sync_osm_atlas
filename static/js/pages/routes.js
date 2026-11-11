@@ -680,7 +680,7 @@
 
     var sourceIds = new Set();
     if (mapState.source && mapState.source.type === 'variant') {
-      [mapState.source.data.atlas_uic_groups, mapState.source.data.osm_uic_groups].forEach(function (groups) {
+      [mapState.source.data.gtfs_uic_groups, mapState.source.data.osm_uic_groups].forEach(function (groups) {
         (groups || []).forEach(function (group) {
           (group.members || []).forEach(function (member) {
             if (member.stop_id != null) sourceIds.add(String(member.stop_id));
@@ -692,7 +692,7 @@
     // Partners drawn faded by drawComparisonMarks are not drawn again.
     var comparison = mapState.source && mapState.source.type === 'variant' && mapState.source.data.stop_comparison;
     ((comparison && comparison.rows) || []).forEach(function (row) {
-      [row.atlas, row.osm].forEach(function (stop) {
+      [row.gtfs, row.osm].forEach(function (stop) {
         ((stop && stop.partners) || []).forEach(function (partner) { sourceIds.add(String(partner.stop_id)); });
       });
     });
@@ -706,9 +706,13 @@
     });
   }
 
-  function comparisonStopKey(source, stop) {
-    return source + ':' + ((stop.stop_ids || [])[0] || stop.id);
+  function comparisonStopKey(side, stop) {
+    return side + ':' + ((stop.stop_ids || [])[0] || stop.id);
   }
+
+  // A GTFS variant calls at ATLAS stops: its markers and stop matches are ATLAS ones.
+  var STOP_TYPE = { gtfs: 'atlas', osm: 'osm' };
+  var OTHER_SIDE = { gtfs: 'osm', osm: 'gtfs' };
 
   /**
    * The stop list, drawn on the map. Marker colours stay those of stop
@@ -725,10 +729,10 @@
     var colors = AppConstants.COLORS || {};
     var positionOf = function (stop) { return stop && window.MapShared.finitePosition(stop.lat, stop.lon); };
     // A variant listed on its own has nothing to compare with.
-    var compared = rows.some(function (row) { return row.atlas; }) && rows.some(function (row) { return row.osm; });
+    var compared = rows.some(function (row) { return row.gtfs; }) && rows.some(function (row) { return row.osm; });
     var shared = new Set();
     rows.forEach(function (row) {
-      if (row.match_type) shared.add(comparisonStopKey('atlas', row.atlas)).add(comparisonStopKey('osm', row.osm));
+      if (row.match_type) shared.add(comparisonStopKey('gtfs', row.gtfs)).add(comparisonStopKey('osm', row.osm));
     });
     var drawn = new Set();
     function draw(key, layer) {
@@ -737,15 +741,15 @@
       mapState.linesLayer.addLayer(layer);
     }
     rows.forEach(function (row) {
-      var atlas = positionOf(row.atlas);
+      var gtfs = positionOf(row.gtfs);
       var osm = positionOf(row.osm);
-      if ((row.match_type || row.same_station) && atlas && osm) {
-        draw('line:' + atlas.join(',') + ':' + osm.join(','), L.polyline([atlas, osm], row.match_type
+      if ((row.match_type || row.same_station) && gtfs && osm) {
+        draw('line:' + gtfs.join(',') + ':' + osm.join(','), L.polyline([gtfs, osm], row.match_type
           ? { color: colors.LINE_ATLAS_OSM || '#174092', weight: 2, opacity: 0.8, interactive: false }
           : { color: colors.NOT_SHARED || '#D97706', weight: 2, opacity: 0.9, dashArray: '4,4', interactive: false }));
       }
       if (!compared || row.match_type) return;
-      [['atlas', atlas], ['osm', osm]].forEach(function (side) {
+      [['gtfs', gtfs], ['osm', osm]].forEach(function (side) {
         var stop = row[side[0]];
         if (!side[1] || shared.has(comparisonStopKey(side[0], stop))) return;
         draw('ring:' + comparisonStopKey(side[0], stop), L.circleMarker(side[1], {
@@ -757,22 +761,23 @@
 
     var onMap = new Set();
     rows.forEach(function (row) {
-      ['atlas', 'osm'].forEach(function (source) {
-        if (row[source] && row[source].source_id) onMap.add(source + ':' + row[source].source_id);
+      ['gtfs', 'osm'].forEach(function (side) {
+        if (row[side] && row[side].source_id) onMap.add(STOP_TYPE[side] + ':' + row[side].source_id);
       });
     });
     var faded = new Map();
     rows.forEach(function (row) {
-      ['atlas', 'osm'].forEach(function (source) {
-        var stop = row[source];
+      ['gtfs', 'osm'].forEach(function (side) {
+        var stop = row[side];
         var from = positionOf(stop);
-        var other = source === 'atlas' ? 'osm' : 'atlas';
+        var otherSide = OTHER_SIDE[side];
+        var other = STOP_TYPE[otherSide];
         (from ? stop.partners || [] : []).forEach(function (partner) {
           var to = positionOf(partner);
           // The same stop in both variants: its solid line already joins them.
-          if (!to || (row.match_type && row[other] && row[other].source_id === partner.stop_id)) return;
+          if (!to || (row.match_type && row[otherSide] && row[otherSide].source_id === partner.stop_id)) return;
           var partnerKey = other + ':' + partner.stop_id;
-          draw('match:' + [source + ':' + stop.source_id, partnerKey].sort().join('|'), L.polyline([from, to], {
+          draw('match:' + [STOP_TYPE[side] + ':' + stop.source_id, partnerKey].sort().join('|'), L.polyline([from, to], {
             color: colors.LINE_ATLAS_OSM || '#174092', weight: 1.5, opacity: 0.5, interactive: false
           }));
           if (onMap.has(partnerKey) || faded.has(partnerKey)) return;
@@ -861,7 +866,7 @@
       if (mapState.source && mapState.source.type === 'variant') {
         var directionData = mapState.source.data;
         var points = [];
-        [directionData.atlas_uic_groups, directionData.osm_uic_groups].forEach(function(groups) {
+        [directionData.gtfs_uic_groups, directionData.osm_uic_groups].forEach(function(groups) {
           if (groups) groups.forEach(function(g) {
             if (g.members) g.members.forEach(function(m) {
               if (m.lat != null && m.lon != null) points.push([m.lat, m.lon]);
@@ -1077,7 +1082,7 @@
       mapState.contextStops = [];
       var comparison = event.detail;
       mapState.mainMapVariants = comparison ? {
-        atlas_variant: (comparison.atlas && comparison.atlas.source_itinerary_id) || null,
+        atlas_variant: (comparison.gtfs && comparison.gtfs.source_itinerary_id) || null,
         osm_variant: (comparison.osm && comparison.osm.source_itinerary_id) || null
       } : null;
       if (mapState.updateMainMapLink) mapState.updateMainMapLink();
@@ -1087,16 +1092,16 @@
         return;
       }
       var directionData = { stop_comparison: comparison };
-      ['atlas', 'osm'].forEach(function (source) {
-        directionData[source + '_uic_groups'] = [{ members: comparison.rows.filter(function (row) {
-          return row[source];
+      ['gtfs', 'osm'].forEach(function (side) {
+        directionData[side + '_uic_groups'] = [{ members: comparison.rows.filter(function (row) {
+          return row[side];
         }).map(function (row) {
-          var stop = row[source];
+          var stop = row[side];
           return {
             stop_id: (stop.stop_ids || [])[0] || String(stop.id),
             lat: stop.lat, lon: stop.lon,
             // Stop matching, as on the main map; the comparison draws its own marks.
-            stop_type: stop.stop_type || source + '_unmatched'
+            stop_type: stop.stop_type || STOP_TYPE[side] + '_unmatched'
           };
         }) }];
       });

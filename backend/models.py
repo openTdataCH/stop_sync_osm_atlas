@@ -263,14 +263,14 @@ class OsmStopMember(db.Model):
     osm_node = db.relationship('OsmNode', lazy='select')
 
 
-class AtlasLineFamily(db.Model):
-    __tablename__ = 'atlas_line_families'
+class GtfsLineFamily(db.Model):
+    __tablename__ = 'gtfs_line_families'
     __table_args__ = (
-        db.Index('idx_atlas_line_families_route_id_normalized', 'route_id_normalized'),
-        db.Index('idx_atlas_line_families_route_type', 'route_type'),
+        db.Index('idx_gtfs_line_families_route_id_normalized', 'route_id_normalized'),
+        db.Index('idx_gtfs_line_families_route_type', 'route_type'),
     )
 
-    atlas_line_id = db.Column(db.Text, primary_key=True)
+    gtfs_line_id = db.Column(db.Text, primary_key=True)
     route_id_normalized = db.Column(db.Text)
     agency_id = db.Column(db.Text)
     route_short_name = db.Column(db.String(255))
@@ -333,7 +333,7 @@ class LineFamily(db.Model):
     is_non_gtfs = db.Column(db.Boolean, default=False, nullable=False, server_default='false')
     gtfs_route_id = db.Column(db.Text)
     normalized_route_id = db.Column(db.Text)
-    atlas_line_id = db.Column(db.Text, db.ForeignKey('atlas_line_families.atlas_line_id', ondelete='SET NULL'))
+    gtfs_line_id = db.Column(db.Text, db.ForeignKey('gtfs_line_families.gtfs_line_id', ondelete='SET NULL'))
     route_master_id = db.Column(db.String(100))
     representative_relation_id = db.Column(db.String(100), db.ForeignKey('osm_route_relations.relation_id', ondelete='SET NULL'))
 
@@ -386,13 +386,13 @@ class StopCall(db.Model):
 class LineFamilyMatch(db.Model):
     __tablename__ = 'line_family_matches'
     __table_args__ = (
-        db.Index('idx_line_family_matches_atlas_family', 'atlas_line_family_id'),
+        db.Index('idx_line_family_matches_gtfs_family', 'gtfs_line_family_id'),
         db.Index('idx_line_family_matches_osm_family', 'osm_line_family_id'),
-        db.UniqueConstraint('atlas_line_family_id', 'osm_line_family_id', name='uq_line_family_matches_pair'),
+        db.UniqueConstraint('gtfs_line_family_id', 'osm_line_family_id', name='uq_line_family_matches_pair'),
     )
 
     id = db.Column(db.Integer, primary_key=True)
-    atlas_line_family_id = db.Column(db.Integer, db.ForeignKey('line_families.id', ondelete='CASCADE'), nullable=False)
+    gtfs_line_family_id = db.Column(db.Integer, db.ForeignKey('line_families.id', ondelete='CASCADE'), nullable=False)
     osm_line_family_id = db.Column(db.Integer, db.ForeignKey('line_families.id', ondelete='CASCADE'), nullable=False)
     match_method = db.Column(db.String(255))
     stop_score = db.Column(db.Float)
@@ -401,14 +401,14 @@ class LineFamilyMatch(db.Model):
 class ItineraryMatch(db.Model):
     __tablename__ = 'itinerary_matches'
     __table_args__ = (
-        db.Index('idx_itinerary_matches_atlas_itinerary', 'atlas_itinerary_id'),
+        db.Index('idx_itinerary_matches_gtfs_itinerary', 'gtfs_itinerary_id'),
         db.Index('idx_itinerary_matches_osm_itinerary', 'osm_itinerary_id'),
-        db.UniqueConstraint('atlas_itinerary_id', 'osm_itinerary_id', name='uq_itinerary_matches_pair'),
+        db.UniqueConstraint('gtfs_itinerary_id', 'osm_itinerary_id', name='uq_itinerary_matches_pair'),
     )
 
     id = db.Column(db.Integer, primary_key=True)
     line_family_match_id = db.Column(db.Integer, db.ForeignKey('line_family_matches.id', ondelete='CASCADE'))
-    atlas_itinerary_id = db.Column(db.Integer, db.ForeignKey('itineraries.id', ondelete='CASCADE'), nullable=False)
+    gtfs_itinerary_id = db.Column(db.Integer, db.ForeignKey('itineraries.id', ondelete='CASCADE'), nullable=False)
     osm_itinerary_id = db.Column(db.Integer, db.ForeignKey('itineraries.id', ondelete='CASCADE'), nullable=False)
     stop_score = db.Column(db.Float)
     match_reason = db.Column(db.String(255))

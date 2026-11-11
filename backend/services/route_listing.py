@@ -134,10 +134,10 @@ def _variant_count(direction_groups):
 
 
 def _count_route_variants(direction_groups):
-    atlas_variant_count = sum(1 for group in direction_groups if group.get('has_atlas_variant'))
+    gtfs_variant_count = sum(1 for group in direction_groups if group.get('has_gtfs_variant'))
     osm_variant_count = sum(1 for group in direction_groups if group.get('has_osm_variant'))
     matched_variant_count = sum(1 for group in direction_groups if group.get('is_matched'))
-    return atlas_variant_count, osm_variant_count, matched_variant_count
+    return gtfs_variant_count, osm_variant_count, matched_variant_count
 
 
 def load_available_atlas_operators() -> list[str]:
@@ -168,37 +168,37 @@ def _summary_value(family, column_name):
     return getattr(family, column_name)
 
 
-def _route_summary_columns(display_mode, atlas_family, osm_family, line_family_match_id):
-    atlas_display_id = _summary_value(atlas_family, 'display_route_id')
+def _route_summary_columns(display_mode, gtfs_family, osm_family, line_family_match_id):
+    gtfs_display_id = _summary_value(gtfs_family, 'display_route_id')
     osm_display_id = _summary_value(osm_family, 'display_route_id')
     return [
         literal(display_mode).label('display_mode'),
         literal(0 if display_mode == 'matched' else 1).label('sort_priority'),
         func.coalesce(
-            func.nullif(func.trim(atlas_display_id), ''),
+            func.nullif(func.trim(gtfs_display_id), ''),
             func.nullif(func.trim(osm_display_id), ''),
             '',
         ).label('sort_route_id'),
-        _summary_value(atlas_family, 'id').label('atlas_family_id'),
+        _summary_value(gtfs_family, 'id').label('gtfs_family_id'),
         _summary_value(osm_family, 'id').label('osm_family_id'),
         (
             line_family_match_id
             if line_family_match_id is not None
             else literal(None)
         ).label('line_family_match_id'),
-        _summary_value(atlas_family, 'source_family_id').label('atlas_source_family_id'),
-        atlas_display_id.label('atlas_display_route_id'),
-        _summary_value(atlas_family, 'ref').label('atlas_ref'),
-        _summary_value(atlas_family, 'public_name').label('atlas_public_name'),
-        _summary_value(atlas_family, 'route_type').label('atlas_route_type'),
-        _summary_value(atlas_family, 'family_origin').label('atlas_family_origin'),
-        _summary_value(atlas_family, 'operator').label('atlas_operator'),
-        _summary_value(atlas_family, 'operator_wikidata').label('atlas_operator_wikidata'),
-        _summary_value(atlas_family, 'network').label('atlas_network'),
-        _summary_value(atlas_family, 'network_wikidata').label('atlas_network_wikidata'),
-        _summary_value(atlas_family, 'gtfs_route_id').label('atlas_gtfs_route_id'),
-        _summary_value(atlas_family, 'normalized_route_id').label('atlas_normalized_route_id'),
-        _summary_value(atlas_family, 'atlas_line_id').label('atlas_line_id'),
+        _summary_value(gtfs_family, 'source_family_id').label('gtfs_source_family_id'),
+        gtfs_display_id.label('gtfs_display_route_id'),
+        _summary_value(gtfs_family, 'ref').label('gtfs_ref'),
+        _summary_value(gtfs_family, 'public_name').label('gtfs_public_name'),
+        _summary_value(gtfs_family, 'route_type').label('gtfs_route_type'),
+        _summary_value(gtfs_family, 'family_origin').label('gtfs_family_origin'),
+        _summary_value(gtfs_family, 'operator').label('atlas_operator'),
+        _summary_value(gtfs_family, 'operator_wikidata').label('gtfs_operator_wikidata'),
+        _summary_value(gtfs_family, 'network').label('gtfs_network'),
+        _summary_value(gtfs_family, 'network_wikidata').label('gtfs_network_wikidata'),
+        _summary_value(gtfs_family, 'gtfs_route_id').label('gtfs_feed_route_id'),
+        _summary_value(gtfs_family, 'normalized_route_id').label('gtfs_normalized_route_id'),
+        _summary_value(gtfs_family, 'gtfs_line_id').label('gtfs_line_id'),
         _summary_value(osm_family, 'route_master_id').label('osm_route_master_id'),
         _summary_value(osm_family, 'representative_relation_id').label('osm_representative_relation_id'),
         _summary_value(osm_family, 'gtfs_route_id').label('osm_gtfs_route_id'),
@@ -221,34 +221,34 @@ def _route_summary_columns(display_mode, atlas_family, osm_family, line_family_m
 
 
 def _build_route_summary_subquery():
-    matched_atlas = aliased(LineFamily, name='matched_atlas_family')
+    matched_gtfs = aliased(LineFamily, name='matched_gtfs_family')
     matched_osm = aliased(LineFamily, name='matched_osm_family')
-    unmatched_atlas = aliased(LineFamily, name='unmatched_atlas_family')
+    unmatched_atlas = aliased(LineFamily, name='unmatched_gtfs_family')
     unmatched_osm = aliased(LineFamily, name='unmatched_osm_family')
 
     matched_rows = (
         select(*_route_summary_columns(
             'matched',
-            matched_atlas,
+            matched_gtfs,
             matched_osm,
             LineFamilyMatch.id,
         ))
         .select_from(LineFamilyMatch)
-        .join(matched_atlas, matched_atlas.id == LineFamilyMatch.atlas_line_family_id)
+        .join(matched_gtfs, matched_gtfs.id == LineFamilyMatch.gtfs_line_family_id)
         .join(matched_osm, matched_osm.id == LineFamilyMatch.osm_line_family_id)
         .where(
-            matched_atlas.source == 'atlas',
+            matched_gtfs.source == 'gtfs',
             matched_osm.source == 'osm',
         )
     )
-    unmatched_atlas_rows = (
-        select(*_route_summary_columns('atlas_only', unmatched_atlas, None, None))
+    unmatched_gtfs_rows = (
+        select(*_route_summary_columns('gtfs_only', unmatched_atlas, None, None))
         .select_from(unmatched_atlas)
         .where(
-            unmatched_atlas.source == 'atlas',
+            unmatched_atlas.source == 'gtfs',
             ~exists(
                 select(LineFamilyMatch.id).where(
-                    LineFamilyMatch.atlas_line_family_id == unmatched_atlas.id
+                    LineFamilyMatch.gtfs_line_family_id == unmatched_atlas.id
                 )
             ),
         )
@@ -268,16 +268,16 @@ def _build_route_summary_subquery():
 
     return union_all(
         matched_rows,
-        unmatched_atlas_rows,
+        unmatched_gtfs_rows,
         unmatched_osm_rows,
     ).subquery('route_summaries')
 
 
 def _route_search_condition(summary, query_text):
     search_columns = [
-        summary.c.atlas_source_family_id,
-        summary.c.atlas_ref,
-        summary.c.atlas_public_name,
+        summary.c.gtfs_source_family_id,
+        summary.c.gtfs_ref,
+        summary.c.gtfs_public_name,
         summary.c.osm_display_route_id,
         summary.c.osm_public_name,
         summary.c.osm_route_master_id,
@@ -300,7 +300,7 @@ def _atlas_operator_family_ids_statement(atlas_operators):
         .join(StopCall, StopCall.itinerary_id == Itinerary.id)
         .join(AtlasStop, AtlasStop.sloid == StopCall.source_sloid)
         .where(
-            Itinerary.source == 'atlas',
+            Itinerary.source == 'gtfs',
             AtlasStop.atlas_business_org_abbr.in_(atlas_operators),
         )
         .distinct()
@@ -316,7 +316,7 @@ def _load_atlas_operator_map(family_ids):
         .join(StopCall, StopCall.itinerary_id == Itinerary.id)
         .join(AtlasStop, AtlasStop.sloid == StopCall.source_sloid)
         .filter(
-            Itinerary.source == 'atlas',
+            Itinerary.source == 'gtfs',
             Itinerary.line_family_id.in_(family_ids),
             AtlasStop.atlas_business_org_abbr.isnot(None),
             AtlasStop.atlas_business_org_abbr != '',
@@ -334,19 +334,19 @@ def _load_atlas_operator_map(family_ids):
 
 
 def _route_item_from_summary(row, atlas_operator_map):
-    atlas_route_short_name = _clean_text(row.atlas_ref)
-    atlas_route_long_name = _clean_text(row.atlas_public_name)
+    gtfs_route_short_name = _clean_text(row.gtfs_ref)
+    gtfs_route_long_name = _clean_text(row.gtfs_public_name)
     if (
-        atlas_route_short_name
-        and atlas_route_long_name
-        and atlas_route_short_name == atlas_route_long_name
+        gtfs_route_short_name
+        and gtfs_route_long_name
+        and gtfs_route_short_name == gtfs_route_long_name
     ):
-        atlas_route_long_name = None
+        gtfs_route_long_name = None
 
     is_non_gtfs = bool(row.is_non_gtfs)
     if row.display_mode == 'matched':
         match_label = 'Matched'
-    elif row.display_mode == 'atlas_only':
+    elif row.display_mode == 'gtfs_only':
         match_label = f'Unmatched {route_source_label()}'
     else:
         match_label = 'Non-GTFS OSM' if is_non_gtfs else 'Unmatched OSM'
@@ -354,31 +354,31 @@ def _route_item_from_summary(row, atlas_operator_map):
     osm_display_route_id = _clean_text(row.osm_display_route_id)
     osm_gtfs_route_id = _clean_text(row.osm_gtfs_route_id)
     osm_representative_relation_id = _clean_text(row.osm_representative_relation_id)
-    atlas_source_family_id = _clean_text(row.atlas_source_family_id)
+    gtfs_source_family_id = _clean_text(row.gtfs_source_family_id)
 
     return {
         'display_mode': row.display_mode,
         'is_matched': row.display_mode == 'matched',
         'match_label': match_label,
         'sort_route_id': _clean_text(row.sort_route_id) or '',
-        'atlas_family_id': row.atlas_family_id,
+        'gtfs_family_id': row.gtfs_family_id,
         'osm_family_id': row.osm_family_id,
         'line_family_match_id': row.line_family_match_id,
-        'atlas_route_id': row.atlas_source_family_id,
-        'atlas_route_display_id': _clean_text(row.atlas_display_route_id),
-        'atlas_route_short_name': atlas_route_short_name,
-        'atlas_route_long_name': atlas_route_long_name,
-        'atlas_route_name': _clean_text(row.atlas_public_name) or _clean_text(row.atlas_display_route_id),
-        'atlas_route_type': _clean_text(row.atlas_route_type),
-        'atlas_family_origin': _clean_text(row.atlas_family_origin),
-        'atlas_route_operator': _clean_text(row.atlas_operator),
-        'atlas_operator_wikidata': _clean_text(row.atlas_operator_wikidata),
-        'atlas_network': _clean_text(row.atlas_network),
-        'atlas_network_wikidata': _clean_text(row.atlas_network_wikidata),
-        'atlas_gtfs_route_id': _clean_text(row.atlas_gtfs_route_id),
-        'atlas_normalized_route_id': _clean_text(row.atlas_normalized_route_id),
-        'atlas_line_id': _clean_text(row.atlas_line_id),
-        'atlas_operators': atlas_operator_map.get(row.atlas_family_id, []),
+        'gtfs_route_id': row.gtfs_source_family_id,
+        'gtfs_route_display_id': _clean_text(row.gtfs_display_route_id),
+        'gtfs_route_short_name': gtfs_route_short_name,
+        'gtfs_route_long_name': gtfs_route_long_name,
+        'gtfs_route_name': _clean_text(row.gtfs_public_name) or _clean_text(row.gtfs_display_route_id),
+        'gtfs_route_type': _clean_text(row.gtfs_route_type),
+        'gtfs_family_origin': _clean_text(row.gtfs_family_origin),
+        'gtfs_route_operator': _clean_text(row.atlas_operator),
+        'gtfs_operator_wikidata': _clean_text(row.gtfs_operator_wikidata),
+        'gtfs_network': _clean_text(row.gtfs_network),
+        'gtfs_network_wikidata': _clean_text(row.gtfs_network_wikidata),
+        'gtfs_feed_route_id': _clean_text(row.gtfs_feed_route_id),
+        'gtfs_normalized_route_id': _clean_text(row.gtfs_normalized_route_id),
+        'gtfs_line_id': _clean_text(row.gtfs_line_id),
+        'atlas_operators': atlas_operator_map.get(row.gtfs_family_id, []),
         'osm_route_master_id': _clean_text(row.osm_route_master_id),
         'osm_route_id': osm_representative_relation_id,
         'osm_representative_relation_id': osm_representative_relation_id,
@@ -399,13 +399,13 @@ def _route_item_from_summary(row, atlas_operator_map):
         'osm_network_wikidata': _clean_text(row.osm_network_wikidata),
         'osm_normalized_route_id': _clean_text(row.osm_normalized_route_id),
         'is_non_gtfs': is_non_gtfs,
-        'primary_route_id': atlas_source_family_id or osm_display_route_id,
+        'primary_route_id': gtfs_source_family_id or osm_display_route_id,
     }
 
 
 def _other_line(family):
     """A line named in a sentence: its number or name, its ID, and the route search that finds it."""
-    if family.source == 'atlas':
+    if family.source == 'gtfs':
         name = _clean_text(family.ref) or _clean_text(family.public_name)
         identity = _clean_text(family.source_family_id)
         query = identity
@@ -451,22 +451,22 @@ def _attach_other_matches(items):
     """
     for item in items:
         item['also_matched_osm_lines'] = []
-        item['also_matched_atlas_routes'] = []
+        item['also_matched_gtfs_routes'] = []
         item['match_support'] = None
     matched = [item for item in items if item.get('line_family_match_id') is not None]
     if not matched:
         return
     rows = (
-        db.session.query(LineFamilyMatch.id, LineFamilyMatch.atlas_line_family_id, LineFamilyMatch.osm_line_family_id,
+        db.session.query(LineFamilyMatch.id, LineFamilyMatch.gtfs_line_family_id, LineFamilyMatch.osm_line_family_id,
                          LineFamilyMatch.match_method, LineFamilyMatch.stop_score)
         .filter(or_(
-            LineFamilyMatch.atlas_line_family_id.in_({item['atlas_family_id'] for item in matched}),
+            LineFamilyMatch.gtfs_line_family_id.in_({item['gtfs_family_id'] for item in matched}),
             LineFamilyMatch.osm_line_family_id.in_({item['osm_family_id'] for item in matched}),
         ))
         .all()
     )
     support = {row.id: match_support(row.match_method, row.stop_score) for row in rows}
-    links = [(row.atlas_line_family_id, row.osm_line_family_id) for row in rows]
+    links = [(row.gtfs_line_family_id, row.osm_line_family_id) for row in rows]
     families = {
         family.id: family
         for family in db.session.query(LineFamily)
@@ -480,11 +480,11 @@ def _attach_other_matches(items):
 
     for item in matched:
         item['match_support'] = support.get(item['line_family_match_id'])
-        atlas_id, osm_id = item['atlas_family_id'], item['osm_family_id']
+        gtfs_id, osm_id = item['gtfs_family_id'], item['osm_family_id']
         item['also_matched_osm_lines'] = other_lines(
-            {link_osm for link_atlas, link_osm in links if link_atlas == atlas_id and link_osm != osm_id})
-        item['also_matched_atlas_routes'] = other_lines(
-            {link_atlas for link_atlas, link_osm in links if link_osm == osm_id and link_atlas != atlas_id})
+            {link_osm for link_gtfs, link_osm in links if link_gtfs == gtfs_id and link_osm != osm_id})
+        item['also_matched_gtfs_routes'] = other_lines(
+            {link_gtfs for link_gtfs, link_osm in links if link_osm == osm_id and link_gtfs != gtfs_id})
 
 
 def _route_listing_statement(
@@ -506,8 +506,8 @@ def _route_listing_statement(
 
     display_modes_by_filter = {
         ROUTE_MATCHED: ('matched',),
-        ROUTE_UNMATCHED: ('atlas_only', 'osm_only'),
-        ROUTE_UNMATCHED_ATLAS: ('atlas_only',),
+        ROUTE_UNMATCHED: ('gtfs_only', 'osm_only'),
+        ROUTE_UNMATCHED_ATLAS: ('gtfs_only',),
         ROUTE_UNMATCHED_OSM: ('osm_only',),
     }
     display_modes = display_modes_by_filter.get(matched_filter)
@@ -517,7 +517,7 @@ def _route_listing_statement(
     atlas_operators = atlas_operators or []
     if atlas_operators:
         statement = statement.where(
-            summary.c.atlas_family_id.in_(
+            summary.c.gtfs_family_id.in_(
                 _atlas_operator_family_ids_statement(atlas_operators)
             )
         )
@@ -536,7 +536,7 @@ def _route_listing_order(summary):
         summary.c.sort_priority.asc(),
         func.lower(summary.c.sort_route_id).asc(),
         summary.c.display_mode.asc(),
-        summary.c.atlas_family_id.asc(),
+        summary.c.gtfs_family_id.asc(),
         summary.c.osm_family_id.asc(),
     )
 
@@ -556,12 +556,12 @@ def query_route_page(*, page, per_page, **filters):
         .limit(per_page)
     ).all()
 
-    atlas_family_ids = {
-        row.atlas_family_id
+    gtfs_family_ids = {
+        row.gtfs_family_id
         for row in page_rows
-        if row.atlas_family_id is not None
+        if row.gtfs_family_id is not None
     }
-    atlas_operator_map = _load_atlas_operator_map(atlas_family_ids)
+    atlas_operator_map = _load_atlas_operator_map(gtfs_family_ids)
     items = [
         _route_item_from_summary(row, atlas_operator_map)
         for row in page_rows
@@ -577,7 +577,7 @@ def locate_route_variant_page(*, atlas_variant, osm_variant, per_page, **filters
     both families and so the matched card.
     """
     family_ids = {}
-    for source, source_itinerary_id in (('atlas', atlas_variant), ('osm', osm_variant)):
+    for source, source_itinerary_id in (('gtfs', atlas_variant), ('osm', osm_variant)):
         if not source_itinerary_id:
             continue
         family_id = db.session.execute(
@@ -599,8 +599,8 @@ def locate_route_variant_page(*, atlas_variant, osm_variant, per_page, **filters
         .subquery()
     )
     conditions = []
-    if 'atlas' in family_ids:
-        conditions.append(ranked.c.atlas_family_id == family_ids['atlas'])
+    if 'gtfs' in family_ids:
+        conditions.append(ranked.c.gtfs_family_id == family_ids['gtfs'])
     if 'osm' in family_ids:
         conditions.append(ranked.c.osm_family_id == family_ids['osm'])
     position = db.session.execute(
@@ -613,7 +613,7 @@ def _load_detail_maps(page_items):
     selected_family_ids = {
         family_id
         for item in page_items
-        for family_id in (item.get('atlas_family_id'), item.get('osm_family_id'))
+        for family_id in (item.get('gtfs_family_id'), item.get('osm_family_id'))
         if family_id is not None
     }
     selected_match_ids = {item['line_family_match_id'] for item in page_items if item.get('line_family_match_id') is not None}
@@ -633,7 +633,7 @@ def _load_detail_maps(page_items):
     for itinerary_match in itinerary_matches:
         itinerary_matches_by_family_match[itinerary_match.line_family_match_id].append(itinerary_match)
     for match_list in itinerary_matches_by_family_match.values():
-        match_list.sort(key=lambda row: (_direction_sort_key(itinerary_by_id.get(row.atlas_itinerary_id).direction_id if itinerary_by_id.get(row.atlas_itinerary_id) else None), row.id))
+        match_list.sort(key=lambda row: (_direction_sort_key(itinerary_by_id.get(row.gtfs_itinerary_id).direction_id if itinerary_by_id.get(row.gtfs_itinerary_id) else None), row.id))
 
     itineraries_by_family: dict[int, list[Itinerary]] = defaultdict(list)
     for itinerary in itineraries:
@@ -738,16 +738,16 @@ def _serialize_stop_calls(stop_calls, source_kind, matched_lookup=None):
     return serialized
 
 
-def _build_direction_group(atlas_itinerary, osm_itinerary, atlas_calls, osm_calls, matched_lookup=None):
-    direction_id = atlas_itinerary.direction_id if atlas_itinerary is not None else (osm_itinerary.direction_id if osm_itinerary is not None else None)
+def _build_direction_group(gtfs_itinerary, osm_itinerary, gtfs_calls, osm_calls, matched_lookup=None):
+    direction_id = gtfs_itinerary.direction_id if gtfs_itinerary is not None else (osm_itinerary.direction_id if osm_itinerary is not None else None)
     direction_label = None
     representative_headsign = None
-    atlas_headsign = None
+    gtfs_headsign = None
     osm_to_name = None
-    if atlas_itinerary is not None:
-        direction_label = atlas_itinerary.display_name
-        representative_headsign = atlas_itinerary.representative_headsign
-        atlas_headsign = atlas_itinerary.representative_headsign
+    if gtfs_itinerary is not None:
+        direction_label = gtfs_itinerary.display_name
+        representative_headsign = gtfs_itinerary.representative_headsign
+        gtfs_headsign = gtfs_itinerary.representative_headsign
     if direction_label is None and osm_itinerary is not None:
         direction_label = osm_itinerary.display_name
     if representative_headsign is None and osm_itinerary is not None:
@@ -755,15 +755,15 @@ def _build_direction_group(atlas_itinerary, osm_itinerary, atlas_calls, osm_call
     if osm_itinerary is not None:
         osm_to_name = _clean_text(getattr(osm_itinerary, 'to_name', None)) or _clean_text(getattr(osm_itinerary, 'representative_headsign', None))
 
-    atlas_stops = _serialize_stop_calls(atlas_calls, 'atlas', matched_lookup)
+    gtfs_stops = _serialize_stop_calls(gtfs_calls, 'atlas', matched_lookup)
     osm_stops = _serialize_stop_calls(osm_calls, 'osm', matched_lookup)
-    is_matched = atlas_itinerary is not None and osm_itinerary is not None
+    is_matched = gtfs_itinerary is not None and osm_itinerary is not None
     if is_matched:
         match_label = 'Matched variant'
         match_status = 'matched'
-    elif atlas_itinerary is not None:
+    elif gtfs_itinerary is not None:
         match_label = f'Unmatched {route_source_label()} variant'
-        match_status = 'unmatched-atlas'
+        match_status = 'unmatched-gtfs'
     else:
         match_label = 'Unmatched OSM variant'
         match_status = 'unmatched-osm'
@@ -772,18 +772,18 @@ def _build_direction_group(atlas_itinerary, osm_itinerary, atlas_calls, osm_call
         'direction_id': direction_id,
         'direction_label': direction_label,
         'representative_headsign': representative_headsign,
-        'atlas_headsign': atlas_headsign,
+        'gtfs_headsign': gtfs_headsign,
         'osm_to_name': osm_to_name,
-        'atlas_source_itinerary_id': _clean_text(getattr(atlas_itinerary, 'source_itinerary_id', None)),
+        'gtfs_source_itinerary_id': _clean_text(getattr(gtfs_itinerary, 'source_itinerary_id', None)),
         'osm_relation_id': _clean_text(osm_itinerary.source_itinerary_id) if osm_itinerary is not None else None,
-        'atlas_itinerary_id': getattr(atlas_itinerary, 'id', None),
+        'gtfs_itinerary_id': getattr(gtfs_itinerary, 'id', None),
         'osm_itinerary_id': getattr(osm_itinerary, 'id', None),
         # One-sided for an unmatched variant: its own stops, with no percentage.
-        'stop_comparison': compare_stop_calls(atlas_calls, osm_calls, atlas_itinerary, osm_itinerary),
+        'stop_comparison': compare_stop_calls(gtfs_calls, osm_calls, gtfs_itinerary, osm_itinerary),
         'best_overlap': None,
-        'atlas_uic_groups': _group_stops_by_uic(atlas_stops),
+        'gtfs_uic_groups': _group_stops_by_uic(gtfs_stops),
         'osm_uic_groups': _group_stops_by_uic(osm_stops),
-        'has_atlas_variant': atlas_itinerary is not None,
+        'has_gtfs_variant': gtfs_itinerary is not None,
         'has_osm_variant': osm_itinerary is not None,
         'is_matched': is_matched,
         'match_label': match_label,
@@ -797,30 +797,30 @@ def build_route_rows(page_items):
 
     for item in page_items:
         direction_groups = []
-        matched_atlas_itinerary_ids = set()
+        matched_gtfs_itinerary_ids = set()
         matched_osm_itinerary_ids = set()
 
         if item.get('line_family_match_id') is not None:
             for itinerary_match in itinerary_matches_by_family_match.get(item['line_family_match_id'], []):
-                atlas_itinerary = itinerary_by_id.get(itinerary_match.atlas_itinerary_id)
+                gtfs_itinerary = itinerary_by_id.get(itinerary_match.gtfs_itinerary_id)
                 osm_itinerary = itinerary_by_id.get(itinerary_match.osm_itinerary_id)
-                if atlas_itinerary is None or osm_itinerary is None:
+                if gtfs_itinerary is None or osm_itinerary is None:
                     continue
-                matched_atlas_itinerary_ids.add(atlas_itinerary.id)
+                matched_gtfs_itinerary_ids.add(gtfs_itinerary.id)
                 matched_osm_itinerary_ids.add(osm_itinerary.id)
                 direction_groups.append(
                     _build_direction_group(
-                        atlas_itinerary,
+                        gtfs_itinerary,
                         osm_itinerary,
-                        stop_calls_by_itinerary.get(atlas_itinerary.id, []),
+                        stop_calls_by_itinerary.get(gtfs_itinerary.id, []),
                         stop_calls_by_itinerary.get(osm_itinerary.id, []),
                         stops_matched_lookup
                     )
                 )
 
-        if item.get('atlas_family_id') is not None:
-            for itinerary in itineraries_by_family.get(item['atlas_family_id'], []):
-                if itinerary.id in matched_atlas_itinerary_ids:
+        if item.get('gtfs_family_id') is not None:
+            for itinerary in itineraries_by_family.get(item['gtfs_family_id'], []):
+                if itinerary.id in matched_gtfs_itinerary_ids:
                     continue
                 direction_groups.append(
                     _build_direction_group(
@@ -850,13 +850,13 @@ def build_route_rows(page_items):
             _direction_sort_key(group['direction_id']),
             group['direction_label'] or '',
         ))
-        atlas_variant_count, osm_variant_count, matched_variant_count = _count_route_variants(direction_groups)
+        gtfs_variant_count, osm_variant_count, matched_variant_count = _count_route_variants(direction_groups)
 
         map_filter = None
         has_geolocated_stops = any(
             member.get('lat') is not None and member.get('lon') is not None
             for direction_group in direction_groups
-            for uic_group in (direction_group.get('atlas_uic_groups', []) + direction_group.get('osm_uic_groups', []))
+            for uic_group in (direction_group.get('gtfs_uic_groups', []) + direction_group.get('osm_uic_groups', []))
             for member in uic_group.get('members', [])
         )
         if has_geolocated_stops and item.get('primary_route_id'):
@@ -871,7 +871,7 @@ def build_route_rows(page_items):
             'atlas_operators_summary': ', '.join(item.get('atlas_operators', [])) if item.get('atlas_operators') else None,
             'direction_groups': direction_groups,
             'variant_count': _variant_count(direction_groups),
-            'atlas_variant_count': atlas_variant_count,
+            'gtfs_variant_count': gtfs_variant_count,
             'osm_variant_count': osm_variant_count,
             'matched_variant_count': matched_variant_count,
             'map_filter': map_filter,
@@ -884,9 +884,9 @@ def build_route_rows(page_items):
 def attach_best_overlaps(route_rows):
     """Give each unmatched variant its stored best overlap with the other source."""
     groups = [group for row in route_rows for group in row['direction_groups'] if not group['is_matched']]
-    overlaps = load_best_overlaps({group['atlas_itinerary_id'] or group['osm_itinerary_id'] for group in groups})
+    overlaps = load_best_overlaps({group['gtfs_itinerary_id'] or group['osm_itinerary_id'] for group in groups})
     for group in groups:
-        group['best_overlap'] = overlaps.get(group['atlas_itinerary_id'] or group['osm_itinerary_id'])
+        group['best_overlap'] = overlaps.get(group['gtfs_itinerary_id'] or group['osm_itinerary_id'])
 
 
 def database_busy_reason(exc) -> tuple[str, str]:

@@ -25,7 +25,7 @@ class _TemplatePagination:
 
 
 def test_build_direction_group_keeps_variant_sloids_and_osm_relation_id():
-    atlas_itinerary = SimpleNamespace(
+    gtfs_itinerary = SimpleNamespace(
         direction_id='0',
         display_name='Luzern -> Sursee',
         representative_headsign='Sursee',
@@ -37,7 +37,7 @@ def test_build_direction_group_keeps_variant_sloids_and_osm_relation_id():
         to_name='Sursee',
         source_itinerary_id='777',
     )
-    atlas_calls = [
+    gtfs_calls = [
         SimpleNamespace(
             source_sloid='ch:1:sloid:A',
             source_sloid_variants='["ch:1:sloid:A", "ch:1:sloid:C"]',
@@ -62,13 +62,13 @@ def test_build_direction_group_keeps_variant_sloids_and_osm_relation_id():
         )
     ]
 
-    direction_group = _build_direction_group(atlas_itinerary, osm_itinerary, atlas_calls, osm_calls)
+    direction_group = _build_direction_group(gtfs_itinerary, osm_itinerary, gtfs_calls, osm_calls)
 
     assert direction_group['osm_relation_id'] == '777'
-    assert direction_group['atlas_headsign'] == 'Sursee'
+    assert direction_group['gtfs_headsign'] == 'Sursee'
     assert direction_group['osm_to_name'] == 'Sursee'
-    assert direction_group['atlas_uic_groups'][0]['member_count'] == 2
-    assert direction_group['atlas_uic_groups'][0]['members'][0]['stop_ids'] == ['ch:1:sloid:A', 'ch:1:sloid:C']
+    assert direction_group['gtfs_uic_groups'][0]['member_count'] == 2
+    assert direction_group['gtfs_uic_groups'][0]['members'][0]['stop_ids'] == ['ch:1:sloid:A', 'ch:1:sloid:C']
 
 
 def test_route_variants_place_matches_before_earlier_unmatched_directions(monkeypatch):
@@ -77,21 +77,21 @@ def test_route_variants_place_matches_before_earlier_unmatched_directions(monkey
                                representative_headsign=label, source_itinerary_id=str(identifier))
 
     unmatched_atlas = itinerary(1, '0', 'A first alphabetically')
-    matched_atlas = itinerary(2, '1', 'Z saved match')
+    matched_gtfs = itinerary(2, '1', 'Z saved match')
     matched_osm = itinerary(3, '1', 'Z saved match')
     unmatched_osm = itinerary(4, '0', 'B unmatched OSM')
     monkeypatch.setattr(route_listing, '_load_detail_maps', lambda _items: (
-        {2: matched_atlas, 3: matched_osm}, {},
-        {9: [SimpleNamespace(atlas_itinerary_id=2, osm_itinerary_id=3)]},
-        {10: [unmatched_atlas, matched_atlas], 20: [matched_osm, unmatched_osm]}, {},
+        {2: matched_gtfs, 3: matched_osm}, {},
+        {9: [SimpleNamespace(gtfs_itinerary_id=2, osm_itinerary_id=3)]},
+        {10: [unmatched_atlas, matched_gtfs], 20: [matched_osm, unmatched_osm]}, {},
     ))
     row = route_listing.build_route_rows([
-        {'line_family_match_id': 9, 'atlas_family_id': 10, 'osm_family_id': 20}
+        {'line_family_match_id': 9, 'gtfs_family_id': 10, 'osm_family_id': 20}
     ])[0]
 
     assert [group['is_matched'] for group in row['direction_groups']] == [True, False, False]
-    assert row['direction_groups'][0]['atlas_itinerary_id'] == 2
-    assert row['atlas_variant_count'] == 2
+    assert row['direction_groups'][0]['gtfs_itinerary_id'] == 2
+    assert row['gtfs_variant_count'] == 2
     assert row['osm_variant_count'] == 2
 
 
@@ -106,17 +106,17 @@ def test_routes_template_uses_route_master_link_and_itinerary_relation(app, sour
             'display_mode': 'matched',
             'is_matched': True,
             'match_label': 'Matched',
-            'atlas_route_id': '91-1-A-j26-1',
-            'atlas_route_display_id': 'S1',
-            'atlas_route_short_name': '91',
-            'atlas_route_long_name': 'Luzern - Sursee',
-            'atlas_route_name': 'Luzern - Sursee',
-            'atlas_route_type': 'rail',
-            'atlas_family_origin': 'atlas_gtfs',
-            'atlas_route_operator': 'agency-1',
-            'atlas_gtfs_route_id': '91-1-A-j26-1',
-            'atlas_normalized_route_id': '911aj261',
-            'atlas_line_id': '91-1-A-j26-1',
+            'gtfs_route_id': '91-1-A-j26-1',
+            'gtfs_route_display_id': 'S1',
+            'gtfs_route_short_name': '91',
+            'gtfs_route_long_name': 'Luzern - Sursee',
+            'gtfs_route_name': 'Luzern - Sursee',
+            'gtfs_route_type': 'rail',
+            'gtfs_family_origin': 'atlas_gtfs',
+            'gtfs_route_operator': 'agency-1',
+            'gtfs_feed_route_id': '91-1-A-j26-1',
+            'gtfs_normalized_route_id': '911aj261',
+            'gtfs_line_id': '91-1-A-j26-1',
             'atlas_operators_summary': None,
             'osm_route_name': 'Luzern - Sursee',
             'osm_gtfs_route_id': '91-1-A-j26-1',
@@ -134,7 +134,7 @@ def test_routes_template_uses_route_master_link_and_itinerary_relation(app, sour
             'osm_normalized_route_id': '911aj261',
             'is_non_gtfs': False,
             'variant_count': 1,
-            'atlas_variant_count': 1,
+            'gtfs_variant_count': 1,
             'osm_variant_count': 1,
             'matched_variant_count': 1,
             'direction_groups': [
@@ -142,13 +142,13 @@ def test_routes_template_uses_route_master_link_and_itinerary_relation(app, sour
                     'direction_id': '0',
                     'direction_label': 'Luzern -> Sursee',
                     'representative_headsign': 'Sursee',
-                    'atlas_headsign': 'Sursee',
+                    'gtfs_headsign': 'Sursee',
                     'osm_to_name': 'Sursee',
                     'osm_relation_id': '777',
-                    'has_atlas_variant': True,
+                    'has_gtfs_variant': True,
                     'has_osm_variant': True,
                     'is_matched': True,
-                    'atlas_uic_groups': [
+                    'gtfs_uic_groups': [
                         {
                             'uic_ref': '8501000',
                             'stop_label': 'Luzern',
@@ -227,10 +227,10 @@ def test_routes_template_labels_variant_direction_and_headsign(app):
             'display_mode': 'osm_only',
             'is_matched': False,
             'match_label': 'Unmatched OSM',
-            'atlas_route_id': None,
-            'atlas_route_short_name': None,
-            'atlas_route_long_name': None,
-            'atlas_route_name': None,
+            'gtfs_route_id': None,
+            'gtfs_route_short_name': None,
+            'gtfs_route_long_name': None,
+            'gtfs_route_name': None,
             'atlas_operators_summary': None,
             'osm_route_name': 'Route 31',
             'osm_gtfs_route_id': '31',
@@ -240,7 +240,7 @@ def test_routes_template_labels_variant_direction_and_headsign(app):
             'osm_route_id': '300',
             'is_non_gtfs': False,
             'variant_count': 1,
-            'atlas_variant_count': 0,
+            'gtfs_variant_count': 0,
             'osm_variant_count': 1,
             'matched_variant_count': 0,
             'direction_groups': [
@@ -248,13 +248,13 @@ def test_routes_template_labels_variant_direction_and_headsign(app):
                     'direction_id': '0',
                     'direction_label': 'Unique Variant Label',
                     'representative_headsign': 'Unique Variant Label',
-                    'atlas_headsign': None,
+                    'gtfs_headsign': None,
                     'osm_to_name': 'Unique Variant Label',
                     'osm_relation_id': '300',
-                    'has_atlas_variant': False,
+                    'has_gtfs_variant': False,
                     'has_osm_variant': True,
                     'is_matched': False,
-                    'atlas_uic_groups': [],
+                    'gtfs_uic_groups': [],
                     'osm_uic_groups': [],
                     'match_status': 'unmatched-osm',
                     'match_label': 'Unmatched OSM variant',
@@ -300,13 +300,13 @@ def test_query_route_page_filters_orders_and_paginates_in_sql(app, monkeypatch):
         db.session.add_all([
             LineFamily(
                 id=1,
-                source='atlas',
+                source='gtfs',
                 source_family_id='atlas-z',
                 display_route_id='Z',
             ),
             LineFamily(
                 id=2,
-                source='atlas',
+                source='gtfs',
                 source_family_id='atlas-a',
                 display_route_id='A',
             ),
@@ -333,7 +333,7 @@ def test_query_route_page_filters_orders_and_paginates_in_sql(app, monkeypatch):
             ),
             LineFamilyMatch(
                 id=100,
-                atlas_line_family_id=1,
+                gtfs_line_family_id=1,
                 osm_line_family_id=10,
             ),
         ])
@@ -361,7 +361,7 @@ def test_query_route_page_filters_orders_and_paginates_in_sql(app, monkeypatch):
 
     assert total == 3
     assert second_total == 3
-    assert [item['display_mode'] for item in first_page] == ['matched', 'atlas_only']
+    assert [item['display_mode'] for item in first_page] == ['matched', 'gtfs_only']
     assert [item['display_mode'] for item in second_page] == ['osm_only']
     assert [item['osm_route_display_id'] for item in osm_filtered] == ['B']
     assert filtered_total == 1
@@ -431,10 +431,10 @@ def test_non_gtfs_routes_template_uses_route_ref_label_and_notice(app):
             'display_mode': 'osm_only',
             'is_matched': False,
             'match_label': 'Non-GTFS OSM',
-            'atlas_route_id': None,
-            'atlas_route_short_name': None,
-            'atlas_route_long_name': None,
-            'atlas_route_name': None,
+            'gtfs_route_id': None,
+            'gtfs_route_short_name': None,
+            'gtfs_route_long_name': None,
+            'gtfs_route_name': None,
             'atlas_operators_summary': None,
             'osm_route_name': 'Flixbus 006',
             'osm_gtfs_route_id': None,
@@ -444,7 +444,7 @@ def test_non_gtfs_routes_template_uses_route_ref_label_and_notice(app):
             'osm_route_id': '6006',
             'is_non_gtfs': True,
             'variant_count': 0,
-            'atlas_variant_count': 0,
+            'gtfs_variant_count': 0,
             'osm_variant_count': 0,
             'matched_variant_count': 0,
             'direction_groups': [],
@@ -506,10 +506,10 @@ def test_uic_grouping_preserves_all_marker_metadata_and_route_order():
 def _unmatched_osm_group(itinerary_id, label, best_overlap):
     return {
         'direction_id': '0', 'direction_label': label, 'representative_headsign': label,
-        'atlas_headsign': None, 'osm_to_name': None, 'osm_relation_id': str(itinerary_id),
-        'atlas_itinerary_id': None, 'osm_itinerary_id': itinerary_id,
-        'has_atlas_variant': False, 'has_osm_variant': True, 'is_matched': False,
-        'atlas_uic_groups': [], 'osm_uic_groups': [], 'stop_comparison': None,
+        'gtfs_headsign': None, 'osm_to_name': None, 'osm_relation_id': str(itinerary_id),
+        'gtfs_itinerary_id': None, 'osm_itinerary_id': itinerary_id,
+        'has_gtfs_variant': False, 'has_osm_variant': True, 'is_matched': False,
+        'gtfs_uic_groups': [], 'osm_uic_groups': [], 'stop_comparison': None,
         'best_overlap': best_overlap, 'match_status': 'unmatched-osm', 'match_label': 'Unmatched OSM variant',
     }
 
@@ -517,11 +517,11 @@ def _unmatched_osm_group(itinerary_id, label, best_overlap):
 def test_routes_template_renders_stored_best_overlap_states_without_client_loading(app):
     route_rows = [{
         'display_mode': 'osm_only', 'is_matched': False, 'match_label': 'Unmatched OSM',
-        'atlas_route_id': None, 'atlas_route_short_name': None, 'atlas_route_long_name': None,
-        'atlas_route_name': None, 'atlas_operators_summary': None, 'osm_route_name': 'Route 31',
+        'gtfs_route_id': None, 'gtfs_route_short_name': None, 'gtfs_route_long_name': None,
+        'gtfs_route_name': None, 'atlas_operators_summary': None, 'osm_route_name': 'Route 31',
         'osm_gtfs_route_id': '31', 'osm_route_display_id': '31', 'osm_route_id_label': 'GTFS ID',
         'osm_route_master_id': None, 'osm_route_id': '300', 'is_non_gtfs': False,
-        'variant_count': 4, 'atlas_variant_count': 0, 'osm_variant_count': 4, 'matched_variant_count': 0,
+        'variant_count': 4, 'gtfs_variant_count': 0, 'osm_variant_count': 4, 'matched_variant_count': 0,
         'direction_groups': [
             _unmatched_osm_group(1, 'Stored', {'percentage': 88.9, 'matched_stop_count': 8,
                                                'candidate_label': '31 · Lake line · Central'}),
@@ -558,16 +558,16 @@ def test_attach_best_overlaps_reads_stored_values_for_unmatched_variants_only(mo
     monkeypatch.setattr(route_listing, 'load_best_overlaps', lambda ids: requested.append(ids) or {
         11: {'percentage': 50.0, 'matched_stop_count': 2, 'candidate_label': 'Line'},
     })
-    matched = {'is_matched': True, 'atlas_itinerary_id': 1, 'osm_itinerary_id': 2, 'best_overlap': None}
-    atlas_only = {'is_matched': False, 'atlas_itinerary_id': 11, 'osm_itinerary_id': None, 'best_overlap': None}
-    osm_only = {'is_matched': False, 'atlas_itinerary_id': None, 'osm_itinerary_id': 22, 'best_overlap': None}
+    matched = {'is_matched': True, 'gtfs_itinerary_id': 1, 'osm_itinerary_id': 2, 'best_overlap': None}
+    gtfs_only = {'is_matched': False, 'gtfs_itinerary_id': 11, 'osm_itinerary_id': None, 'best_overlap': None}
+    osm_only = {'is_matched': False, 'gtfs_itinerary_id': None, 'osm_itinerary_id': 22, 'best_overlap': None}
 
-    route_listing.attach_best_overlaps([{'direction_groups': [matched, atlas_only]},
+    route_listing.attach_best_overlaps([{'direction_groups': [matched, gtfs_only]},
                                          {'direction_groups': [osm_only]}])
 
     assert requested == [{11, 22}]
     assert matched['best_overlap'] is None
-    assert atlas_only['best_overlap']['percentage'] == 50.0
+    assert gtfs_only['best_overlap']['percentage'] == 50.0
     assert osm_only['best_overlap'] is None
 
 
@@ -584,7 +584,7 @@ def test_unmatched_direction_group_carries_its_stops_as_a_one_sided_alignment():
     comparison = group['stop_comparison']
     assert comparison['percentage'] is None
     assert comparison['matched_stop_count'] == 0
-    assert [row['atlas']['position'] for row in comparison['rows']] == [1, 2]
+    assert [row['gtfs']['position'] for row in comparison['rows']] == [1, 2]
     assert all(row['osm'] is None and row['match_type'] is None for row in comparison['rows'])
 
 
@@ -594,21 +594,21 @@ def test_a_line_with_several_matches_has_one_card_for_each_and_names_the_others(
         LineFamilyMatch.__table__.create(db.engine)
         db.session.add_all([
             # IR 26: the timetable splits the line into two routes, and OSM maps it once.
-            LineFamily(id=1, source='atlas', source_family_id='91-26-C-j26-1', display_route_id='91-26-C-j26-1', ref='IR26'),
-            LineFamily(id=2, source='atlas', source_family_id='91-26-D-j26-1', display_route_id='91-26-D-j26-1', ref='IR26'),
+            LineFamily(id=1, source='gtfs', source_family_id='91-26-C-j26-1', display_route_id='91-26-C-j26-1', ref='IR26'),
+            LineFamily(id=2, source='gtfs', source_family_id='91-26-D-j26-1', display_route_id='91-26-D-j26-1', ref='IR26'),
             LineFamily(id=10, source='osm', source_family_id='7782601', ref='IR 26', route_master_id='7782601'),
             # IR 16: one direction is in the route master, the other outside it.
-            LineFamily(id=3, source='atlas', source_family_id='91-16-B-j26-1', display_route_id='91-16-B-j26-1', ref='IR16'),
+            LineFamily(id=3, source='gtfs', source_family_id='91-16-B-j26-1', display_route_id='91-16-B-j26-1', ref='IR16'),
             LineFamily(id=11, source='osm', source_family_id='7794142', ref='IR16', route_master_id='7794142'),
             LineFamily(id=12, source='osm', source_family_id='train|IR 16|SBB', ref='IR 16',
                        display_route_id='IR 16'),
-            LineFamilyMatch(id=100, atlas_line_family_id=1, osm_line_family_id=10,
+            LineFamilyMatch(id=100, gtfs_line_family_id=1, osm_line_family_id=10,
                             match_method='line_number_and_stops', stop_score=1.0),
-            LineFamilyMatch(id=101, atlas_line_family_id=2, osm_line_family_id=10,
+            LineFamilyMatch(id=101, gtfs_line_family_id=2, osm_line_family_id=10,
                             match_method='exact_gtfs_route_id', stop_score=0.8),
-            LineFamilyMatch(id=102, atlas_line_family_id=3, osm_line_family_id=11,
+            LineFamilyMatch(id=102, gtfs_line_family_id=3, osm_line_family_id=11,
                             match_method='exact_gtfs_route_id', stop_score=0.5),
-            LineFamilyMatch(id=103, atlas_line_family_id=3, osm_line_family_id=12),
+            LineFamilyMatch(id=103, gtfs_line_family_id=3, osm_line_family_id=12),
         ])
         db.session.commit()
         monkeypatch.setattr(route_listing, '_load_atlas_operator_map', lambda _ids: {})
@@ -618,12 +618,12 @@ def test_a_line_with_several_matches_has_one_card_for_each_and_names_the_others(
         [second_card], _ = route_listing.query_route_page(page=2, per_page=1)
 
     assert total == 4 and [item['display_mode'] for item in items] == ['matched'] * 4
-    cards = {(item['atlas_route_id'], item['osm_family_id']): item for item in items}
+    cards = {(item['gtfs_route_id'], item['osm_family_id']): item for item in items}
     ir16 = cards[('91-16-B-j26-1', 11)]
     assert ir16['also_matched_osm_lines'] == [{'label': 'IR 16', 'query': 'IR 16'}]
-    assert ir16['also_matched_atlas_routes'] == []
+    assert ir16['also_matched_gtfs_routes'] == []
     ir26 = cards[('91-26-C-j26-1', 10)]
-    assert ir26['also_matched_atlas_routes'] == [{'label': 'IR26 · 91-26-D-j26-1', 'query': '91-26-D-j26-1'}]
+    assert ir26['also_matched_gtfs_routes'] == [{'label': 'IR26 · 91-26-D-j26-1', 'query': '91-26-D-j26-1'}]
     assert ir26['also_matched_osm_lines'] == []
     assert second_card['also_matched_osm_lines'] == [{'label': 'IR16 · route master 7794142', 'query': '7794142'}]
     assert ir26['match_support'] == 'Stops'
@@ -648,8 +648,8 @@ def test_match_support_names_the_route_id_and_whether_the_stops_agree(match_meth
 def test_routes_template_names_the_other_matches_of_a_line(app):
     route = {
         'display_mode': 'matched', 'is_matched': True, 'match_label': 'Matched',
-        'atlas_route_id': '91-26-C-j26-1', 'osm_route_name': 'IR 26', 'direction_groups': [], 'map_filter': None,
-        'also_matched_atlas_routes': [{'label': 'IR26 · 91-26-D-j26-1', 'query': '91-26-D-j26-1'}],
+        'gtfs_route_id': '91-26-C-j26-1', 'osm_route_name': 'IR 26', 'direction_groups': [], 'map_filter': None,
+        'also_matched_gtfs_routes': [{'label': 'IR26 · 91-26-D-j26-1', 'query': '91-26-D-j26-1'}],
         'also_matched_osm_lines': [{'label': 'IR 26 · relation 1', 'query': '1'}, {'label': 'IR 26 · relation 2', 'query': '2'}],
         'match_support': 'Route ID and stops',
     }

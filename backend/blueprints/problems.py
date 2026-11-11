@@ -18,7 +18,7 @@ from backend.services.problem_filters import (
     parse_problem_types,
     problem_conditions,
 )
-from backend.services.transport_routes import get_atlas_routes_for_sloids, get_osm_routes_for_nodes
+from backend.services.transport_routes import get_gtfs_routes_for_sloids, get_osm_routes_for_nodes
 from backend.services.validators import validate_pagination
 
 problems_bp = Blueprint('problems', __name__)
@@ -98,9 +98,9 @@ def locate_focus_page(ranked_stops, focus, limit):
 
 def problem_formatter(problems, include_routes):
     """A function that serializes one of ``problems`` with its stop; routes are looked up once for all."""
-    atlas_routes, osm_routes = {}, {}
+    gtfs_routes, osm_routes = {}, {}
     if include_routes:
-        atlas_routes = get_atlas_routes_for_sloids({problem.stop.sloid for problem in problems if problem.stop.sloid})
+        gtfs_routes = get_gtfs_routes_for_sloids({problem.stop.sloid for problem in problems if problem.stop.sloid})
         osm_routes = get_osm_routes_for_nodes({problem.stop.osm_node_id for problem in problems if problem.stop.osm_node_id})
 
     def format_problem(problem):
@@ -108,7 +108,7 @@ def problem_formatter(problems, include_routes):
             problem.stop,
             problem_type=problem.problem_type,
             include_routes=include_routes,
-            atlas_routes=atlas_routes.get(str(problem.stop.sloid), []),
+            gtfs_routes=gtfs_routes.get(str(problem.stop.sloid), []),
             osm_routes=osm_routes.get(str(problem.stop.osm_node_id), []),
             # The identifier problem explains the element's own identifier tags.
             include_osm_tags=problem.problem_type == 'identifier',

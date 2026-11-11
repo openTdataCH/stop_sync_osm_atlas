@@ -217,7 +217,7 @@ describe('popup content', () => {
   test('routes and tags open one panel at a time, each named by its source', () => {
     const stop = {
       id: 1, stop_type: 'matched', sloid: 'ch:1:sloid:7000', atlas_lat: 46.9, atlas_lon: 7.4,
-      routes_atlas: [{ route_id: '92-202-j26-1', route_short_name: '202', direction_id: 0 }],
+      routes_gtfs: [{ route_id: '92-202-j26-1', route_short_name: '202', direction_id: 0 }],
       osm_node_id: '1', osm_lat: 46.9, osm_lon: 7.4, routes_osm: [], osm_tags: { highway: 'bus_stop' }
     };
     const hasCapability = jest.spyOn(window.SharedUtils, 'hasCapability').mockReturnValue(true);

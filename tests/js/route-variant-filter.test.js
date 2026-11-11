@@ -9,9 +9,9 @@ const BACK = { key: '1561012', name: 'Selnau -> Uetliberg', direction_id: '1', s
 const variantsOfLine = {
     route_id: '91-10-A-j26-1', selected: null, bounds: null,
     variants: [
-        { direction_id: '0', atlas: HB, osm: RELATION },
-        { direction_id: '0', atlas: SELNAU, osm: null },
-        { direction_id: '1', atlas: null, osm: BACK }
+        { direction_id: '0', gtfs: HB, osm: RELATION },
+        { direction_id: '0', gtfs: SELNAU, osm: null },
+        { direction_id: '1', gtfs: null, osm: BACK }
     ]
 };
 const flush = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
@@ -38,10 +38,10 @@ describe('route filter narrowed to variants', () => {
     });
 
     test('a variant link adds the route filter narrowed to its variants and keeps the address bar in step', () => {
-        window.addRouteVariantFilter({ route_id: '91-10-A-j26-1', selected: { atlas: SELNAU, osm: RELATION } });
+        window.addRouteVariantFilter({ route_id: '91-10-A-j26-1', selected: { gtfs: SELNAU, osm: RELATION } });
 
         expect(window.activeFilters.station).toEqual(['91-10-A-j26-1']);
-        expect(JSON.parse(window.routeVariantsParam())).toEqual([{ atlas: SELNAU.key, osm: '1561015' }]);
+        expect(JSON.parse(window.routeVariantsParam())).toEqual([{ gtfs: SELNAU.key, osm: '1561015' }]);
         expect(chip().querySelector('.direction-current').textContent).toBe('Uetliberg → Zürich Selnau');
         expect(chip().querySelector('.direction-current').title).toBe('GTFS: Uetliberg -> Zürich Selnau\nOSM: Uetliberg -> Selnau');
         expect(chip().getAttribute('data-current')).toBe('variant');
@@ -70,7 +70,7 @@ describe('route filter narrowed to variants', () => {
         expect(chip().classList).toContain('open');
 
         click(list.querySelector('[data-variant="2"]'));
-        expect(JSON.parse(window.routeVariantsParam())).toEqual([{ atlas: null, osm: '1561012' }]);
+        expect(JSON.parse(window.routeVariantsParam())).toEqual([{ gtfs: null, osm: '1561012' }]);
         expect(window.location.search).toBe('?sloid=ch:1:sloid:7&osm_variant=1561012');
 
         click(chip());
@@ -85,7 +85,7 @@ describe('route filter narrowed to variants', () => {
     });
 
     test('removing the route filter drops its variants from the address bar', () => {
-        window.addRouteVariantFilter({ route_id: '91-10-A-j26-1', selected: { atlas: HB, osm: null } });
+        window.addRouteVariantFilter({ route_id: '91-10-A-j26-1', selected: { gtfs: HB, osm: null } });
         expect(window.location.search).toContain('atlas_variant=');
         click(document.querySelector('#activeFilters .remove-filter'));
         expect(window.activeFilters.routeVariants).toEqual([]);

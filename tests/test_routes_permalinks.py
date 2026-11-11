@@ -19,14 +19,14 @@ def route_list(app, monkeypatch):
         for model in (LineFamily, LineFamilyMatch, Itinerary):
             model.__table__.create(db.engine, checkfirst=True)
         db.session.add_all([
-            LineFamily(id=1, source='atlas', source_family_id='atlas-z', display_route_id='Z'),
-            LineFamily(id=2, source='atlas', source_family_id='atlas-a', display_route_id='A'),
+            LineFamily(id=1, source='gtfs', source_family_id='atlas-z', display_route_id='Z'),
+            LineFamily(id=2, source='gtfs', source_family_id='atlas-a', display_route_id='A'),
             LineFamily(id=10, source='osm', source_family_id='osm-z', display_route_id='Z'),
             LineFamily(id=11, source='osm', source_family_id='osm-b', display_route_id='B'),
             LineFamily(id=12, source='osm', source_family_id='osm-n', display_route_id='N', is_non_gtfs=True),
-            LineFamilyMatch(id=100, atlas_line_family_id=1, osm_line_family_id=10),
-            Itinerary(id=1, source='atlas', line_family_id=1, source_itinerary_id=MATCHED_ATLAS),
-            Itinerary(id=2, source='atlas', line_family_id=2, source_itinerary_id='91-1-A-j26-1:0:Bern'),
+            LineFamilyMatch(id=100, gtfs_line_family_id=1, osm_line_family_id=10),
+            Itinerary(id=1, source='gtfs', line_family_id=1, source_itinerary_id=MATCHED_ATLAS),
+            Itinerary(id=2, source='gtfs', line_family_id=2, source_itinerary_id='91-1-A-j26-1:0:Bern'),
             Itinerary(id=3, source='osm', line_family_id=10, source_itinerary_id='1010'),
             Itinerary(id=4, source='osm', line_family_id=11, source_itinerary_id='1011'),
             Itinerary(id=5, source='osm', line_family_id=12, source_itinerary_id='1012'),
@@ -44,7 +44,7 @@ def locate(atlas_variant=None, osm_variant=None, per_page=1, **filters):
 
 def test_a_variant_is_found_on_the_page_of_its_card_in_list_order(route_list):
     order = [item['display_mode'] for item in route_listing.query_route_page(page=1, per_page=10)[0]]
-    assert order == ['matched', 'atlas_only', 'osm_only']
+    assert order == ['matched', 'gtfs_only', 'osm_only']
 
     assert locate(atlas_variant=MATCHED_ATLAS, osm_variant='1010') == 1
     assert locate(atlas_variant='91-1-A-j26-1:0:Bern') == 2
@@ -127,16 +127,16 @@ def test_the_gtfs_map_keeps_readable_stop_parameters(client, monkeypatch):
 
 def test_variant_panels_carry_stable_ids_and_a_copy_link(app):
     group = route_listing._build_direction_group(
-        Itinerary(id=7, source='atlas', source_itinerary_id=MATCHED_ATLAS, direction_id='0'),
+        Itinerary(id=7, source='gtfs', source_itinerary_id=MATCHED_ATLAS, direction_id='0'),
         Itinerary(id=8, source='osm', source_itinerary_id='2169538', direction_id='0'),
         [], [],
     )
-    assert group['atlas_source_itinerary_id'] == MATCHED_ATLAS
+    assert group['gtfs_source_itinerary_id'] == MATCHED_ATLAS
     assert group['osm_relation_id'] == '2169538'
 
     route = {
         'display_mode': 'matched', 'is_matched': True, 'match_label': 'Matched',
-        'osm_route_display_id': 'Z', 'variant_count': 1, 'atlas_variant_count': 1,
+        'osm_route_display_id': 'Z', 'variant_count': 1, 'gtfs_variant_count': 1,
         'osm_variant_count': 1, 'matched_variant_count': 1, 'direction_groups': [group],
         'map_filter': None,
     }

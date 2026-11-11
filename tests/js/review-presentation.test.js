@@ -42,7 +42,7 @@ describe('dataset presentation across primary map surfaces', () => {
   test('disabled route capability removes route actions while retaining stop review', () => {
     window.ReviewConfig.capabilities.routes = false;
     const routes = [{ route_id: 'city:A', route_name_short: 'A' }];
-    const popup = PopupRenderer.generateSingleAtlasBubbleHtml({ sloid: 'city:1', routes_atlas: routes }, true);
+    const popup = PopupRenderer.generateSingleAtlasBubbleHtml({ sloid: 'city:1', routes_gtfs: routes }, true);
     expect(popup).toContain('Stop ID:');
     expect(popup).not.toContain('popup-routes-btn');
     expect(PopupUtils.formatAtlasRouteList(routes)).not.toContain('filterByRoute(');

@@ -292,7 +292,7 @@ window.ProblemsUI = (function () {
     }
 
     function generateRouteContradictionDetailsHtml(problem) {
-        const atlasRoutes = formatRouteEvidenceItems(problem.routes_atlas, 'atlas');
+        const atlasRoutes = formatRouteEvidenceItems(problem.routes_gtfs, 'atlas');
         const osmRoutes = formatRouteEvidenceItems(problem.routes_osm, 'osm');
         const matchMethod = problem.match_type === 'gtfs_shared_direction'
             ? 'the gtfs_shared_direction match'

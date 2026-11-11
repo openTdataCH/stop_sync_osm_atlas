@@ -129,7 +129,7 @@ describe('map filter links', () => {
         activeFilters.station = ['91-10-A-j26-1', '91-11-A-j26-1'];
         activeFilters.stationTypes = ['route', 'route'];
         activeFilters.routeDirections = ['', '1'];
-        activeFilters.routeVariants = [{ atlas: 'a', osm: null, label: 'A' }, null];
+        activeFilters.routeVariants = [{ gtfs: 'a', osm: null, label: 'A' }, null];
 
         expect(window.filterUrlQuery()).toBe('search=route:91-11-A-j26-1+dir:1');
     });

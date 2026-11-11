@@ -6,7 +6,7 @@ from sqlalchemy.orm import joinedload
 from backend.models import AtlasOperator, StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember, OsmRouteRelation
 from backend.extensions import db, limiter
 from backend.serializers.stops import format_stop_data
-from backend.services.transport_routes import get_osm_routes_for_node, get_atlas_routes_for_sloid
+from backend.services.transport_routes import get_osm_routes_for_node, get_gtfs_routes_for_sloid
 from backend.queries.helpers import filtered_stops_query
 from geoalchemy2.functions import ST_Intersects, ST_MakeEnvelope
 
@@ -333,7 +333,7 @@ def get_stop_popup():
                         "atlas_lon": r.atlas_lon,
                         "distance_m": r.distance_m,
                         "match_type": r.match_type,
-                        "routes_atlas": get_atlas_routes_for_sloid(r.sloid) if r.sloid else [],
+                        "routes_gtfs": get_gtfs_routes_for_sloid(r.sloid) if r.sloid else [],
                     })
                 return jsonify({"stop": osm_centric})
         return jsonify({"stop": enriched})

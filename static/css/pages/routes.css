@@ -474,7 +474,7 @@
   gap: var(--space-2);
 }
 
-.route-card--atlas_only .route-card__header,
+.route-card--gtfs_only .route-card__header,
 .route-card--osm_only .route-card__header {
   background: linear-gradient(180deg, var(--color-bg) 0%, var(--color-bg-subtle) 100%);
 }
@@ -489,7 +489,7 @@
   width: 100%;
 }
 
-.route-meta--atlas {
+.route-meta--gtfs {
   background: var(--color-primary-subtle);
   border-color: var(--color-primary);
 }
@@ -499,7 +499,7 @@
   border-color: var(--color-success);
 }
 
-.route-meta--atlas.route-meta--unmatched {
+.route-meta--gtfs.route-meta--unmatched {
   background: var(--color-danger-subtle);
   border-color: var(--color-danger);
 }
@@ -509,7 +509,7 @@
   border-color: var(--color-secondary);
 }
 
-.route-meta--atlas.route-meta--matched .route-meta__title {
+.route-meta--gtfs.route-meta--matched .route-meta__title {
   color: var(--color-primary);
 }
 
@@ -517,7 +517,7 @@
   color: var(--color-success-fg);
 }
 
-.route-meta--atlas.route-meta--unmatched .route-meta__title {
+.route-meta--gtfs.route-meta--unmatched .route-meta__title {
   color: var(--color-danger-fg);
 }
 
@@ -694,7 +694,7 @@
   font-weight: 600;
 }
 
-.route-card__badge--unmatched-atlas {
+.route-card__badge--unmatched-gtfs {
   background: var(--color-danger-subtle);
   color: var(--color-danger-fg);
 }

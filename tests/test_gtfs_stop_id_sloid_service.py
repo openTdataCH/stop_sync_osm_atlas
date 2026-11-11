@@ -25,7 +25,7 @@ def test_gtfs_map_limit_uses_one_combined_budget_and_supports_full_detail():
 def test_gtfs_popup_routes_union_direct_and_matched_sloid_routes(monkeypatch):
     monkeypatch.setattr(
         service,
-        'get_atlas_routes_for_gtfs_stop_ids',
+        'get_gtfs_routes_for_gtfs_stop_ids',
         lambda _stop_ids: {
             'gtfs-1': [
                 {'route_id': 'route-b', 'direction_id': '1', 'route_name_short': None},
@@ -34,7 +34,7 @@ def test_gtfs_popup_routes_union_direct_and_matched_sloid_routes(monkeypatch):
     )
     monkeypatch.setattr(
         service,
-        'get_atlas_routes_for_sloids',
+        'get_gtfs_routes_for_sloids',
         lambda _sloids: {
             'sloid-1': [
                 {'route_id': 'route-a', 'direction_id': '0', 'route_name_short': 'A'},
@@ -106,7 +106,7 @@ def test_optional_route_lookup_rolls_back_before_returning_empty_routes(app, mon
     monkeypatch.setattr(transport_routes, 'db', SimpleNamespace(session=session))
 
     with app.app_context():
-        result = transport_routes._get_atlas_routes_for_stop_values(
+        result = transport_routes._get_gtfs_routes_for_stop_values(
             ['ch:1:sloid:1'],
             StopCall.source_sloid,
         )

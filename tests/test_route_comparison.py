@@ -26,9 +26,9 @@ def _call(sequence, identity=None, *, uic=None, variants=None, source_stop_id=No
     )
 
 
-def _compare(atlas, osm, atlas_direction='0', osm_direction='0'):
+def _compare(atlas, osm, gtfs_direction='0', osm_direction='0'):
     return compare_stop_calls(
-        atlas, osm, SimpleNamespace(direction_id=atlas_direction),
+        atlas, osm, SimpleNamespace(direction_id=gtfs_direction),
         SimpleNamespace(direction_id=osm_direction),
     )
 
@@ -41,17 +41,17 @@ def test_alignment_preserves_order_gaps_and_every_stop_occurrence():
     assert result['matched_stop_count'] == 3
     assert result['stop_ratio'] == 0.6
     assert result['percentage'] == 60
-    assert [row['atlas']['id'] for row in result['rows'] if row['atlas']] == [1, 2, 3, 4]
+    assert [row['gtfs']['id'] for row in result['rows'] if row['gtfs']] == [1, 2, 3, 4]
     assert [row['osm']['id'] for row in result['rows'] if row['osm']] == [1, 2, 3, 4, 5]
     assert sum(row['match_type'] is not None for row in result['rows']) == 3
-    assert all(row['match_type'] is not None for row in result['rows'] if row['atlas'] and row['osm'])
+    assert all(row['match_type'] is not None for row in result['rows'] if row['gtfs'] and row['osm'])
 
 
 def test_alignment_numbers_stops_by_position_not_raw_sequence():
     atlas = [_call(sequence, name) for sequence, name in [(1, 'A'), (2, 'B')]]
     osm = [_call(sequence, name) for sequence, name in [(0, 'A'), (4, 'X'), (6, 'B')]]
     rows = _compare(atlas, osm)['rows']
-    assert [(row['atlas'] or {}).get('position') for row in rows] == [1, None, 2]
+    assert [(row['gtfs'] or {}).get('position') for row in rows] == [1, None, 2]
     assert [row['osm']['position'] for row in rows] == [1, 2, 3]
     assert [row['osm']['stop_sequence'] for row in rows] == [0, 4, 6]
 
@@ -67,11 +67,11 @@ def test_repeated_visits_are_matched_one_to_one_in_order():
     result = _compare([_call(1, 'A'), _call(2, 'B'), _call(3, 'A')],
                       [_call(1, 'A'), _call(2, 'A')])
     assert result['matched_stop_count'] == 2
-    assert [row['atlas']['id'] for row in result['rows'] if row['match_type']] == [1, 3]
+    assert [row['gtfs']['id'] for row in result['rows'] if row['match_type']] == [1, 3]
     assert result['percentage'] == 66.7
 
 
-@pytest.mark.parametrize(('atlas', 'osm', 'expected_type'), [
+@pytest.mark.parametrize(('gtfs', 'osm', 'expected_type'), [
     (_call(1, 'A', uic='1'), _call(1, 'B', uic='1'), 'same_station'),
     (_call(1, 'A', uic='1'), _call(1, 'B', uic='2'), None),
     (_call(1, 'A', uic='1', variants=['B']), _call(1, 'B', uic='2'), 'resolved_sloid_match'),
@@ -94,7 +94,7 @@ def test_opaque_source_id_is_displayed_without_becoming_match_identity():
     call.canonical_stop_key = 'feed:stop/opaque'
     result = _compare([call], [_call(1, 'feed:stop/opaque')])
     assert result['matched_stop_count'] == 0
-    atlas_stop = next(row['atlas'] for row in result['rows'] if row['atlas'])
+    atlas_stop = next(row['gtfs'] for row in result['rows'] if row['gtfs'])
     assert atlas_stop['stop_ids'] == ['feed:stop/opaque']
 
 
@@ -106,11 +106,11 @@ def test_invalid_variants_do_not_establish_resolved_identity(variants):
     assert result['rows'][0]['match_type'] == 'uic_match'
 
 
-@pytest.mark.parametrize(('atlas_direction', 'osm_direction', 'status'), [
+@pytest.mark.parametrize(('gtfs_direction', 'osm_direction', 'status'), [
     ('0', '0', 'match'), ('0', '1', 'conflict'), (None, '0', 'unknown'), (' ', None, 'unknown'),
 ])
-def test_direction_status_does_not_hide_stop_agreement(atlas_direction, osm_direction, status):
-    result = _compare([_call(1, 'A')], [_call(1, 'A')], atlas_direction, osm_direction)
+def test_direction_status_does_not_hide_stop_agreement(gtfs_direction, osm_direction, status):
+    result = _compare([_call(1, 'A')], [_call(1, 'A')], gtfs_direction, osm_direction)
     assert result['direction_status'] == status
     assert result['percentage'] == 100
 
@@ -123,7 +123,7 @@ def test_same_station_at_another_platform_counts_and_is_marked():
 
     assert result['matched_stop_count'] == 2
     assert result['percentage'] == 66.7
-    assert [((row['atlas'] or {}).get('id'), (row['osm'] or {}).get('id'), row['match_type'],
+    assert [((row['gtfs'] or {}).get('id'), (row['osm'] or {}).get('id'), row['match_type'],
              row.get('same_station', False)) for row in result['rows']] == [
         (1, 1, 'resolved_sloid_match', False), (2, None, None, False), (3, 2, 'same_station', True),
     ]
@@ -141,7 +141,7 @@ def test_empty_sequences_and_single_selection_have_no_misleading_percentage():
     result = compare_stop_calls([_call(1, 'A')], [], SimpleNamespace(direction_id='0'))
     assert result['percentage'] is None
     assert result['stop_ratio'] is None
-    assert result['atlas_stop_count'] == 1
+    assert result['gtfs_stop_count'] == 1
     assert result['osm_stop_count'] == 0
     assert result['rows'][0]['osm'] is None
 
@@ -151,25 +151,25 @@ def comparison_db(app, monkeypatch, sqlite_tables):
     sqlite_tables(LineFamily, Itinerary, StopCall, ItineraryMatch, ItineraryBestOverlap, StopsMatched)
     with app.app_context():
         db.session.add_all([
-            LineFamily(id=1, source='atlas', source_family_id='atlas-north', display_route_id='A',
+            LineFamily(id=1, source='gtfs', source_family_id='atlas-north', display_route_id='A',
                        public_name='North line', operator='Metro North'),
             LineFamily(id=2, source='osm', source_family_id='osm-north', display_route_id='A',
                        public_name='OSM North', operator='Metro North', ref='S1'),
-            LineFamily(id=3, source='atlas', source_family_id='atlas-south', display_route_id='Z',
+            LineFamily(id=3, source='gtfs', source_family_id='atlas-south', display_route_id='Z',
                        public_name='South line'),
             LineFamily(id=4, source='osm', source_family_id='osm-south', display_route_id='Z',
                        public_name='OSM South'),
             LineFamily(id=5, source='osm', source_family_id='non-gtfs', display_route_id='B',
                        is_non_gtfs=True),
         ])
-        for source, offset, family_id in [('atlas', 100, 1), ('osm', 200, 2)]:
+        for source, offset, family_id in [('gtfs', 100, 1), ('osm', 200, 2)]:
             for index in range(1, 5):
                 db.session.add(Itinerary(
                     id=offset + index, source=source, line_family_id=family_id if index < 4 else family_id + 2,
                     source_itinerary_id=f'{source}-{index}', display_name=f'Variant {index}', direction_id='0',
                 ))
         db.session.add(Itinerary(id=299, source='osm', line_family_id=5, source_itinerary_id='excluded'))
-        db.session.add(ItineraryMatch(id=1, atlas_itinerary_id=101, osm_itinerary_id=201))
+        db.session.add(ItineraryMatch(id=1, gtfs_itinerary_id=101, osm_itinerary_id=201))
         for itinerary_id, identities in [(101, ['A']), (201, ['A']), (102, ['A', 'B', 'C']),
                                          (202, ['A', 'C'])]:
             for sequence, identity in enumerate(identities, 1):
@@ -188,10 +188,10 @@ def comparison_db(app, monkeypatch, sqlite_tables):
 
 
 def test_api_compares_arbitrary_unmatched_pair(comparison_db):
-    response = comparison_db.get('/api/routes/comparison?atlas_itinerary_id=102&osm_itinerary_id=202')
+    response = comparison_db.get('/api/routes/comparison?gtfs_itinerary_id=102&osm_itinerary_id=202')
     assert response.status_code == 200
     result = response.json
-    assert result['atlas'] == {
+    assert result['gtfs'] == {
         'id': 102, 'family_id': 1, 'route_name': 'North line', 'route_id': 'A',
         'display_name': 'Variant 2', 'direction_id': '0', 'source_itinerary_id': 'atlas-2',
         'is_matched': False, 'matched_with': [],
@@ -199,43 +199,50 @@ def test_api_compares_arbitrary_unmatched_pair(comparison_db):
     assert result['osm']['id'] == 202
     assert result['osm']['source_itinerary_id'] == 'osm-2'
     assert result['matched_stop_count'] == 2
-    assert result['atlas_stop_count'] == 3
+    assert result['gtfs_stop_count'] == 3
     assert result['osm_stop_count'] == 2
     assert result['percentage'] == 66.7
     assert result['is_saved_match'] is False
     assert result['rows'][1]['osm'] is None
     # Each stop keeps its stop-matching status, whatever the comparison says.
-    assert [(row['atlas'] and row['atlas']['stop_type'], row['osm'] and row['osm']['stop_type'])
+    assert [(row['gtfs'] and row['gtfs']['stop_type'], row['osm'] and row['osm']['stop_type'])
             for row in result['rows']] == [
         ('matched', 'matched'), ('atlas_unmatched', None), ('atlas_unmatched', 'osm_unmatched'),
     ]
     # And the stops it is matched to, wherever they are, for the map's match lines.
     first = result['rows'][0]
-    assert first['atlas']['partners'] == [{'stop_id': '1', 'lat': 47.001, 'lon': 8.001}]
+    assert first['gtfs']['partners'] == [{'stop_id': '1', 'lat': 47.001, 'lon': 8.001}]
     assert first['osm']['partners'] == [{'stop_id': 'A', 'lat': 47.0, 'lon': 8.0}]
-    assert result['rows'][1]['atlas']['partners'] == []
+    assert result['rows'][1]['gtfs']['partners'] == []
 
 
 def test_api_distinguishes_saved_match_from_preview_and_supports_one_side(comparison_db):
-    saved = comparison_db.get('/api/routes/comparison?atlas_itinerary_id=101&osm_itinerary_id=201').json
-    preview = comparison_db.get('/api/routes/comparison?atlas_itinerary_id=101&osm_itinerary_id=202').json
+    saved = comparison_db.get('/api/routes/comparison?gtfs_itinerary_id=101&osm_itinerary_id=201').json
+    preview = comparison_db.get('/api/routes/comparison?gtfs_itinerary_id=101&osm_itinerary_id=202').json
     one_side = comparison_db.get('/api/routes/comparison?osm_itinerary_id=202').json
     assert saved['is_saved_match'] is True
-    assert saved['atlas']['is_matched'] is True
+    assert saved['gtfs']['is_matched'] is True
     assert preview['is_saved_match'] is False
-    assert preview['atlas']['is_matched'] is True
-    assert one_side['atlas'] is None
+    assert preview['gtfs']['is_matched'] is True
+    assert one_side['gtfs'] is None
     assert one_side['percentage'] is None
     assert len(one_side['rows']) == 2
-    assert all(row['atlas'] is None for row in one_side['rows'])
+    assert all(row['gtfs'] is None for row in one_side['rows'])
+
+
+def test_api_accepts_the_names_of_the_gtfs_side_before_release_0_7(comparison_db):
+    old = comparison_db.get('/api/routes/comparison?atlas_itinerary_id=101&osm_itinerary_id=201').json
+    assert old == comparison_db.get('/api/routes/comparison?gtfs_itinerary_id=101&osm_itinerary_id=201').json
+    assert (comparison_db.get('/api/routes/comparison/options?source=atlas&unmatched=0').json
+            == comparison_db.get('/api/routes/comparison/options?source=gtfs&unmatched=0').json)
 
 
 def test_matched_variants_name_every_saved_counterpart(comparison_db):
     with comparison_db.application.app_context():
-        db.session.add(ItineraryMatch(id=2, atlas_itinerary_id=103, osm_itinerary_id=201))
+        db.session.add(ItineraryMatch(id=2, gtfs_itinerary_id=103, osm_itinerary_id=201))
         db.session.commit()
-    preview = comparison_db.get('/api/routes/comparison?atlas_itinerary_id=102&osm_itinerary_id=201').json
-    assert preview['atlas']['matched_with'] == []
+    preview = comparison_db.get('/api/routes/comparison?gtfs_itinerary_id=102&osm_itinerary_id=201').json
+    assert preview['gtfs']['matched_with'] == []
     first, second = preview['osm']['matched_with']
     assert first == {
         'id': 101, 'family_id': 1, 'route_name': 'North line', 'route_id': 'A',
@@ -248,15 +255,15 @@ def test_matched_variants_name_every_saved_counterpart(comparison_db):
     by_id = {item['id']: item for item in ranked['items']}
     assert [counterpart['id'] for counterpart in by_id[201]['matched_with']] == [101, 103]
     assert by_id[202]['matched_with'] == []
-    listed = comparison_db.get('/api/routes/comparison/options?source=atlas&unmatched=0').json
+    listed = comparison_db.get('/api/routes/comparison/options?source=gtfs&unmatched=0').json
     assert [[counterpart['id'] for counterpart in item['matched_with']] for item in listed['items']] == [
         [201], [], [201], [],
     ]
 
 
 def test_options_filter_by_itinerary_and_page_in_sql(comparison_db):
-    first = comparison_db.get('/api/routes/comparison/options?source=atlas&per_page=2').json
-    second = comparison_db.get('/api/routes/comparison/options?source=atlas&per_page=2&page=2').json
+    first = comparison_db.get('/api/routes/comparison/options?source=gtfs&per_page=2').json
+    second = comparison_db.get('/api/routes/comparison/options?source=gtfs&per_page=2&page=2').json
     assert [item['id'] for item in first['items']] == [102, 103]
     assert [item['id'] for item in second['items']] == [104]
     assert (first['page'], first['pages'], first['total']) == (1, 2, 3)
@@ -266,19 +273,19 @@ def test_options_filter_by_itinerary_and_page_in_sql(comparison_db):
 
 
 def test_options_anchor_positions_page_but_does_not_override_search(comparison_db):
-    anchored = comparison_db.get('/api/routes/comparison/options?source=atlas&per_page=1&anchor_id=104').json
+    anchored = comparison_db.get('/api/routes/comparison/options?source=gtfs&per_page=1&anchor_id=104').json
     assert anchored['page'] == 3
     assert anchored['items'][0]['id'] == 104
     searched = comparison_db.get(
-        '/api/routes/comparison/options?source=atlas&per_page=1&anchor_id=104&q=North',
+        '/api/routes/comparison/options?source=gtfs&per_page=1&anchor_id=104&q=North',
     ).json
     assert searched['page'] == 1
     assert searched['items'][0]['id'] == 102
 
 
 @pytest.mark.parametrize(('source', 'search', 'expected_ids'), [
-    ('atlas', 'atlas-south', [104]), ('osm', 'S1', [202, 203]),
-    ('atlas', 'metro north', [102, 103]), ('atlas', 'Variant 3', [103]),
+    ('gtfs', 'atlas-south', [104]), ('osm', 'S1', [202, 203]),
+    ('gtfs', 'metro north', [102, 103]), ('gtfs', 'Variant 3', [103]),
     ('osm', 'osm-4', [204]), ('osm', '%', []),
 ])
 def test_options_search_source_family_ref_operator_and_variant(comparison_db, source, search, expected_ids):
@@ -288,21 +295,21 @@ def test_options_search_source_family_ref_operator_and_variant(comparison_db, so
     assert [item['id'] for item in result['items']] == expected_ids
 
 
-@pytest.mark.parametrize('query', ['', 'atlas_itinerary_id=0', 'osm_itinerary_id=nope',
-                                  'atlas_itinerary_id=-1', 'osm_itinerary_id=999999999999999999999'])
+@pytest.mark.parametrize('query', ['', 'gtfs_itinerary_id=0', 'osm_itinerary_id=nope',
+                                  'gtfs_itinerary_id=-1', 'osm_itinerary_id=999999999999999999999'])
 def test_comparison_rejects_invalid_ids(comparison_db, query):
     assert comparison_db.get(f'/api/routes/comparison?{query}').status_code == 400
 
 
-@pytest.mark.parametrize('query', ['atlas_itinerary_id=201', 'osm_itinerary_id=101',
+@pytest.mark.parametrize('query', ['gtfs_itinerary_id=201', 'osm_itinerary_id=101',
                                   'osm_itinerary_id=9999', 'osm_itinerary_id=299'])
 def test_comparison_rejects_wrong_source_missing_or_excluded_itinerary(comparison_db, query):
     assert comparison_db.get(f'/api/routes/comparison?{query}').status_code == 404
 
 
-@pytest.mark.parametrize('query', ['', 'source=bad', 'source=atlas&page=0', 'source=atlas&page=bad',
-                                  'source=atlas&per_page=101', 'source=atlas&unmatched=yes',
-                                  'source=atlas&anchor_id=-1', 'source=atlas&q=' + 'x' * 256])
+@pytest.mark.parametrize('query', ['', 'source=bad', 'source=gtfs&page=0', 'source=gtfs&page=bad',
+                                  'source=gtfs&per_page=101', 'source=gtfs&unmatched=yes',
+                                  'source=gtfs&anchor_id=-1', 'source=gtfs&q=' + 'x' * 256])
 def test_options_reject_invalid_query(comparison_db, query):
     assert comparison_db.get(f'/api/routes/comparison/options?{query}').status_code == 400
 
@@ -443,7 +450,7 @@ def test_ranking_variants_and_uic_follow_comparison_identity_rules(comparison_db
     assert result['items'][0]['id'] == 210
     for item in result['items']:
         comparison = comparison_db.get('/api/routes/comparison', query_string={
-            'atlas_itinerary_id': 102, 'osm_itinerary_id': item['id'],
+            'gtfs_itinerary_id': 102, 'osm_itinerary_id': item['id'],
         }).json
         assert item['stop_ratio'] == comparison['stop_ratio']
         assert item['matched_stop_count'] == comparison['matched_stop_count']
@@ -491,7 +498,7 @@ def test_ranked_empty_calls_and_no_candidates_have_explicit_empty_scores(compari
     ('source=osm&fixed_itinerary_id=0', 400),
     ('source=osm&fixed_itinerary_id=nope', 400),
     ('source=osm&fixed_itinerary_id=99999', 404),
-    ('source=atlas&fixed_itinerary_id=299', 404),
+    ('source=gtfs&fixed_itinerary_id=299', 404),
 ])
 def test_ranked_fixed_selection_validation(comparison_db, query, status):
     assert comparison_db.get(f'/api/routes/comparison/options?{query}').status_code == status
@@ -530,7 +537,7 @@ def test_stored_best_overlap_equals_top_live_ranked_candidate(comparison_db):
     assert stored[102]['best_itinerary_id'] == 210
     assert stored[212]['best_itinerary_id'] == 101
     for fixed_id, source in [(101, 'osm'), (102, 'osm'), (103, 'osm'), (104, 'osm'),
-                             (201, 'atlas'), (202, 'atlas'), (210, 'atlas'), (212, 'atlas')]:
+                             (201, 'gtfs'), (202, 'gtfs'), (210, 'gtfs'), (212, 'gtfs')]:
         top = comparison_db.get('/api/routes/comparison/options', query_string={
             'source': source, 'fixed_itinerary_id': fixed_id,
         }).json['items'][0]
@@ -547,7 +554,7 @@ def test_best_overlap_search_equals_brute_force_alignment_of_every_pair():
     import random
 
     randomizer = random.Random(4127)
-    families = [{'id': 1, 'source': 'atlas'}, {'id': 2, 'source': 'osm'},
+    families = [{'id': 1, 'source': 'gtfs'}, {'id': 2, 'source': 'osm'},
                 {'id': 3, 'source': 'osm', 'is_non_gtfs': True}]
     for _ in range(40):
         itineraries, rows, sequences = [], [], {}
@@ -571,8 +578,8 @@ def test_best_overlap_search_equals_brute_force_alignment_of_every_pair():
             fixed_is_atlas = fixed_id <= 5
             best = None
             for candidate_id in (range(6, 12) if fixed_is_atlas else range(1, 6)):
-                atlas_id, osm_id = (fixed_id, candidate_id) if fixed_is_atlas else (candidate_id, fixed_id)
-                matched = _compare(sequences[atlas_id], sequences[osm_id])['matched_stop_count']
+                gtfs_id, osm_id = (fixed_id, candidate_id) if fixed_is_atlas else (candidate_id, fixed_id)
+                matched = _compare(sequences[gtfs_id], sequences[osm_id])['matched_stop_count']
                 longer = max(len(sequences[fixed_id]), len(sequences[candidate_id]))
                 if matched and (best is None or (matched / longer, matched, -candidate_id) > best):
                     best = (matched / longer, matched, -candidate_id)
@@ -583,9 +590,9 @@ def test_best_overlap_search_equals_brute_force_alignment_of_every_pair():
 
 
 def test_best_overlap_accepts_decoded_variants_and_requires_a_same_source_gtfs_family():
-    families = [{'id': 1, 'source': 'atlas'}, {'id': 2, 'source': 'osm'},
+    families = [{'id': 1, 'source': 'gtfs'}, {'id': 2, 'source': 'osm'},
                 {'id': 3, 'source': 'osm', 'is_non_gtfs': True}]
-    itineraries = [{'id': 1, 'source': 'atlas', 'line_family_id': 1},
+    itineraries = [{'id': 1, 'source': 'gtfs', 'line_family_id': 1},
                    {'id': 2, 'source': 'osm', 'line_family_id': 2},
                    {'id': 3, 'source': 'osm', 'line_family_id': 3},
                    {'id': 4, 'source': 'osm', 'line_family_id': 1}]

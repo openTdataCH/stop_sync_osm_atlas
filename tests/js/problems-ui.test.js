@@ -18,7 +18,7 @@ describe('ProblemsUI route contradiction rendering', () => {
       sloid: 'ch:1:sloid:95669:0:959883',
       osm_node_id: '123456789',
       match_type: 'gtfs_shared_direction',
-      routes_atlas: [
+      routes_gtfs: [
         {
           route_id: '92-55-A-j26-1',
           route_name_short: '55',

@@ -287,7 +287,7 @@
     function buildBubbleCollapsibles(data, type, hideRoutesAndNotes, options = {}) {
         const collapsibles = [];
         if (!hideRoutesAndNotes && SharedUtils.hasCapability('routes')) {
-            const routes = type === 'atlas' ? data.routes_atlas : data.routes_osm;
+            const routes = type === 'atlas' ? data.routes_gtfs : data.routes_osm;
             const formattedRoutes = type === 'atlas'
                 ? PopupUtils.formatAtlasRouteList(routes, { enableRouteLink: !(options.enableRouteLinks === false) })
                 : PopupUtils.formatRouteList(routes, { enableRouteLink: !(options.enableRouteLinks === false) });
@@ -454,7 +454,7 @@
             atlas_lon: stop.atlas_lon,
             distance_m: stop.distance_m,
             match_type: stop.match_type,
-            routes_atlas: stop.routes_atlas,
+            routes_gtfs: stop.routes_gtfs,
             stop_type: stop.stop_type,
             isOperatorMismatch: stop.isOperatorMismatch
         };
@@ -701,7 +701,7 @@
             headerHtml: buildGtfsBubbleHeader(unmatched),
             rows: buildGtfsReferenceRows(data),
             // OpenTransportData GTFS is the source behind ATLAS itineraries,
-            // so its route payload uses the same routes_atlas contract.
+            // so its route payload uses the same routes_gtfs contract.
             footerHtml: buildBubbleFooterHtml(data, 'atlas', unmatched, false, actionButtonHtml, options),
             permalinkRef: options.permalinks ? data.stop_id : null,
         });
@@ -921,7 +921,7 @@
             details.push({
                 source: 'atlas',
                 label: `${SharedUtils.escapeHtml(SharedUtils.routeSourceLabel())} routes`,
-                html: PopupUtils.normalizeRoutes(atlas.routes_atlas).length ? PopupUtils.formatAtlasRouteList(atlas.routes_atlas, routeOptions) : null,
+                html: PopupUtils.normalizeRoutes(atlas.routes_gtfs).length ? PopupUtils.formatAtlasRouteList(atlas.routes_gtfs, routeOptions) : null,
             });
             details.push({
                 source: 'osm',

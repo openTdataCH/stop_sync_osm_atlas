@@ -184,7 +184,7 @@
     letter-spacing: 0.02em;
 }
 
-.source-tag--atlas {
+.source-tag--gtfs {
     background-color: var(--color-primary-subtle);
     color: var(--color-primary);
 }

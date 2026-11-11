@@ -15,27 +15,27 @@ const stop = (id, position = 1, label = id) => ({
   id, position, stop_sequence: position * 2, stop_label: label, stop_ids: [id], uic_ref: null, lat: 47, lon: 8
 });
 const pair = (index, matchType = 'resolved_sloid_match') => ({
-  atlas: stop('a' + index, index), osm: stop('o' + index, index), match_type: matchType
+  gtfs: stop('a' + index, index), osm: stop('o' + index, index), match_type: matchType
 });
 const result = (atlasId = '101', osmId = '301', changes = {}) => ({
-  atlas: { ...candidate(atlasId, 80), id: atlasId }, osm: { ...candidate(osmId, 80), id: osmId },
-  matched_stop_count: 4, atlas_stop_count: 5, osm_stop_count: 4,
+  gtfs: { ...candidate(atlasId, 80), id: atlasId }, osm: { ...candidate(osmId, 80), id: osmId },
+  matched_stop_count: 4, gtfs_stop_count: 5, osm_stop_count: 4,
   stop_ratio: 0.8, percentage: 80, direction_status: 'match', is_saved_match: false,
-  rows: [pair(1), { atlas: stop('a-gap', 2), osm: null, match_type: null }, ...[3, 4, 5].map(index => pair(index, 'uic_match'))],
+  rows: [pair(1), { gtfs: stop('a-gap', 2), osm: null, match_type: null }, ...[3, 4, 5].map(index => pair(index, 'uic_match'))],
   ...changes
 });
 const oneSided = (source, count) => ({
   rows: Array.from({ length: count }, (_, index) => ({
-    atlas: source === 'atlas' ? stop('fixed' + index, index + 1) : null,
+    gtfs: source === 'gtfs' ? stop('fixed' + index, index + 1) : null,
     osm: source === 'osm' ? stop('fixed' + index, index + 1) : null, match_type: null
   })),
-  matched_stop_count: 0, atlas_stop_count: source === 'atlas' ? count : 0, osm_stop_count: source === 'osm' ? count : 0,
+  matched_stop_count: 0, gtfs_stop_count: source === 'gtfs' ? count : 0, osm_stop_count: source === 'osm' ? count : 0,
   percentage: null, direction_status: 'unknown'
 });
 // A saved match: twelve shared stops in a row, then a stop only ATLAS serves.
 const savedComparison = {
-  rows: [...Array.from({ length: 12 }, (_, index) => pair(index + 1)), { atlas: stop('a13', 13), osm: null, match_type: null }],
-  matched_stop_count: 12, atlas_stop_count: 13, osm_stop_count: 12, percentage: 92.3, direction_status: 'match'
+  rows: [...Array.from({ length: 12 }, (_, index) => pair(index + 1)), { gtfs: stop('a13', 13), osm: null, match_type: null }],
+  matched_stop_count: 12, gtfs_stop_count: 13, osm_stop_count: 12, percentage: 92.3, direction_status: 'match'
 };
 const options = (items, page = 1, pages = 1, total = items.length) => ({ items, page, pages, total });
 // Rendered by the server from itinerary_best_overlaps; the script must leave it alone.
@@ -56,7 +56,7 @@ const setOpen = (id, open = true) => {
   panel.dispatchEvent(new Event('toggle'));
 };
 const key = (target, name) => target.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true }));
-const panelHtml = (id, { mode = 'explore', fixedSource = 'atlas', fixedId = '101', best = null, variant }) => `
+const panelHtml = (id, { mode = 'explore', fixedSource = 'gtfs', fixedId = '101', best = null, variant }) => `
   <details id="${id}" class="route-card__panel">
     <summary>Variant <span class="route-card__overlap">${SERVER_BADGE}</span></summary>
     <section class="variant-comparison" data-mode="${mode}" data-variant-data="${id}Data" data-source-label="GTFS"
@@ -92,7 +92,7 @@ describe('Route variant comparisons', () => {
   beforeEach(() => {
     document.body.innerHTML = [
       panelHtml('savedPanel', { mode: 'saved', variant: { stop_comparison: savedComparison, osm_relation_id: '5551' } }),
-      panelHtml('atlasPanel', { variant: { stop_comparison: oneSided('atlas', 3) },
+      panelHtml('atlasPanel', { variant: { stop_comparison: oneSided('gtfs', 3) },
         best: { id: '301', label: '10 · OSM best · Central → Lake · Direction 0', percentage: 80, matched: 4 } }),
       panelHtml('osmPanel', { fixedSource: 'osm', fixedId: '202', variant: { stop_comparison: oneSided('osm', 2) } })
     ].join('');
@@ -100,7 +100,7 @@ describe('Route variant comparisons', () => {
     resolveRequest = url => {
       if (url.pathname.endsWith('/options')) return url.searchParams.get('source') === 'osm'
         ? options([osmBest, osmLower]) : options([atlasBest, atlasLower]);
-      const atlasId = url.searchParams.get('atlas_itinerary_id');
+      const atlasId = url.searchParams.get('gtfs_itinerary_id');
       const osmId = url.searchParams.get('osm_itinerary_id');
       const selected = [osmBest, osmLower, osmLast, atlasBest, atlasLower]
         .find(item => item.id === (atlasId === '101' ? osmId : atlasId));
@@ -139,11 +139,11 @@ describe('Route variant comparisons', () => {
     expect(all).toHaveLength(13);
     const first = all[0];
     expect(first.classList).toContain('comparison-row--matched');
-    expect(first.querySelector('.comparison-stop--atlas .comparison-stop__position').textContent).toBe('1');
-    expect(first.querySelector('.comparison-stop--atlas .comparison-stop__position').title).toBe('Stop sequence 2');
+    expect(first.querySelector('.comparison-stop--gtfs .comparison-stop__position').textContent).toBe('1');
+    expect(first.querySelector('.comparison-stop--gtfs .comparison-stop__position').title).toBe('Stop sequence 2');
     expect(first.querySelector('.comparison-stop--osm .comparison-stop__name').textContent).toBe('o1');
     expect(first.querySelector('.comparison-link--stop .visually-hidden').textContent).toBe('matched by stop');
-    expect(all[12].classList).toContain('comparison-row--atlas-only');
+    expect(all[12].classList).toContain('comparison-row--gtfs-only');
     expect(all[12].querySelector('.comparison-stop--osm').textContent).toBe('Not in OSM');
 
     // Rows 3 to 10 fold; two matching stops stay visible at each end of the run.
@@ -170,7 +170,7 @@ describe('Route variant comparisons', () => {
     expect(node('atlasPanel', 'value-score').textContent).toBe('80%');
     const [comparison, ranking] = requests.map(request => request.url);
     expect(comparison.pathname).toBe('/api/routes/comparison');
-    expect([comparison.searchParams.get('atlas_itinerary_id'), comparison.searchParams.get('osm_itinerary_id')]).toEqual(['101', '301']);
+    expect([comparison.searchParams.get('gtfs_itinerary_id'), comparison.searchParams.get('osm_itinerary_id')]).toEqual(['101', '301']);
     expect(ranking.pathname).toBe('/api/routes/comparison/options');
     expect(Object.fromEntries(['source', 'fixed_itinerary_id', 'unmatched', 'shared_only', 'q']
       .map(name => [name, ranking.searchParams.get(name)]))).toEqual({
@@ -186,7 +186,7 @@ describe('Route variant comparisons', () => {
     expect(summary).not.toContain('Saved match');
     expect(node('atlasPanel', 'summary').querySelector('a').href).toBe('https://www.openstreetmap.org/relation/9301');
     expect(node('atlasPanel', 'results').classList).not.toContain('comparison-rows--single');
-    expect(rows('atlasPanel')[1].classList).toContain('comparison-row--atlas-only');
+    expect(rows('atlasPanel')[1].classList).toContain('comparison-row--gtfs-only');
     expect(rows('atlasPanel')[2].querySelector('.comparison-link__mark').textContent).toBe('UIC');
     expect(node('atlasPanel', 'value').textContent).toBe('Central → Lake');
     expect(node('atlasPanel', 'value-meta').textContent).toBe('OSM best · Direction 0 · 4 shared stops');
@@ -198,10 +198,10 @@ describe('Route variant comparisons', () => {
   test('names saved counterparts and points to the one shown on the same route card', async () => {
     window.RoutesComparison.destroy();
     document.body.innerHTML = `<article class="route-card">
-      <details id="pairPanel" class="route-card__panel" data-atlas-itinerary-id="150" data-osm-itinerary-id="301">
+      <details id="pairPanel" class="route-card__panel" data-gtfs-itinerary-id="150" data-osm-itinerary-id="301">
         <summary>Saved pair</summary>
       </details>
-      ${panelHtml('atlasPanel', { variant: { stop_comparison: oneSided('atlas', 3) } })}
+      ${panelHtml('atlasPanel', { variant: { stop_comparison: oneSided('gtfs', 3) } })}
     </article>`;
     const onCard = { id: 150, route_id: '10', route_name: 'Line 10', display_name: 'Lake → Central',
       label: '10 · Line 10 · Lake → Central · Direction 1' };
@@ -250,10 +250,10 @@ describe('Route variant comparisons', () => {
   test('without a stored best, compares the top shared candidate of the other source', async () => {
     setOpen('osmPanel');
     await flush();
-    expect(requests[0].url.searchParams.get('source')).toBe('atlas');
+    expect(requests[0].url.searchParams.get('source')).toBe('gtfs');
     expect(requests[0].url.searchParams.get('shared_only')).toBe('1');
     const comparison = requests[1].url.searchParams;
-    expect([comparison.get('atlas_itinerary_id'), comparison.get('osm_itinerary_id')]).toEqual(['401', '202']);
+    expect([comparison.get('gtfs_itinerary_id'), comparison.get('osm_itinerary_id')]).toEqual(['401', '202']);
     expect(node('osmPanel', 'summary').textContent).toContain('100%');
   });
 
@@ -458,7 +458,7 @@ describe('Route variant comparisons', () => {
     const unsafe = '<img src=x onerror=alert(1)>';
     const original = resolveRequest;
     resolveRequest = url => url.pathname.endsWith('/comparison')
-      ? result('101', '301', { direction_status: 'conflict', rows: [{ atlas: stop(unsafe, 1, unsafe), osm: null, match_type: null }] })
+      ? result('101', '301', { direction_status: 'conflict', rows: [{ gtfs: stop(unsafe, 1, unsafe), osm: null, match_type: null }] })
       : original(url);
     setOpen('atlasPanel');
     await flush();
@@ -477,8 +477,8 @@ describe('Route variant comparisons', () => {
     const original = resolveRequest;
     resolveRequest = url => url.pathname.endsWith('/comparison')
       ? result('101', '301', {
-        matched_stop_count: 2, atlas_stop_count: 2, osm_stop_count: 2, stop_ratio: 1, percentage: 100,
-        rows: [pair(1), { atlas: stop('a-p2', 2, 'Selnau'), osm: stop('o-p1', 2, 'Selnau'), match_type: 'same_station', same_station: true }]
+        matched_stop_count: 2, gtfs_stop_count: 2, osm_stop_count: 2, stop_ratio: 1, percentage: 100,
+        rows: [pair(1), { gtfs: stop('a-p2', 2, 'Selnau'), osm: stop('o-p1', 2, 'Selnau'), match_type: 'same_station', same_station: true }]
       })
       : original(url);
     setOpen('atlasPanel');

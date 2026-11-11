@@ -1,11 +1,11 @@
 from backend.models import StopsMatched
-from backend.services.transport_routes import get_atlas_routes_for_sloid, get_osm_routes_for_node
+from backend.services.transport_routes import get_gtfs_routes_for_sloid, get_osm_routes_for_node
 
 def format_stop_data(
     stop: StopsMatched,
     problem_type: str = None,
     include_routes: bool = False,
-    atlas_routes=None,
+    gtfs_routes=None,
     osm_routes=None,
     include_osm_tags: bool = False,
 ) -> dict:
@@ -58,7 +58,7 @@ def format_stop_data(
 
     if include_routes:
         result.update({
-            "routes_atlas": atlas_routes if atlas_routes is not None else (get_atlas_routes_for_sloid(stop.sloid) if stop.sloid else []),
+            "routes_gtfs": gtfs_routes if gtfs_routes is not None else (get_gtfs_routes_for_sloid(stop.sloid) if stop.sloid else []),
             "routes_osm": osm_routes if osm_routes is not None else (get_osm_routes_for_node(stop.osm_node_id) if stop.osm_node_id else []),
         })
 

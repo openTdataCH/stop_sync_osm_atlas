@@ -6,11 +6,11 @@
 {% macro variant_comparison(direction, key) %}
 {% set saved = direction.is_matched %}
 {% set source_label = review_config.route_source_label %}
-{% set fixed_source = 'atlas' if direction.has_atlas_variant else 'osm' %}
-{% set candidate_source = 'osm' if fixed_source == 'atlas' else 'atlas' %}
-{% set fixed_label = source_label if fixed_source == 'atlas' else 'OSM' %}
-{% set candidate_label = 'OSM' if fixed_source == 'atlas' else source_label %}
-{% set fixed_id = direction.atlas_itinerary_id if fixed_source == 'atlas' else direction.osm_itinerary_id %}
+{% set fixed_source = 'gtfs' if direction.has_gtfs_variant else 'osm' %}
+{% set candidate_source = 'osm' if fixed_source == 'gtfs' else 'gtfs' %}
+{% set fixed_label = source_label if fixed_source == 'gtfs' else 'OSM' %}
+{% set candidate_label = 'OSM' if fixed_source == 'gtfs' else source_label %}
+{% set fixed_id = direction.gtfs_itinerary_id if fixed_source == 'gtfs' else direction.osm_itinerary_id %}
 {% set best = direction.best_overlap %}
 <section class="variant-comparison variant-comparison--{{ 'saved' if saved else 'explore' }} variant-comparison--fixed-{{ fixed_source }}"
          aria-label="{{ 'Saved match' if saved else 'Compare ' ~ fixed_label ~ ' variant' }} {{ direction.direction_label or fixed_id }}"
@@ -27,7 +27,7 @@
          {%- endif %}>
   {% if not saved %}
   {% set comparison = direction.stop_comparison or {} %}
-  {% set stop_count = (comparison.atlas_stop_count if fixed_source == 'atlas' else comparison.osm_stop_count) or 0 %}
+  {% set stop_count = (comparison.gtfs_stop_count if fixed_source == 'gtfs' else comparison.osm_stop_count) or 0 %}
   <div class="comparison-toolbar">
     <div class="comparison-toolbar__fixed">
       <span class="source-tag source-tag--{{ fixed_source }}">{{ fixed_label }}</span>
@@ -72,7 +72,7 @@
   <p class="comparison-empty" data-comparison-empty hidden></p>
   <div class="comparison-table">
     <div class="comparison-columns" aria-hidden="true">
-      <span class="comparison-columns__side comparison-columns__side--atlas">{{ source_label }}</span>
+      <span class="comparison-columns__side comparison-columns__side--gtfs">{{ source_label }}</span>
       <span></span>
       <span class="comparison-columns__side comparison-columns__side--osm">OpenStreetMap</span>
     </div>

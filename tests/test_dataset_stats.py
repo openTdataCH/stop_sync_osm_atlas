@@ -19,12 +19,12 @@ def test_modes_fold_trolleybus_into_bus_and_flag_non_public_transport():
 def test_route_links_report_coverage_and_why_lines_stay_unlinked(sqlite_tables):
     session = sqlite_tables(LineFamily, Itinerary, LineFamilyMatch, ItineraryMatch)
     session.add_all([
-        LineFamily(id=1, source='atlas', source_family_id='A1', route_type='700', gtfs_route_id='r1'),
-        LineFamily(id=2, source='atlas', source_family_id='A2', route_type='700', gtfs_route_id='r2'),
-        LineFamily(id=3, source='atlas', source_family_id='A3', route_type='106', gtfs_route_id='r3'),
-        LineFamily(id=4, source='atlas', source_family_id='A4', route_type='700', gtfs_route_id='r4-new',
+        LineFamily(id=1, source='gtfs', source_family_id='A1', route_type='700', gtfs_route_id='r1'),
+        LineFamily(id=2, source='gtfs', source_family_id='A2', route_type='700', gtfs_route_id='r2'),
+        LineFamily(id=3, source='gtfs', source_family_id='A3', route_type='106', gtfs_route_id='r3'),
+        LineFamily(id=4, source='gtfs', source_family_id='A4', route_type='700', gtfs_route_id='r4-new',
                    normalized_route_id='r4'),
-        LineFamily(id=5, source='atlas', source_family_id='A5', route_type='700', gtfs_route_id='r5'),
+        LineFamily(id=5, source='gtfs', source_family_id='A5', route_type='700', gtfs_route_id='r5'),
         LineFamily(id=10, source='osm', source_family_id='O1', route_type='bus', gtfs_route_id='r1'),
         LineFamily(id=11, source='osm', source_family_id='O2', route_type='trolleybus', gtfs_route_id='r2'),
         LineFamily(id=12, source='osm', source_family_id='O3', route_type='bus', gtfs_route_id='r1'),
@@ -39,20 +39,20 @@ def test_route_links_report_coverage_and_why_lines_stay_unlinked(sqlite_tables):
         LineFamily(id=19, source='osm', source_family_id='O10', route_type='bus', normalized_route_id='7'),
     ])
     session.add_all([
-        Itinerary(id=100, source='atlas', line_family_id=1, source_itinerary_id='a', direction_id='0', trip_count=20),
-        Itinerary(id=101, source='atlas', line_family_id=1, source_itinerary_id='b', direction_id='1', trip_count=10),
-        Itinerary(id=102, source='atlas', line_family_id=2, source_itinerary_id='c', direction_id='0', trip_count=5),
+        Itinerary(id=100, source='gtfs', line_family_id=1, source_itinerary_id='a', direction_id='0', trip_count=20),
+        Itinerary(id=101, source='gtfs', line_family_id=1, source_itinerary_id='b', direction_id='1', trip_count=10),
+        Itinerary(id=102, source='gtfs', line_family_id=2, source_itinerary_id='c', direction_id='0', trip_count=5),
         Itinerary(id=200, source='osm', line_family_id=10, source_itinerary_id='1', direction_id='0'),
         Itinerary(id=201, source='osm', line_family_id=10, source_itinerary_id='2'),
         Itinerary(id=202, source='osm', line_family_id=11, source_itinerary_id='3', direction_id='0'),
     ])
     session.add_all([
-        LineFamilyMatch(id=1000, atlas_line_family_id=1, osm_line_family_id=10, match_method='exact_gtfs_route_id'),
-        LineFamilyMatch(id=1001, atlas_line_family_id=2, osm_line_family_id=11, match_method='normalized_gtfs_route_id'),
-        LineFamilyMatch(id=1002, atlas_line_family_id=5, osm_line_family_id=19, match_method='line_number_and_stops'),
+        LineFamilyMatch(id=1000, gtfs_line_family_id=1, osm_line_family_id=10, match_method='exact_gtfs_route_id'),
+        LineFamilyMatch(id=1001, gtfs_line_family_id=2, osm_line_family_id=11, match_method='normalized_gtfs_route_id'),
+        LineFamilyMatch(id=1002, gtfs_line_family_id=5, osm_line_family_id=19, match_method='line_number_and_stops'),
         # A line can have several links: GTFS line 5 has two OSM lines, OSM line 10 two GTFS lines.
-        LineFamilyMatch(id=1003, atlas_line_family_id=5, osm_line_family_id=10, match_method='line_number_and_stops'),
-        ItineraryMatch(id=2000, line_family_match_id=1000, atlas_itinerary_id=100, osm_itinerary_id=200),
+        LineFamilyMatch(id=1003, gtfs_line_family_id=5, osm_line_family_id=10, match_method='line_number_and_stops'),
+        ItineraryMatch(id=2000, line_family_match_id=1000, gtfs_itinerary_id=100, osm_itinerary_id=200),
     ])
     session.commit()
 
@@ -182,8 +182,8 @@ def test_atlas_duplicates_and_gtfs_stats_count_sloids_and_used_stop_ids(sqlite_t
         GtfsStopIdentityResolution(id=2, stop_id='c1', identity_level='child_stop', resolution_method='unmatched'),
         GtfsStopIdentityResolution(id=3, stop_id='st', identity_level='station', resolved_sloid='s3',
                                    resolution_method='unique_number'),
-        LineFamily(id=1, source='atlas', source_family_id='r', route_type='700'),
-        Itinerary(id=1, source='atlas', line_family_id=1, source_itinerary_id='i', direction_id='0', trip_count=4),
+        LineFamily(id=1, source='gtfs', source_family_id='r', route_type='700'),
+        Itinerary(id=1, source='gtfs', line_family_id=1, source_itinerary_id='i', direction_id='0', trip_count=4),
         StopCall(id=1, itinerary_id=1, stop_sequence=0, source_stop_id='p1', source_sloid='s1'),
         StopCall(id=2, itinerary_id=1, stop_sequence=1, source_stop_id='c1'),
     ])

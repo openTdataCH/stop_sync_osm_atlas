@@ -24,18 +24,18 @@ depends_on = None
 
 def upgrade():
     op.execute('CREATE EXTENSION IF NOT EXISTS postgis')
-    op.create_table('atlas_line_families',
-    sa.Column('atlas_line_id', sa.Text(), nullable=False),
+    op.create_table('gtfs_line_families',
+    sa.Column('gtfs_line_id', sa.Text(), nullable=False),
     sa.Column('route_id_normalized', sa.Text(), nullable=True),
     sa.Column('agency_id', sa.Text(), nullable=True),
     sa.Column('route_short_name', sa.String(length=255), nullable=True),
     sa.Column('route_long_name', sa.String(length=255), nullable=True),
     sa.Column('route_desc', sa.Text(), nullable=True),
     sa.Column('route_type', sa.String(length=50), nullable=True),
-    sa.PrimaryKeyConstraint('atlas_line_id')
+    sa.PrimaryKeyConstraint('gtfs_line_id')
     )
-    op.create_index('idx_atlas_line_families_route_id_normalized', 'atlas_line_families', ['route_id_normalized'], unique=False)
-    op.create_index('idx_atlas_line_families_route_type', 'atlas_line_families', ['route_type'], unique=False)
+    op.create_index('idx_gtfs_line_families_route_id_normalized', 'gtfs_line_families', ['route_id_normalized'], unique=False)
+    op.create_index('idx_gtfs_line_families_route_type', 'gtfs_line_families', ['route_type'], unique=False)
     op.create_table('atlas_operators',
     sa.Column('atlas_business_org_abbr', sa.String(length=100), nullable=False),
     sa.Column('sboid', sa.String(length=100), nullable=True),
@@ -165,10 +165,10 @@ def upgrade():
     sa.Column('is_non_gtfs', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('gtfs_route_id', sa.Text(), nullable=True),
     sa.Column('normalized_route_id', sa.Text(), nullable=True),
-    sa.Column('atlas_line_id', sa.Text(), nullable=True),
+    sa.Column('gtfs_line_id', sa.Text(), nullable=True),
     sa.Column('route_master_id', sa.String(length=100), nullable=True),
     sa.Column('representative_relation_id', sa.String(length=100), nullable=True),
-    sa.ForeignKeyConstraint(['atlas_line_id'], ['atlas_line_families.atlas_line_id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['gtfs_line_id'], ['gtfs_line_families.gtfs_line_id'], ondelete='SET NULL'),
     sa.ForeignKeyConstraint(['representative_relation_id'], ['osm_route_relations.relation_id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('source', 'source_family_id', name='uq_line_families_source_family_id')
@@ -241,15 +241,16 @@ def upgrade():
     op.create_index('idx_itineraries_source', 'itineraries', ['source'], unique=False)
     op.create_table('line_family_matches',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('atlas_line_family_id', sa.Integer(), nullable=False),
+    sa.Column('gtfs_line_family_id', sa.Integer(), nullable=False),
     sa.Column('osm_line_family_id', sa.Integer(), nullable=False),
     sa.Column('match_method', sa.String(length=255), nullable=True),
-    sa.ForeignKeyConstraint(['atlas_line_family_id'], ['line_families.id'], ondelete='CASCADE'),
+    sa.Column('stop_score', sa.Float(), nullable=True),
+    sa.ForeignKeyConstraint(['gtfs_line_family_id'], ['line_families.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['osm_line_family_id'], ['line_families.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('atlas_line_family_id', 'osm_line_family_id', name='uq_line_family_matches_pair')
+    sa.UniqueConstraint('gtfs_line_family_id', 'osm_line_family_id', name='uq_line_family_matches_pair')
     )
-    op.create_index('idx_line_family_matches_atlas_family', 'line_family_matches', ['atlas_line_family_id'], unique=False)
+    op.create_index('idx_line_family_matches_gtfs_family', 'line_family_matches', ['gtfs_line_family_id'], unique=False)
     op.create_index('idx_line_family_matches_osm_family', 'line_family_matches', ['osm_line_family_id'], unique=False)
     op.create_table('osm_stop_members',
     sa.Column('osm_stop_id', sa.Integer(), nullable=False),
@@ -273,17 +274,17 @@ def upgrade():
     op.create_table('itinerary_matches',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('line_family_match_id', sa.Integer(), nullable=True),
-    sa.Column('atlas_itinerary_id', sa.Integer(), nullable=False),
+    sa.Column('gtfs_itinerary_id', sa.Integer(), nullable=False),
     sa.Column('osm_itinerary_id', sa.Integer(), nullable=False),
     sa.Column('stop_score', sa.Float(), nullable=True),
     sa.Column('match_reason', sa.String(length=255), nullable=True),
-    sa.ForeignKeyConstraint(['atlas_itinerary_id'], ['itineraries.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['gtfs_itinerary_id'], ['itineraries.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['line_family_match_id'], ['line_family_matches.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['osm_itinerary_id'], ['itineraries.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('atlas_itinerary_id', 'osm_itinerary_id', name='uq_itinerary_matches_pair')
+    sa.UniqueConstraint('gtfs_itinerary_id', 'osm_itinerary_id', name='uq_itinerary_matches_pair')
     )
-    op.create_index('idx_itinerary_matches_atlas_itinerary', 'itinerary_matches', ['atlas_itinerary_id'], unique=False)
+    op.create_index('idx_itinerary_matches_gtfs_itinerary', 'itinerary_matches', ['gtfs_itinerary_id'], unique=False)
     op.create_index('idx_itinerary_matches_osm_itinerary', 'itinerary_matches', ['osm_itinerary_id'], unique=False)
     op.create_table('stop_calls',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -315,12 +316,12 @@ def downgrade():
     op.drop_index('idx_stop_calls_canonical_stop_key', table_name='stop_calls')
     op.drop_table('stop_calls')
     op.drop_index('idx_itinerary_matches_osm_itinerary', table_name='itinerary_matches')
-    op.drop_index('idx_itinerary_matches_atlas_itinerary', table_name='itinerary_matches')
+    op.drop_index('idx_itinerary_matches_gtfs_itinerary', table_name='itinerary_matches')
     op.drop_table('itinerary_matches')
     op.drop_table('itinerary_best_overlaps')
     op.drop_table('osm_stop_members')
     op.drop_index('idx_line_family_matches_osm_family', table_name='line_family_matches')
-    op.drop_index('idx_line_family_matches_atlas_family', table_name='line_family_matches')
+    op.drop_index('idx_line_family_matches_gtfs_family', table_name='line_family_matches')
     op.drop_table('line_family_matches')
     op.drop_index('idx_itineraries_source', table_name='itineraries')
     op.drop_index('idx_itineraries_line_family', table_name='itineraries')
@@ -363,6 +364,6 @@ def downgrade():
     op.drop_table('dataset_publication')
     op.drop_index('idx_atlas_operator_sboid', table_name='atlas_operators')
     op.drop_table('atlas_operators')
-    op.drop_index('idx_atlas_line_families_route_type', table_name='atlas_line_families')
-    op.drop_index('idx_atlas_line_families_route_id_normalized', table_name='atlas_line_families')
-    op.drop_table('atlas_line_families')
+    op.drop_index('idx_gtfs_line_families_route_type', table_name='gtfs_line_families')
+    op.drop_index('idx_gtfs_line_families_route_id_normalized', table_name='gtfs_line_families')
+    op.drop_table('gtfs_line_families')

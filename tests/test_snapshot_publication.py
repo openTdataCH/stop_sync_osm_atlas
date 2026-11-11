@@ -144,7 +144,7 @@ def test_long_source_identifiers_survive_an_atomic_import_with_foreign_keys(post
         row = connection.execute(text('''
             SELECT a.sloid, a.uic_ref, m.sloid, g.stop_id, g.resolved_sloid,
                    c.source_stop_id, c.source_sloid, c.canonical_stop_key, c.uic_ref,
-                   l.atlas_line_id, l.source_family_id, i.source_itinerary_id,
+                   l.gtfs_line_id, l.source_family_id, i.source_itinerary_id,
                    l.public_name, l.operator, i.display_name, c.stop_label
             FROM atlas_stops a JOIN stops_matched m ON m.sloid = a.sloid
             JOIN gtfs_stop_identity_resolution g ON g.resolved_sloid = a.sloid

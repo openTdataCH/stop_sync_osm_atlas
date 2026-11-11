@@ -37,7 +37,7 @@
   letter-spacing: .05em;
   text-transform: uppercase;
 }
-.source-tag--atlas { background: var(--color-primary-subtle); color: var(--color-primary); }
+.source-tag--gtfs { background: var(--color-primary-subtle); color: var(--color-primary); }
 .source-tag--osm { background: var(--color-success-subtle); color: var(--color-success-fg); }
 
 /* Fixed variant vs. candidate picker, above the matching table columns ---- */
@@ -50,9 +50,9 @@
 }
 .comparison-toolbar > * { grid-row: 1; }
 .comparison-toolbar__vs { grid-column: 2; text-align: center; font-size: .68rem; font-weight: var(--font-semibold); letter-spacing: .05em; text-transform: uppercase; color: var(--color-fg-muted); }
-.variant-comparison--fixed-atlas .comparison-toolbar__fixed,
+.variant-comparison--fixed-gtfs .comparison-toolbar__fixed,
 .variant-comparison--fixed-osm .comparison-picker { grid-column: 1; }
-.variant-comparison--fixed-atlas .comparison-picker,
+.variant-comparison--fixed-gtfs .comparison-picker,
 .variant-comparison--fixed-osm .comparison-toolbar__fixed { grid-column: 3; }
 
 .comparison-toolbar__fixed,
@@ -121,7 +121,7 @@
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
 }
-.variant-comparison--fixed-atlas .comparison-popover { right: 0; }
+.variant-comparison--fixed-gtfs .comparison-popover { right: 0; }
 .variant-comparison--fixed-osm .comparison-popover { left: 0; }
 .comparison-popover__search {
   display: flex;
@@ -226,7 +226,7 @@ button.comparison-badge__target:focus-visible { outline: 2px solid var(--color-p
 }
 .variant-comparison--saved .comparison-columns { border-radius: 0; }
 .comparison-columns__side { padding: 0 .5rem; }
-.comparison-columns__side--atlas { text-align: right; color: var(--color-primary); }
+.comparison-columns__side--gtfs { text-align: right; color: var(--color-primary); }
 .comparison-columns__side--osm { color: var(--color-success-fg); }
 
 .comparison-rows { list-style: none; margin: 0; padding: .25rem var(--comparison-gutter) .5rem; }
@@ -235,10 +235,10 @@ button.comparison-badge__target:focus-visible { outline: 2px solid var(--color-p
 .comparison-fold + .comparison-row { box-shadow: 0 -1px 0 var(--color-border); }
 .comparison-row[data-points] { cursor: pointer; }
 .comparison-row:hover { --row-bg: var(--color-bg-subtle); }
-.comparison-row--atlas-only,
+.comparison-row--gtfs-only,
 .comparison-row--osm-only,
 .comparison-row--platform { --row-bg: var(--color-warning-subtle); }
-.comparison-row--atlas-only:hover,
+.comparison-row--gtfs-only:hover,
 .comparison-row--osm-only:hover,
 .comparison-row--platform:hover { --row-bg: var(--color-warning-subtle); }
 /* Same station on both sides, at different platforms: one row, not counted. */
@@ -247,7 +247,7 @@ button.comparison-badge__target:focus-visible { outline: 2px solid var(--color-p
 .comparison-rows--single .comparison-row:hover { --row-bg: var(--color-bg-subtle); }
 
 .comparison-stop { display: flex; align-items: center; gap: .6rem; min-width: 0; padding: .4rem .5rem; }
-.comparison-stop--atlas { flex-direction: row-reverse; text-align: right; }
+.comparison-stop--gtfs { flex-direction: row-reverse; text-align: right; }
 .comparison-stop__body { display: flex; flex-direction: column; min-width: 0; }
 .comparison-stop__name { font-size: .85rem; font-weight: var(--font-semibold); line-height: 1.25; overflow-wrap: anywhere; }
 .comparison-stop__id { font-size: .7rem; line-height: 1.35; color: var(--color-fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
@@ -266,9 +266,9 @@ button.comparison-badge__target:focus-visible { outline: 2px solid var(--color-p
   font-weight: var(--font-semibold);
   font-variant-numeric: tabular-nums;
 }
-.comparison-row--matched .comparison-stop--atlas .comparison-stop__position { background: var(--color-primary-subtle); color: var(--color-primary); }
+.comparison-row--matched .comparison-stop--gtfs .comparison-stop__position { background: var(--color-primary-subtle); color: var(--color-primary); }
 .comparison-row--matched .comparison-stop--osm .comparison-stop__position { background: var(--color-success-subtle); color: var(--color-success-fg); }
-.comparison-row--atlas-only .comparison-stop__position,
+.comparison-row--gtfs-only .comparison-stop__position,
 .comparison-row--osm-only .comparison-stop__position,
 .comparison-row--platform .comparison-stop__position { background: var(--color-warning-subtle); color: var(--color-warning-fg); }
 .comparison-rows--single .comparison-stop__position { background: var(--color-bg-muted); color: var(--color-fg-muted); }
@@ -306,12 +306,12 @@ button.comparison-badge__target:focus-visible { outline: 2px solid var(--color-p
   .variant-comparison { --comparison-link-width: 1.75rem; --comparison-gutter: var(--space-2); }
   .comparison-toolbar { grid-template-columns: minmax(0, 1fr); gap: .4rem; }
   .comparison-toolbar > *,
-  .variant-comparison--fixed-atlas .comparison-toolbar__fixed,
+  .variant-comparison--fixed-gtfs .comparison-toolbar__fixed,
   .variant-comparison--fixed-osm .comparison-toolbar__fixed,
-  .variant-comparison--fixed-atlas .comparison-picker,
+  .variant-comparison--fixed-gtfs .comparison-picker,
   .variant-comparison--fixed-osm .comparison-picker { grid-column: 1; grid-row: auto; }
   .comparison-toolbar__vs { text-align: left; padding-left: .7rem; }
-  .variant-comparison--fixed-atlas .comparison-popover,
+  .variant-comparison--fixed-gtfs .comparison-popover,
   .variant-comparison--fixed-osm .comparison-popover { left: 0; right: auto; width: 100%; }
   .comparison-stop { gap: .35rem; padding: .35rem .2rem; }
   .comparison-stop__position { min-width: 1.25rem; height: 1.25rem; font-size: .62rem; }

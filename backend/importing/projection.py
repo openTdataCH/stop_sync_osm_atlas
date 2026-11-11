@@ -9,7 +9,7 @@ namespaced keys.
 from types import SimpleNamespace as Record
 import json
 
-_SIDE = {"source": "atlas", "osm": "osm"}
+_SIDE = {"source": "gtfs", "osm": "osm"}
 
 
 def _renamed(row, names):
@@ -38,7 +38,7 @@ def _project_routes(routes, ids):
     def family(row):
         values = _renamed(row, {"key": "source_family_id"})
         values["source"] = _SIDE[values.pop("side")]
-        values["atlas_line_id"] = row["key"] if row["side"] == "source" else None
+        values["gtfs_line_id"] = row["key"] if row["side"] == "source" else None
         return values
 
     def itinerary(row):
@@ -47,14 +47,14 @@ def _project_routes(routes, ids):
         return values
 
     return {
-        "atlas_line_families": [_renamed(row, {"route_id": "atlas_line_id"}) for row in routes.get("source_routes", [])],
+        "gtfs_line_families": [_renamed(row, {"route_id": "gtfs_line_id"}) for row in routes.get("source_routes", [])],
         "osm_route_relations": routes.get("osm_route_relations", []),
         "line_families": [family(row) for row in routes.get("line_families", [])],
         "itineraries": [itinerary(row) for row in routes.get("itineraries", [])],
         "stop_calls": [stop_call(row) for row in routes.get("stop_calls", [])],
-        "line_family_matches": [_renamed(row, {"source_line_family_id": "atlas_line_family_id"})
+        "line_family_matches": [_renamed(row, {"source_line_family_id": "gtfs_line_family_id"})
                                 for row in routes.get("line_family_matches", [])],
-        "itinerary_matches": [_renamed(row, {"source_itinerary_id": "atlas_itinerary_id"})
+        "itinerary_matches": [_renamed(row, {"source_itinerary_id": "gtfs_itinerary_id"})
                               for row in routes.get("itinerary_matches", [])],
         "matched_routes": routes.get("matched_routes", 0),
         "unknown_source_stop_references": routes.get("unknown_source_stop_references", 0),

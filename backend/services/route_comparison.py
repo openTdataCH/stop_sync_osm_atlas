@@ -52,23 +52,23 @@ def _identity(call):
                             getattr(call, 'uic_ref', None))
 
 
-def _match_type(atlas, osm):
+def _match_type(gtfs, osm):
     """How two calls are the same stop, as in the engine: the same platform, else the same station.
 
     ``same_station`` is a station both calls resolve to, at different platforms;
     ``uic_match`` a station where a call has no resolved platform.
     """
-    atlas_ids, atlas_uic = atlas
+    gtfs_ids, gtfs_uic = gtfs
     osm_ids, osm_uic = osm
-    if atlas_ids & osm_ids:
+    if gtfs_ids & osm_ids:
         return 'resolved_sloid_match'
-    if atlas_uic and atlas_uic == osm_uic:
-        return 'same_station' if atlas_ids and osm_ids else 'uic_match'
+    if gtfs_uic and gtfs_uic == osm_uic:
+        return 'same_station' if gtfs_ids and osm_ids else 'uic_match'
     return None
 
 
 def _serialize_stop(call, source, position=None):
-    if source == 'atlas':
+    if source == 'gtfs':
         ids = [getattr(call, 'source_sloid', None), *_variants(call),
                getattr(call, 'source_stop_id', None)]
     else:
@@ -82,28 +82,28 @@ def _serialize_stop(call, source, position=None):
         'stop_label': _text(getattr(call, 'stop_label', None)) or 'Unnamed stop',
         'stop_ids': list(dict.fromkeys(text for value in ids if (text := _text(value)))),
         # The stop's id in stop matching: its SLOID, or its OSM node.
-        'source_id': _text(getattr(call, 'source_sloid' if source == 'atlas' else 'source_node_id', None)),
+        'source_id': _text(getattr(call, 'source_sloid' if source == 'gtfs' else 'source_node_id', None)),
         'uic_ref': _text(getattr(call, 'uic_ref', None)),
         'lat': getattr(call, 'stop_lat', None),
         'lon': getattr(call, 'stop_lon', None),
     }
 
 
-def _align(atlas_items, osm_items, match):
+def _align(gtfs_items, osm_items, match):
     """Longest common subsequence as ``(atlas index, OSM index, match)`` steps.
 
     A gap step has ``None`` on one side. Traceback needs one byte per pair;
     scores only need the previous row. On equal scores the engine prefers a
-    matching diagonal, then an ATLAS gap.
+    matching diagonal, then a GTFS gap.
     """
     width = len(osm_items)
     trace = []
     previous = [0] * (width + 1)
-    for atlas_item in atlas_items:
+    for gtfs_item in gtfs_items:
         current = [0]
         row_trace = bytearray(width)
         for j, osm_item in enumerate(osm_items):
-            matched = match(atlas_item, osm_item)
+            matched = match(gtfs_item, osm_item)
             diagonal = previous[j] + bool(matched)
             up, left = previous[j + 1], current[j]
             if matched and diagonal >= up and diagonal >= left:
@@ -119,11 +119,11 @@ def _align(atlas_items, osm_items, match):
         trace.append(row_trace)
 
     steps = []
-    i, j = len(atlas_items), width
+    i, j = len(gtfs_items), width
     while i or j:
         move = trace[i - 1][j - 1] if i and j else (2 if i else 3)
         if move == 1:
-            steps.append((i - 1, j - 1, match(atlas_items[i - 1], osm_items[j - 1])))
+            steps.append((i - 1, j - 1, match(gtfs_items[i - 1], osm_items[j - 1])))
             i -= 1
             j -= 1
         elif move == 2:
@@ -136,35 +136,35 @@ def _align(atlas_items, osm_items, match):
     return steps, previous[-1]
 
 
-def compare_stop_calls(atlas_calls, osm_calls, atlas_itinerary=None, osm_itinerary=None):
+def compare_stop_calls(gtfs_calls, osm_calls, gtfs_itinerary=None, osm_itinerary=None):
     """Align two ordered call sequences; preserve gaps and repeated visits."""
-    atlas_identities = [_identity(call) for call in atlas_calls]
+    gtfs_identities = [_identity(call) for call in gtfs_calls]
     osm_identities = [_identity(call) for call in osm_calls]
-    atlas_stops = [_serialize_stop(call, 'atlas', position) for position, call in enumerate(atlas_calls, 1)]
+    gtfs_stops = [_serialize_stop(call, 'gtfs', position) for position, call in enumerate(gtfs_calls, 1)]
     osm_stops = [_serialize_stop(call, 'osm', position) for position, call in enumerate(osm_calls, 1)]
-    steps, matched_stop_count = _align(atlas_identities, osm_identities, _match_type)
+    steps, matched_stop_count = _align(gtfs_identities, osm_identities, _match_type)
 
     rows = []
     for i, j, match_type in steps:
-        row = {'atlas': atlas_stops[i] if i is not None else None,
+        row = {'gtfs': gtfs_stops[i] if i is not None else None,
                'osm': osm_stops[j] if j is not None else None, 'match_type': match_type}
         if match_type == 'same_station':
             # Counted as a shared stop; the page marks the other platform.
             row['same_station'] = True
         rows.append(row)
 
-    has_pair = atlas_itinerary is not None and osm_itinerary is not None
-    denominator = max(len(atlas_calls), len(osm_calls))
+    has_pair = gtfs_itinerary is not None and osm_itinerary is not None
+    denominator = max(len(gtfs_calls), len(osm_calls))
     ratio = matched_stop_count / denominator if has_pair and denominator else None
-    atlas_direction = _text(getattr(atlas_itinerary, 'direction_id', None))
+    gtfs_direction = _text(getattr(gtfs_itinerary, 'direction_id', None))
     osm_direction = _text(getattr(osm_itinerary, 'direction_id', None))
     direction_status = 'unknown'
-    if atlas_direction is not None and osm_direction is not None:
-        direction_status = 'match' if atlas_direction == osm_direction else 'conflict'
+    if gtfs_direction is not None and osm_direction is not None:
+        direction_status = 'match' if gtfs_direction == osm_direction else 'conflict'
     return {
         'rows': rows,
         'matched_stop_count': matched_stop_count,
-        'atlas_stop_count': len(atlas_calls),
+        'gtfs_stop_count': len(gtfs_calls),
         'osm_stop_count': len(osm_calls),
         'stop_ratio': ratio,
         'percentage': round(ratio * 100, 1) if ratio is not None else None,
@@ -173,7 +173,7 @@ def compare_stop_calls(atlas_calls, osm_calls, atlas_itinerary=None, osm_itinera
 
 
 def _matched_expression(source):
-    column = (ItineraryMatch.atlas_itinerary_id if source == 'atlas'
+    column = (ItineraryMatch.gtfs_itinerary_id if source == 'gtfs'
               else ItineraryMatch.osm_itinerary_id)
     return exists(select(ItineraryMatch.id).where(column == Itinerary.id))
 
@@ -202,8 +202,8 @@ def _saved_counterparts(source, itinerary_ids):
     result = {itinerary_id: [] for itinerary_id in itinerary_ids}
     if not result:
         return result
-    own, other = ((ItineraryMatch.atlas_itinerary_id, ItineraryMatch.osm_itinerary_id) if source == 'atlas'
-                  else (ItineraryMatch.osm_itinerary_id, ItineraryMatch.atlas_itinerary_id))
+    own, other = ((ItineraryMatch.gtfs_itinerary_id, ItineraryMatch.osm_itinerary_id) if source == 'gtfs'
+                  else (ItineraryMatch.osm_itinerary_id, ItineraryMatch.gtfs_itinerary_id))
     rows = (db.session.query(own, Itinerary, LineFamily)
             .join(Itinerary, Itinerary.id == other)
             .join(LineFamily, LineFamily.id == Itinerary.line_family_id)
@@ -237,11 +237,11 @@ def _itineraries_query(source):
                     LineFamily.is_non_gtfs.is_(False)))
 
 
-def build_route_comparison(atlas_itinerary_id=None, osm_itinerary_id=None):
-    metadata = {'atlas': None, 'osm': None}
-    itineraries = {'atlas': None, 'osm': None}
-    calls = {'atlas': [], 'osm': []}
-    for source, itinerary_id in [('atlas', atlas_itinerary_id), ('osm', osm_itinerary_id)]:
+def build_route_comparison(gtfs_itinerary_id=None, osm_itinerary_id=None):
+    metadata = {'gtfs': None, 'osm': None}
+    itineraries = {'gtfs': None, 'osm': None}
+    calls = {'gtfs': [], 'osm': []}
+    for source, itinerary_id in [('gtfs', gtfs_itinerary_id), ('osm', osm_itinerary_id)]:
         if itinerary_id is None:
             continue
         row = _itineraries_query(source).filter(Itinerary.id == itinerary_id).first()
@@ -253,12 +253,12 @@ def build_route_comparison(atlas_itinerary_id=None, osm_itinerary_id=None):
         calls[source] = (db.session.query(StopCall).filter(StopCall.itinerary_id == itinerary_id)
                          .order_by(StopCall.stop_sequence, StopCall.id).all())
     is_saved_match = False
-    if atlas_itinerary_id is not None and osm_itinerary_id is not None:
+    if gtfs_itinerary_id is not None and osm_itinerary_id is not None:
         is_saved_match = db.session.query(exists(select(ItineraryMatch.id).where(
-            ItineraryMatch.atlas_itinerary_id == atlas_itinerary_id,
+            ItineraryMatch.gtfs_itinerary_id == gtfs_itinerary_id,
             ItineraryMatch.osm_itinerary_id == osm_itinerary_id,
         ))).scalar()
-    comparison = compare_stop_calls(calls['atlas'], calls['osm'], itineraries['atlas'], itineraries['osm'])
+    comparison = compare_stop_calls(calls['gtfs'], calls['osm'], itineraries['gtfs'], itineraries['osm'])
     attach_stop_matches([comparison])
     return {
         **metadata,
@@ -268,6 +268,7 @@ def build_route_comparison(atlas_itinerary_id=None, osm_itinerary_id=None):
 
 
 _MATCHED_STOP_TYPES = ('matched', 'effectively_matched')
+_STOP_SOURCE = {'gtfs': 'atlas', 'osm': 'osm'}
 
 
 def _load_stop_matches(sloids, node_ids):
@@ -306,8 +307,9 @@ def attach_stop_matches(comparisons):
     stop, not to the comparison: a stop missing from the other variant can
     still be matched, to a stop of another variant. One query for all.
     """
-    stops = [(source, stop) for comparison in comparisons for row in comparison['rows']
-             for source in ('atlas', 'osm') if (stop := row[source])]
+    # A GTFS variant calls at ATLAS stops: stop matching names them by the registry.
+    stops = [(_STOP_SOURCE[side], stop) for comparison in comparisons for row in comparison['rows']
+             for side in ('gtfs', 'osm') if (stop := row[side])]
     matches = _load_stop_matches(
         {stop['source_id'] for source, stop in stops if source == 'atlas' and stop['source_id']},
         {stop['source_id'] for source, stop in stops if source == 'osm' and stop['source_id']},
@@ -371,7 +373,7 @@ def list_comparison_options(source, *, q='', unmatched=True, page=1, per_page=30
 def _fixed_sources(itinerary_ids):
     rows = (db.session.query(Itinerary.id, Itinerary.source)
             .join(LineFamily, LineFamily.id == Itinerary.line_family_id)
-            .filter(Itinerary.id.in_(itinerary_ids), Itinerary.source.in_(['atlas', 'osm']),
+            .filter(Itinerary.id.in_(itinerary_ids), Itinerary.source.in_(['gtfs', 'osm']),
                     LineFamily.source == Itinerary.source, LineFamily.is_non_gtfs.is_(False)).all())
     sources = dict(rows)
     if len(sources) != len(set(itinerary_ids)):
@@ -598,7 +600,7 @@ def _best_counterpart(fixed, side_index, sequences):
 def compute_best_overlaps(line_families, itineraries, stop_calls):
     """Rows for ``itinerary_best_overlaps`` from the import payload.
 
-    Covers every itinerary the live comparison accepts: ATLAS or OSM, in a
+    Covers every itinerary the live comparison accepts: GTFS or OSM, in a
     family of the same source that is not marked non-GTFS. The counterpart is
     searched across all such itineraries of the other source, matched or not,
     with the live ranking: matched stops in order / longer stop count, then
@@ -606,7 +608,7 @@ def compute_best_overlaps(line_families, itineraries, stop_calls):
     """
     family_sources = {row['id']: row['source'] for row in line_families if not row.get('is_non_gtfs')}
     sources = {row['id']: row['source'] for row in itineraries
-               if row['source'] in ('atlas', 'osm') and family_sources.get(row['line_family_id']) == row['source']}
+               if row['source'] in ('gtfs', 'osm') and family_sources.get(row['line_family_id']) == row['source']}
     calls = defaultdict(list)
     for row in stop_calls:
         if row['itinerary_id'] in sources:
@@ -627,11 +629,11 @@ def compute_best_overlaps(line_families, itineraries, stop_calls):
             for itinerary_id, sequence in sequences.items() if sources[itinerary_id] == source
             for identity in sequence
         )
-        for source in ('atlas', 'osm')
+        for source in ('gtfs', 'osm')
     }
     rows = []
     for itinerary_id in sorted(sequences):
-        other_source = 'osm' if sources[itinerary_id] == 'atlas' else 'atlas'
+        other_source = 'osm' if sources[itinerary_id] == 'gtfs' else 'gtfs'
         best = _best_counterpart(sequences[itinerary_id], side_indexes[other_source], sequences)
         rows.append({
             'itinerary_id': itinerary_id,

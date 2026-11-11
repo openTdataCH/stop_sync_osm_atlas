@@ -34,7 +34,7 @@ from backend.models import (
     OsmStop,
     OsmStopMember,
     Problem,
-    AtlasLineFamily,
+    GtfsLineFamily,
     OsmRouteRelation,
     LineFamily,
     Itinerary,
@@ -57,7 +57,7 @@ def _ensure_import_schema_exists(db_session) -> None:
         'osm_nodes',
         'osm_stops',
         'osm_stop_members',
-        'atlas_line_families',
+        'gtfs_line_families',
         'osm_route_relations',
         'line_families',
         'itineraries',
@@ -448,7 +448,7 @@ def build_fast_insert_payloads(
         return [{key: value for key, value in row.items() if key in columns}
                 for row in route_write_payload.get(name, [])]
 
-    atlas_line_family_dicts = table_rows(AtlasLineFamily, 'atlas_line_families')
+    gtfs_line_family_dicts = table_rows(GtfsLineFamily, 'gtfs_line_families')
     osm_route_relation_dicts = table_rows(OsmRouteRelation, 'osm_route_relations')
     line_family_dicts = table_rows(LineFamily, 'line_families')
     itinerary_dicts = table_rows(Itinerary, 'itineraries')
@@ -496,7 +496,7 @@ def build_fast_insert_payloads(
         'gtfs_stops_raw': gtfs_stop_dicts,
         'gtfs_stop_identity_resolution': gtfs_identity_resolution_dicts,
         'problem_rows': problem_rows,
-        'atlas_line_families': atlas_line_family_dicts,
+        'gtfs_line_families': gtfs_line_family_dicts,
         'osm_route_relations': osm_route_relation_dicts,
         'line_families': line_family_dicts,
         'itineraries': itinerary_dicts,
@@ -589,7 +589,7 @@ def _write_rows(db_session, db_payloads):
     problems = [{'stop_id': stop_idx_to_db_id[idx], 'problem_type': kind, 'priority': priority}
                 for idx, kind, priority in db_payloads.get('problem_rows', []) if idx in stop_idx_to_db_id]
     _bulk_insert_rows(db_session, Problem, problems, 'problem rows')
-    _bulk_insert_rows(db_session, AtlasLineFamily, db_payloads.get('atlas_line_families', []), 'ATLAS line families')
+    _bulk_insert_rows(db_session, GtfsLineFamily, db_payloads.get('gtfs_line_families', []), 'GTFS line families')
     _bulk_insert_rows(db_session, OsmRouteRelation, db_payloads.get('osm_route_relations', []), 'OSM route relations')
     _bulk_insert_rows(db_session, LineFamily, db_payloads.get('line_families', []), 'line families')
     _bulk_insert_rows(db_session, Itinerary, db_payloads.get('itineraries', []), 'itineraries')

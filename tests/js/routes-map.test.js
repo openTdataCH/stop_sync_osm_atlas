@@ -24,7 +24,7 @@ function loadRouteMapComponents() {
 
 test('route previews preserve grouped order, refresh labels at zoom 18, and toggle subdued context', async () => {
     const direction = {
-        atlas_uic_groups: [{ members: [
+        gtfs_uic_groups: [{ members: [
             { stop_id: 'source:b', lat: 47, lon: 8, stop_type: 'atlas_unmatched', has_atlas_duplicate: true },
             { stop_id: 'source:a', lat: 47.1, lon: 8.1, stop_type: 'matched' }
         ] }],
@@ -89,7 +89,7 @@ test('route previews preserve grouped order, refresh labels at zoom 18, and togg
 });
 
 test('inline comparisons update only their own map and restore the fixed variant when cleared', async () => {
-    const direction = { atlas_uic_groups: [{ members: [
+    const direction = { gtfs_uic_groups: [{ members: [
         { stop_id: 'fixed', lat: 47, lon: 8, stop_type: 'atlas_unmatched' }
     ] }], osm_uic_groups: [] };
     document.body.innerHTML = [0, 1].map(index => `
@@ -119,15 +119,15 @@ test('inline comparisons update only their own map and restore the fixed variant
     const panels = [...document.querySelectorAll('details')];
     panels.forEach(panel => { panel.open = true; panel.dispatchEvent(new Event('toggle')); });
     const comparison = { rows: [
-        { atlas: { id: 1, stop_ids: ['fixed'], source_id: 'fixed', lat: 47, lon: 8,
+        { gtfs: { id: 1, stop_ids: ['fixed'], source_id: 'fixed', lat: 47, lon: 8,
             partners: [{ stop_id: 'osm:2', lat: 47.0001, lon: 8.0001 }] },
         osm: { id: 2, stop_ids: ['osm:2'], source_id: 'osm:2', lat: 47.0001, lon: 8.0001,
             partners: [{ stop_id: 'fixed', lat: 47, lon: 8 }] }, match_type: 'resolved_sloid_match' },
-        { atlas: null, osm: { id: 3, stop_ids: ['osm:3'], source_id: 'osm:3', lat: 47.1, lon: 8.1, stop_type: 'matched' }, match_type: null },
-        { atlas: { id: 4, stop_ids: ['missing'], lat: null, lon: null },
+        { gtfs: null, osm: { id: 3, stop_ids: ['osm:3'], source_id: 'osm:3', lat: 47.1, lon: 8.1, stop_type: 'matched' }, match_type: null },
+        { gtfs: { id: 4, stop_ids: ['missing'], lat: null, lon: null },
             osm: { id: 5, stop_ids: ['osm:5'], lat: null, lon: null }, match_type: 'uic_match' },
         // Zürich Selnau: each platform is matched to a stop that only the other variants call at.
-        { atlas: { id: 6, stop_ids: ['platform-2'], source_id: 'platform-2', lat: 47.2, lon: 8.2, stop_type: 'matched',
+        { gtfs: { id: 6, stop_ids: ['platform-2'], source_id: 'platform-2', lat: 47.2, lon: 8.2, stop_type: 'matched',
             partners: [{ stop_id: 'osm:8', lat: 47.3, lon: 8.3 }] },
         osm: { id: 7, stop_ids: ['osm:7'], source_id: 'osm:7', lat: 47.2001, lon: 8.2001,
             partners: [{ stop_id: 'platform-1', lat: 47.4, lon: 8.4 }] }, match_type: null, same_station: true }
@@ -165,7 +165,7 @@ test('inline comparisons update only their own map and restore the fixed variant
 });
 
 test('preview maps leave the wheel to the page until clicked and ring the stops of hovered rows', async () => {
-    const direction = { atlas_uic_groups: [{ members: [{ stop_id: 'fixed', lat: 47, lon: 8, stop_type: 'matched' }] }], osm_uic_groups: [] };
+    const direction = { gtfs_uic_groups: [{ members: [{ stop_id: 'fixed', lat: 47, lon: 8, stop_type: 'matched' }] }], osm_uic_groups: [] };
     document.body.innerHTML = `
         <details class="route-card__panel--map"><section class="variant-comparison"></section>
           <aside class="route-card__map-shell"><div id="routeMap0" class="route-card__map" data-map-index="0"></div></aside>
@@ -227,7 +227,7 @@ test('preview maps leave the wheel to the page until clicked and ring the stops 
 
 test('route stops open their popup by source id, keep it open across a redraw and link to the main map', async () => {
     const direction = {
-        atlas_uic_groups: [{ members: [{ stop_id: 'ch:1:sloid:7', lat: 47, lon: 8, stop_type: 'matched' }] }],
+        gtfs_uic_groups: [{ members: [{ stop_id: 'ch:1:sloid:7', lat: 47, lon: 8, stop_type: 'matched' }] }],
         osm_uic_groups: [{ members: [{ stop_id: 'way_5', lat: 47.0001, lon: 8.0001, stop_type: 'matched' }] }]
     };
     document.body.innerHTML = `
@@ -298,7 +298,7 @@ test('route stops open their popup by source id, keep it open across a redraw an
     expect(mainMap.getAttribute('href')).toBe('/?atlas_variant=91-10-A-j26-1:0:Z%C3%BCrich+Selnau&osm_variant=1561015#map=18/47.00005/8.00005');
     // A comparison with another variant names that one; clearing it brings back the panel's own.
     document.querySelector('section').dispatchEvent(new CustomEvent('routecomparisonchange', { bubbles: true, detail: {
-        atlas: { source_itinerary_id: '91-10-A-j26-1:0:Zürich HB' }, osm: null, rows: []
+        gtfs: { source_itinerary_id: '91-10-A-j26-1:0:Zürich HB' }, osm: null, rows: []
     } }));
     expect(mainMap.getAttribute('href')).toBe('/?atlas_variant=91-10-A-j26-1:0:Z%C3%BCrich+HB#map=18/47.00005/8.00005');
     document.querySelector('section').dispatchEvent(new CustomEvent('routecomparisonchange', { bubbles: true, detail: null }));

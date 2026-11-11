@@ -117,7 +117,7 @@ describe('Canonical map entities and page adapters', () => {
   });
 
   test('route direction grouping preserves source order, status, labels and deduplicates repeated stops', () => {
-    const snapshot = window.MapEntityAdapters.routeDirection({ atlas_uic_groups: [
+    const snapshot = window.MapEntityAdapters.routeDirection({ gtfs_uic_groups: [
       { uic_ref: 'second', members: [{ stop_id: 'b', lat: 47, lon: 8, stop_type: 'atlas_unmatched', has_atlas_duplicate: true }] },
       { uic_ref: 'first', members: [{ stop_id: 'a', lat: 48, lon: 9, stop_type: 'matched' }, { stop_id: 'b', lat: 47, lon: 8 }] }
     ], osm_uic_groups: [{ members: [{ stop_id: '2', lat: 47, lon: 8, stop_type: 'effectively_matched', osm_node_type: 'platform' }] }] });

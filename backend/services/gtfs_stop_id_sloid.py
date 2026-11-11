@@ -6,8 +6,8 @@ from backend.extensions import db
 from backend.models import AtlasStop, GtfsStopIdentityResolution, GtfsStopRaw, StopsMatched
 from backend.services.stats_export import load_stats_from_file
 from backend.services.transport_routes import (
-    get_atlas_routes_for_gtfs_stop_ids,
-    get_atlas_routes_for_sloids,
+    get_gtfs_routes_for_gtfs_stop_ids,
+    get_gtfs_routes_for_sloids,
 )
 
 
@@ -55,8 +55,8 @@ def _merge_atlas_routes(*route_lists):
 
 
 def _build_gtfs_popup_route_context(stop_id, matched_sloids):
-    routes_by_sloid = get_atlas_routes_for_sloids(matched_sloids)
-    direct_routes = get_atlas_routes_for_gtfs_stop_ids([stop_id]).get(stop_id, [])
+    routes_by_sloid = get_gtfs_routes_for_sloids(matched_sloids)
+    direct_routes = get_gtfs_routes_for_gtfs_stop_ids([stop_id]).get(stop_id, [])
     related_routes = [routes_by_sloid.get(sloid, []) for sloid in matched_sloids]
     return _merge_atlas_routes(direct_routes, *related_routes), routes_by_sloid
 
@@ -602,7 +602,7 @@ def build_gtfs_stop_popup(stop_id):
         'stop_lon': stop_lon,
         'matched_sloid_count': int(matched_count),
         'candidate_atlas_count': int(candidate_count),
-        'routes_atlas': popup_routes,
+        'routes_gtfs': popup_routes,
         'matched_sloids': [
             {
                 'sloid': atlas_stop.sloid,
@@ -613,7 +613,7 @@ def build_gtfs_stop_popup(stop_id):
                 'atlas_lon': match.atlas_lon,
                 'match_method': match.resolution_method,
                 'distance_m': match.distance_m,
-                'routes_atlas': routes_by_sloid.get(atlas_stop.sloid, []),
+                'routes_gtfs': routes_by_sloid.get(atlas_stop.sloid, []),
             }
             for match, atlas_stop in matched_rows
         ],
@@ -669,8 +669,8 @@ def build_atlas_stop_popup(sloid):
     )
     same_uic_count = db.session.query(func.count(GtfsStopRaw.stop_id)).filter(GtfsStopRaw.uic_number == stop.uic_ref).scalar() or 0
     matched_stop_ids = [gtfs_stop.stop_id for _match, gtfs_stop in matched_rows]
-    routes_by_sloid = get_atlas_routes_for_sloids([stop.sloid])
-    routes_by_stop_id = get_atlas_routes_for_gtfs_stop_ids(matched_stop_ids)
+    routes_by_sloid = get_gtfs_routes_for_sloids([stop.sloid])
+    routes_by_stop_id = get_gtfs_routes_for_gtfs_stop_ids(matched_stop_ids)
 
     return {
         'entity_type': 'atlas',
@@ -683,7 +683,7 @@ def build_atlas_stop_popup(sloid):
         'atlas_lon': atlas_lon,
         'matched_gtfs_count': int(matched_count),
         'same_uic_gtfs_count': int(same_uic_count),
-        'routes_atlas': routes_by_sloid.get(stop.sloid, []),
+        'routes_gtfs': routes_by_sloid.get(stop.sloid, []),
         'matched_gtfs': [
             {
                 'stop_id': gtfs_stop.stop_id,
@@ -694,7 +694,7 @@ def build_atlas_stop_popup(sloid):
                 'stop_lon': match.gtfs_stop_lon,
                 'match_method': match.resolution_method,
                 'distance_m': match.distance_m,
-                'routes_atlas': routes_by_stop_id.get(gtfs_stop.stop_id, []),
+                'routes_gtfs': routes_by_stop_id.get(gtfs_stop.stop_id, []),
             }
             for match, gtfs_stop in matched_rows
         ],
