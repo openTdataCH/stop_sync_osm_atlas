@@ -70,8 +70,8 @@ describe('Permalinks', () => {
         expect(Permalinks.encodeParams({ problem_type: 'distance,unmatched', atlas_operator: 'A & B' }))
             .toBe('problem_type=distance,unmatched&atlas_operator=A+%26+B');
         // /routes canonicalises with safe=',' only, like urlencode(safe=',').
-        expect(Permalinks.encodeParams({ atlas_variant: "91-10-A-j26-1:0:Zürich (HB)*!'" }, ','))
-            .toBe('atlas_variant=91-10-A-j26-1%3A0%3AZ%C3%BCrich+%28HB%29%2A%21%27');
+        expect(Permalinks.encodeParams({ gtfs_variant: "91-10-A-j26-1:0:Zürich (HB)*!'" }, ','))
+            .toBe('gtfs_variant=91-10-A-j26-1%3A0%3AZ%C3%BCrich+%28HB%29%2A%21%27');
         expect(Permalinks.encodeParams(null)).toBe('');
     });
 

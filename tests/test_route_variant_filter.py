@@ -1,4 +1,4 @@
-"""The map's route filter narrowed to route variants (atlas_variant / osm_variant)."""
+"""The map's route filter narrowed to route variants (gtfs_variant / osm_variant)."""
 import json
 
 import pytest
@@ -71,7 +71,7 @@ def test_variants_narrow_the_route_to_exactly_their_stops_whatever_the_direction
         [], ['n-selnau-2', 'n-uetliberg'])
 
 
-def test_an_atlas_variant_key_survives_a_new_timetable(variant_db):
+def test_a_gtfs_variant_key_survives_a_new_timetable(variant_db):
     variants = {'gtfs': '91-10-A-j25-1:0:Zürich Selnau', 'osm': None}
     assert _stops(get_stops_for_route('91-10-A-j25-1', None, variants)) == (['selnau-2', 'uetliberg'], [])
     # Only the year is ignored: the headsign must still be the same.
@@ -117,11 +117,13 @@ def test_a_variant_link_names_its_line_and_its_variants_with_current_keys(varian
 
 def test_route_variants_api(app, variant_db):
     client = app.test_client()
-    response = client.get('/api/routes/variants', query_string={'atlas_variant': SELNAU, 'osm_variant': '1561015'})
+    response = client.get('/api/routes/variants', query_string={'gtfs_variant': SELNAU, 'osm_variant': '1561015'})
     assert response.status_code == 200
     assert response.json['selected']['gtfs']['key'] == SELNAU
     assert client.get('/api/routes/variants?route_id=91-10-A-j26-1').json['variants'][1]['gtfs']['key'] == SELNAU
     assert client.get('/api/routes/variants?osm_variant=999').status_code == 404
+    # The parameter's name before release 0.7.
+    assert client.get('/api/routes/variants', query_string={'atlas_variant': SELNAU}).json['selected']['gtfs']['key'] == SELNAU
     assert client.get('/api/routes/variants').status_code == 400
     assert client.get('/api/routes/variants', query_string={'route_id': 'x' * 256}).status_code == 400
 

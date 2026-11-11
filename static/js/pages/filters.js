@@ -1045,11 +1045,12 @@ function toggleDirectionDropdown(dropdown) {
 // ==========================================
 // Route variants
 // ==========================================
-// A route filter can be narrowed to exact variants: an ATLAS itinerary, an
+// A route filter can be narrowed to exact variants: a GTFS itinerary, an
 // OSM route relation, or both. They are named with the routes page's keys,
-// atlas_variant and osm_variant, which the address bar also carries.
+// gtfs_variant and osm_variant, which the address bar also carries.
+// atlas_variant is gtfs_variant before release 0.7: still read, then replaced.
 
-var ROUTE_VARIANT_KEYS = ['atlas_variant', 'osm_variant'];
+var ROUTE_VARIANT_KEYS = ['gtfs_variant', 'osm_variant', 'atlas_variant'];
 var routeVariantRequests = {};
 var loadedRouteVariants = {};  // route id -> variants, for the dropdown's options
 
@@ -1097,7 +1098,7 @@ function syncRouteVariantUrl() {
     activeFilters.routeVariants.forEach(function (variants) { if (variants) last = variants; });
     Permalinks.replaceUrl({
         search: Permalinks.buildSearch(window.location.search, ROUTE_VARIANT_KEYS,
-            last ? Permalinks.encodeParams({ atlas_variant: last.gtfs, osm_variant: last.osm }) : '')
+            last ? Permalinks.encodeParams({ gtfs_variant: last.gtfs, osm_variant: last.osm }) : '')
     });
 }
 
@@ -1240,7 +1241,7 @@ function filterUrlPairs() {
     addList('problem_type', activeFilters.problemTypes);
     addList('priority', activeFilters.problemPriorities);
     if (activeFilters.topN) pairs.push(['top_n', String(activeFilters.topN)]);
-    // The last route filter narrowed to variants is named by atlas_variant / osm_variant.
+    // The last route filter narrowed to variants is named by gtfs_variant / osm_variant.
     var variantIndex = -1;
     activeFilters.routeVariants.forEach(function (variants, index) { if (variants) variantIndex = index; });
     activeFilters.station.forEach(function (value, index) {

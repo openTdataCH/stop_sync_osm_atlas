@@ -19,8 +19,8 @@ function panel(attributes, label) {
 function openPage(url) {
     history.replaceState(null, '', url);
     document.body.innerHTML = [
-        panel(`data-atlas-variant="${MATCHED_ATLAS}" data-osm-variant="2169538"`, 'matched'),
-        panel('data-atlas-variant="91-10-A-j26-1:1:Selnau"', 'unmatched ATLAS'),
+        panel(`data-gtfs-variant="${MATCHED_ATLAS}" data-osm-variant="2169538"`, 'matched'),
+        panel('data-gtfs-variant="91-10-A-j26-1:1:Selnau"', 'unmatched ATLAS'),
         panel('data-osm-variant="999"', 'unmatched OSM'),
         '<details class="route-card__panel route-card__panel--map"><summary>no ids</summary></details>'
     ].join('');
@@ -60,7 +60,7 @@ describe('Routes variant permalinks', () => {
     });
 
     test('a matched variant needs both identifiers to match', () => {
-        const [matched] = openPage('/routes?atlas_variant=' + encodeURIComponent(MATCHED_ATLAS) + '&osm_variant=2169538');
+        const [matched] = openPage('/routes?gtfs_variant=' + encodeURIComponent(MATCHED_ATLAS) + '&osm_variant=2169538');
         expect(matched.open).toBe(true);
     });
 
@@ -69,13 +69,13 @@ describe('Routes variant permalinks', () => {
         const length = history.length;
 
         toggle(atlasOnly, true);
-        expect(window.location.search).toBe('?per_page=20&matched=unmatched&q=10&atlas_variant=91-10-A-j26-1%3A1%3ASelnau');
+        expect(window.location.search).toBe('?per_page=20&matched=unmatched&q=10&gtfs_variant=91-10-A-j26-1%3A1%3ASelnau');
         toggle(matched, true);
         expect(window.location.search).toBe(
-            '?per_page=20&matched=unmatched&q=10&atlas_variant=91-10-A-j26-1%3A0%3AZ%C3%BCrich+HB&osm_variant=2169538'
+            '?per_page=20&matched=unmatched&q=10&gtfs_variant=91-10-A-j26-1%3A0%3AZ%C3%BCrich+HB&osm_variant=2169538'
         );
         toggle(matched, false);
-        expect(window.location.search).toBe('?per_page=20&matched=unmatched&q=10&atlas_variant=91-10-A-j26-1%3A1%3ASelnau');
+        expect(window.location.search).toBe('?per_page=20&matched=unmatched&q=10&gtfs_variant=91-10-A-j26-1%3A1%3ASelnau');
         toggle(atlasOnly, false);
         expect(window.location.search).toBe('?per_page=20&matched=unmatched&q=10');
         expect(history.length).toBe(length);

@@ -22,7 +22,7 @@ def _match_filter_labels() -> dict[str, str]:
         route_listing.ROUTE_MATCH_ALL: 'All',
         route_listing.ROUTE_MATCHED: 'Matched',
         route_listing.ROUTE_UNMATCHED: 'Unmatched',
-        route_listing.ROUTE_UNMATCHED_ATLAS: f'Unmatched {route_source_label()}',
+        route_listing.ROUTE_UNMATCHED_GTFS: f'Unmatched {route_source_label()}',
         route_listing.ROUTE_UNMATCHED_OSM: 'Unmatched OSM',
     }
 
@@ -43,8 +43,14 @@ def _handle_route_database_error(exc):
     return _routes_unavailable_response(*route_listing.database_busy_reason(exc))
 
 
+# Parameter names and values before release 0.7. Old links still work: the
+# page reads them and redirects to the current names.
+_OLD_MATCH_FILTERS = {'unmatched_atlas': route_listing.ROUTE_UNMATCHED_GTFS}
+
+
 def _normalize_route_match_filter(value: str | None) -> str:
     matched = (value or '').strip().lower()
+    matched = _OLD_MATCH_FILTERS.get(matched, matched)
     return matched if matched in route_listing.ROUTE_MATCH_FILTERS else route_listing.ROUTE_MATCH_ALL
 
 
@@ -72,22 +78,22 @@ def _render_routes_template(active_view: str, **context):
 
 
 def _parse_variant_params():
-    """A permalink's variant: ATLAS itinerary id and OSM relation id, as stored."""
+    """A permalink's variant: GTFS itinerary id and OSM relation id, as stored."""
     def value(name):
         return (request.args.get(name) or '').strip()[:255] or None
-    return value('atlas_variant'), value('osm_variant')
+    return value('gtfs_variant') or value('atlas_variant'), value('osm_variant')
 
 
-def _page_for_variant(page, per_page, atlas_variant, osm_variant, **filters):
+def _page_for_variant(page, per_page, gtfs_variant, osm_variant, **filters):
     """The requested page, or the one holding the linked variant.
 
     Returns (page, error_response); a database timeout answers 503.
     """
-    if not (atlas_variant or osm_variant):
+    if not (gtfs_variant or osm_variant):
         return page, None
     try:
         located = route_listing.locate_route_variant_page(
-            atlas_variant=atlas_variant,
+            gtfs_variant=gtfs_variant,
             osm_variant=osm_variant,
             per_page=per_page,
             **filters,
@@ -105,11 +111,11 @@ def routes_page():
     matched_filter = _normalize_route_match_filter(request.args.get('matched'))
     selected_atlas_operators = route_listing.parse_multi_filter('atlas_operator')
     selected_osm_operators = route_listing.parse_multi_filter('osm_operator')
-    atlas_variant, osm_variant = _parse_variant_params()
+    gtfs_variant, osm_variant = _parse_variant_params()
     page, busy_response = _page_for_variant(
         page,
         per_page,
-        atlas_variant,
+        gtfs_variant,
         osm_variant,
         q=q,
         matched_filter=matched_filter,
@@ -140,7 +146,7 @@ def routes_page():
                 _serialize_filter(selected_osm_operators) or None,
             ),
             ('q', q or None),
-            ('atlas_variant', atlas_variant),
+            ('gtfs_variant', gtfs_variant),
             ('osm_variant', osm_variant),
         ),
     )

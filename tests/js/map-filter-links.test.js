@@ -111,18 +111,18 @@ describe('map filter links', () => {
     });
 
     test('the address bar follows the filters once syncing is on, keeping the view and the stop', () => {
-        history.replaceState({}, '', '/?sloid=ch:1:sloid:1&atlas_variant=x#map=15/47/8');
+        history.replaceState({}, '', '/?sloid=ch:1:sloid:1&gtfs_variant=x#map=15/47/8');
         document.getElementById('filterPlatform').checked = true;
         updateActiveFilters();
-        expect(location.search).toBe('?sloid=ch:1:sloid:1&atlas_variant=x');
+        expect(location.search).toBe('?sloid=ch:1:sloid:1&gtfs_variant=x');
 
         enableFilterUrlSync();
-        expect(location.search).toBe('?sloid=ch:1:sloid:1&atlas_variant=x&transport_types=platform');
+        expect(location.search).toBe('?sloid=ch:1:sloid:1&gtfs_variant=x&transport_types=platform');
         expect(location.hash).toBe('#map=15/47/8');
 
         document.getElementById('filterPlatform').checked = false;
         updateActiveFilters();
-        expect(location.search).toBe('?sloid=ch:1:sloid:1&atlas_variant=x');
+        expect(location.search).toBe('?sloid=ch:1:sloid:1&gtfs_variant=x');
     });
 
     test('the route filter named by the variant parameters is not repeated as a search filter', () => {

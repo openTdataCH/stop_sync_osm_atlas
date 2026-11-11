@@ -231,7 +231,7 @@ test('route stops open their popup by source id, keep it open across a redraw an
         osm_uic_groups: [{ members: [{ stop_id: 'way_5', lat: 47.0001, lon: 8.0001, stop_type: 'matched' }] }]
     };
     document.body.innerHTML = `
-        <details class="route-card__panel--map" data-atlas-variant="91-10-A-j26-1:0:Zürich Selnau" data-osm-variant="1561015">
+        <details class="route-card__panel--map" data-gtfs-variant="91-10-A-j26-1:0:Zürich Selnau" data-osm-variant="1561015">
           <section class="variant-comparison"></section>
           <aside class="route-card__map-shell">
             <a class="variant-map__main-map" href="/"></a>
@@ -295,14 +295,14 @@ test('route stops open their popup by source id, keep it open across a redraw an
     // The main map opens on the variants this map shows, where this map is.
     const mainMap = document.querySelector('.variant-map__main-map');
     handlers.moveend();
-    expect(mainMap.getAttribute('href')).toBe('/?atlas_variant=91-10-A-j26-1:0:Z%C3%BCrich+Selnau&osm_variant=1561015#map=18/47.00005/8.00005');
+    expect(mainMap.getAttribute('href')).toBe('/?gtfs_variant=91-10-A-j26-1:0:Z%C3%BCrich+Selnau&osm_variant=1561015#map=18/47.00005/8.00005');
     // A comparison with another variant names that one; clearing it brings back the panel's own.
     document.querySelector('section').dispatchEvent(new CustomEvent('routecomparisonchange', { bubbles: true, detail: {
         gtfs: { source_itinerary_id: '91-10-A-j26-1:0:Zürich HB' }, osm: null, rows: []
     } }));
-    expect(mainMap.getAttribute('href')).toBe('/?atlas_variant=91-10-A-j26-1:0:Z%C3%BCrich+HB#map=18/47.00005/8.00005');
+    expect(mainMap.getAttribute('href')).toBe('/?gtfs_variant=91-10-A-j26-1:0:Z%C3%BCrich+HB#map=18/47.00005/8.00005');
     document.querySelector('section').dispatchEvent(new CustomEvent('routecomparisonchange', { bubbles: true, detail: null }));
-    expect(mainMap.getAttribute('href')).toContain('?atlas_variant=91-10-A-j26-1:0:Z%C3%BCrich+Selnau&osm_variant=1561015#map=');
+    expect(mainMap.getAttribute('href')).toContain('?gtfs_variant=91-10-A-j26-1:0:Z%C3%BCrich+Selnau&osm_variant=1561015#map=');
 
     window.dispatchEvent(new Event('pagehide'));
     await new Promise(resolve => setTimeout(resolve, 0));

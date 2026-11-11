@@ -46,8 +46,14 @@ describe('route filter narrowed to variants', () => {
         expect(chip().querySelector('.direction-current').title).toBe('GTFS: Uetliberg -> Zürich Selnau\nOSM: Uetliberg -> Selnau');
         expect(chip().getAttribute('data-current')).toBe('variant');
         // The other parameters stay as they were.
-        expect(window.location.search).toBe('?sloid=ch:1:sloid:7&atlas_variant=91-10-A-j26-1:0:Z%C3%BCrich+Selnau&osm_variant=1561015');
+        expect(window.location.search).toBe('?sloid=ch:1:sloid:7&gtfs_variant=91-10-A-j26-1:0:Z%C3%BCrich+Selnau&osm_variant=1561015');
         expect(window.loadDataForViewport).toHaveBeenCalled();
+    });
+
+    test('a link with atlas_variant, the name before release 0.7, is rewritten to gtfs_variant', () => {
+        history.replaceState({}, '', '/?sloid=ch:1:sloid:7&atlas_variant=91-10-A-j25-1:0:Z%C3%BCrich+Selnau');
+        window.addRouteVariantFilter({ route_id: '91-10-A-j26-1', selected: { gtfs: SELNAU, osm: null } });
+        expect(window.location.search).toBe('?sloid=ch:1:sloid:7&gtfs_variant=91-10-A-j26-1:0:Z%C3%BCrich+Selnau');
     });
 
     test('the dropdown lists the line\'s variants by direction, and choosing one or a direction narrows or widens the filter', async () => {
@@ -86,7 +92,7 @@ describe('route filter narrowed to variants', () => {
 
     test('removing the route filter drops its variants from the address bar', () => {
         window.addRouteVariantFilter({ route_id: '91-10-A-j26-1', selected: { gtfs: HB, osm: null } });
-        expect(window.location.search).toContain('atlas_variant=');
+        expect(window.location.search).toContain('gtfs_variant=');
         click(document.querySelector('#activeFilters .remove-filter'));
         expect(window.activeFilters.routeVariants).toEqual([]);
         expect(window.location.search).toBe('?sloid=ch:1:sloid:7');

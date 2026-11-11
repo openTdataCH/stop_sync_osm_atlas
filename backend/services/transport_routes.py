@@ -170,7 +170,7 @@ def _year_free_key(key):
 def find_variant_itineraries(variants):
     """The itineraries a variant selection names: ``{'gtfs': key, 'osm': key}``.
 
-    The keys are the routes page's ``atlas_variant`` (the GTFS itinerary id)
+    The keys are the routes page's ``gtfs_variant`` (the GTFS itinerary id)
     and ``osm_variant`` (the OSM route relation id). An exact GTFS key wins;
     otherwise it is matched with the timetable year ignored, so a link
     survives a new timetable. Returns ``{'gtfs': Itinerary | None, 'osm': ...}``.

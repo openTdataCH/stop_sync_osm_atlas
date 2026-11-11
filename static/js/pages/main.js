@@ -892,24 +892,24 @@ function openStopFromUrl() {
     });
 }
 
-// Opens the route variants named by ?atlas_variant= / ?osm_variant=, the
-// routes page's keys: a route filter narrowed to them. Without a #map= hash or
+// Opens the route variants named by ?gtfs_variant= / ?osm_variant=, the
+// routes page's keys (?atlas_variant= before release 0.7): a route filter narrowed to them. Without a #map= hash or
 // a stop link, the map fits their stops.
 function openRouteVariantsFromUrl() {
     var params = new URLSearchParams(window.location.search);
-    var atlas = (params.get('atlas_variant') || '').trim();
+    var gtfs = (params.get('gtfs_variant') || params.get('atlas_variant') || '').trim();
     var osm = (params.get('osm_variant') || '').trim();
-    if (!atlas && !osm) return Promise.resolve(false);
+    if (!gtfs && !osm) return Promise.resolve(false);
     if (!SharedUtils.hasCapability('routes')) return Promise.resolve(false);
     var fitView = !Permalinks.parseMapHash(window.location.hash) && !parseStopPermalink(window.location.search);
-    return fetchRouteVariants({ atlas_variant: atlas, osm_variant: osm }).then(function (data) {
+    return fetchRouteVariants({ gtfs_variant: gtfs, osm_variant: osm }).then(function (data) {
         addRouteVariantFilter(data);
         if (fitView && data.bounds) map.fitBounds(data.bounds, { padding: [40, 40], maxZoom: 17 });
         return true;
     }, function () {
         syncRouteVariantUrl();  // no narrowed route filter: drops the parameters
         SharedUtils.showTemporaryMessage(
-            'Could not open the linked route variant (' + SharedUtils.escapeHtml(atlas || osm) +
+            'Could not open the linked route variant (' + SharedUtils.escapeHtml(gtfs || osm) +
             '): a newer import may have changed it.',
             'warning',
             6000

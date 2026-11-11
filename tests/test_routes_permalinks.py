@@ -36,9 +36,9 @@ def route_list(app, monkeypatch):
         yield
 
 
-def locate(atlas_variant=None, osm_variant=None, per_page=1, **filters):
+def locate(gtfs_variant=None, osm_variant=None, per_page=1, **filters):
     return route_listing.locate_route_variant_page(
-        atlas_variant=atlas_variant, osm_variant=osm_variant, per_page=per_page, **filters,
+        gtfs_variant=gtfs_variant, osm_variant=osm_variant, per_page=per_page, **filters,
     )
 
 
@@ -46,8 +46,8 @@ def test_a_variant_is_found_on_the_page_of_its_card_in_list_order(route_list):
     order = [item['display_mode'] for item in route_listing.query_route_page(page=1, per_page=10)[0]]
     assert order == ['matched', 'gtfs_only', 'osm_only']
 
-    assert locate(atlas_variant=MATCHED_ATLAS, osm_variant='1010') == 1
-    assert locate(atlas_variant='91-1-A-j26-1:0:Bern') == 2
+    assert locate(gtfs_variant=MATCHED_ATLAS, osm_variant='1010') == 1
+    assert locate(gtfs_variant='91-1-A-j26-1:0:Bern') == 2
     assert locate(osm_variant='1011') == 3
     assert locate(osm_variant='1011', per_page=2) == 2
     assert locate(osm_variant='1012', non_gtfs_only=True) == 1
@@ -57,7 +57,7 @@ def test_a_variant_outside_the_filters_or_the_snapshot_is_not_found(route_list):
     assert locate(osm_variant='1011', matched_filter='matched') is None
     assert locate(osm_variant='1012') is None  # non-GTFS routes are not in /routes
     assert locate(osm_variant='999') is None
-    assert locate(atlas_variant=MATCHED_ATLAS, osm_variant='1011') is None
+    assert locate(gtfs_variant=MATCHED_ATLAS, osm_variant='1011') is None
     assert locate() is None
 
 
@@ -104,15 +104,24 @@ def test_a_missing_variant_keeps_the_requested_page(client, monkeypatch, fake_li
 def test_variant_parameters_use_the_canonical_encoding(client, monkeypatch, fake_listing):
     monkeypatch.setattr(route_listing, 'locate_route_variant_page', lambda **kwargs: None)
 
-    response = client.get('/routes?atlas_variant=91-1-Z-j26-1:0:Zürich HB&utm=x')
+    response = client.get('/routes?gtfs_variant=91-1-Z-j26-1:0:Zürich HB&utm=x')
 
     assert response.status_code == 308
     # static/js/shared/permalinks.js writes the same text (encodeParams(..., ',')).
-    assert response.headers['Location'].endswith('/routes?atlas_variant=91-1-Z-j26-1%3A0%3AZ%C3%BCrich+HB')
+    assert response.headers['Location'].endswith('/routes?gtfs_variant=91-1-Z-j26-1%3A0%3AZ%C3%BCrich+HB')
 
-    non_gtfs = client.get('/routes/non-gtfs?osm_variant=1012&atlas_variant=x')
+    non_gtfs = client.get('/routes/non-gtfs?osm_variant=1012&gtfs_variant=x')
     assert non_gtfs.status_code == 308
     assert non_gtfs.headers['Location'].endswith('/routes/non-gtfs?osm_variant=1012')
+
+
+def test_links_with_the_names_before_release_0_7_redirect_to_the_current_ones(client, monkeypatch, fake_listing):
+    monkeypatch.setattr(route_listing, 'locate_route_variant_page', lambda **kwargs: None)
+
+    response = client.get('/routes?matched=unmatched_atlas&atlas_variant=91-1-Z-j26-1:0:Bern')
+
+    assert response.status_code == 308
+    assert response.headers['Location'].endswith('/routes?matched=unmatched_gtfs&gtfs_variant=91-1-Z-j26-1%3A0%3ABern')
 
 
 def test_the_gtfs_map_keeps_readable_stop_parameters(client, monkeypatch):
@@ -163,7 +172,7 @@ def test_variant_panels_carry_stable_ids_and_a_copy_link(app):
             selected_osm_operators=[],
         )
 
-    assert f'data-atlas-variant="{MATCHED_ATLAS}"' in rendered
+    assert f'data-gtfs-variant="{MATCHED_ATLAS}"' in rendered
     assert 'data-osm-variant="2169538"' in rendered
     assert 'class="route-copy-link"' in rendered
     assert 'js/shared/permalinks.js' in rendered

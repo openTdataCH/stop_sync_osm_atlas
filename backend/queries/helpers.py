@@ -192,7 +192,7 @@ def parse_route_variants(text, count):
 
     ``text`` is a JSON list aligned with ``station_filter``: ``null`` keeps the
     whole route, ``{"gtfs": key, "osm": key}`` narrows it to those variants
-    (keys as in the routes page's ``atlas_variant``/``osm_variant``). Commas in
+    (keys as in the routes page's ``gtfs_variant``/``osm_variant``). Commas in
     GTFS headsigns rule out the comma lists of the other parameters. Malformed
     input narrows to nothing rather than widening to the whole route. The key
     ``atlas`` is the GTFS side before release 0.7, accepted for one release.

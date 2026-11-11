@@ -25,13 +25,13 @@ from backend.services.source_config import route_source_label
 ROUTE_MATCH_ALL = 'all'
 ROUTE_MATCHED = 'matched'
 ROUTE_UNMATCHED = 'unmatched'
-ROUTE_UNMATCHED_ATLAS = 'unmatched_atlas'
+ROUTE_UNMATCHED_GTFS = 'unmatched_gtfs'
 ROUTE_UNMATCHED_OSM = 'unmatched_osm'
 ROUTE_MATCH_FILTERS = {
     ROUTE_MATCH_ALL,
     ROUTE_MATCHED,
     ROUTE_UNMATCHED,
-    ROUTE_UNMATCHED_ATLAS,
+    ROUTE_UNMATCHED_GTFS,
     ROUTE_UNMATCHED_OSM,
 }
 ROUTES_RETRY_AFTER_SECONDS = 30
@@ -223,7 +223,7 @@ def _route_summary_columns(display_mode, gtfs_family, osm_family, line_family_ma
 def _build_route_summary_subquery():
     matched_gtfs = aliased(LineFamily, name='matched_gtfs_family')
     matched_osm = aliased(LineFamily, name='matched_osm_family')
-    unmatched_atlas = aliased(LineFamily, name='unmatched_gtfs_family')
+    unmatched_gtfs = aliased(LineFamily, name='unmatched_gtfs_family')
     unmatched_osm = aliased(LineFamily, name='unmatched_osm_family')
 
     matched_rows = (
@@ -242,13 +242,13 @@ def _build_route_summary_subquery():
         )
     )
     unmatched_gtfs_rows = (
-        select(*_route_summary_columns('gtfs_only', unmatched_atlas, None, None))
-        .select_from(unmatched_atlas)
+        select(*_route_summary_columns('gtfs_only', unmatched_gtfs, None, None))
+        .select_from(unmatched_gtfs)
         .where(
-            unmatched_atlas.source == 'gtfs',
+            unmatched_gtfs.source == 'gtfs',
             ~exists(
                 select(LineFamilyMatch.id).where(
-                    LineFamilyMatch.gtfs_line_family_id == unmatched_atlas.id
+                    LineFamilyMatch.gtfs_line_family_id == unmatched_gtfs.id
                 )
             ),
         )
@@ -507,7 +507,7 @@ def _route_listing_statement(
     display_modes_by_filter = {
         ROUTE_MATCHED: ('matched',),
         ROUTE_UNMATCHED: ('gtfs_only', 'osm_only'),
-        ROUTE_UNMATCHED_ATLAS: ('gtfs_only',),
+        ROUTE_UNMATCHED_GTFS: ('gtfs_only',),
         ROUTE_UNMATCHED_OSM: ('osm_only',),
     }
     display_modes = display_modes_by_filter.get(matched_filter)
@@ -570,14 +570,14 @@ def query_route_page(*, page, per_page, **filters):
     return items, total
 
 
-def locate_route_variant_page(*, atlas_variant, osm_variant, per_page, **filters):
+def locate_route_variant_page(*, gtfs_variant, osm_variant, per_page, **filters):
     """The listing page whose card shows the linked variant, or None.
 
     A variant belongs to the card of its line family; a matched variant names
     both families and so the matched card.
     """
     family_ids = {}
-    for source, source_itinerary_id in (('gtfs', atlas_variant), ('osm', osm_variant)):
+    for source, source_itinerary_id in (('gtfs', gtfs_variant), ('osm', osm_variant)):
         if not source_itinerary_id:
             continue
         family_id = db.session.execute(

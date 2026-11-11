@@ -185,10 +185,10 @@
     var statusAll = document.getElementById('matchedAll');
     var statusMatched = document.getElementById('matchedOnly');
     var statusUnmatched = document.getElementById('unmatchedOnly');
-    var statusUnmatchedAtlas = document.getElementById('unmatchedAtlasOnly');
+    var statusUnmatchedGtfs = document.getElementById('unmatchedGtfsOnly');
     var statusUnmatchedOsm = document.getElementById('unmatchedOsmOnly');
 
-    if (!form || !hiddenInput || checkboxes.length === 0 || !statusAll || !statusMatched || !statusUnmatched || !statusUnmatchedAtlas || !statusUnmatchedOsm) {
+    if (!form || !hiddenInput || checkboxes.length === 0 || !statusAll || !statusMatched || !statusUnmatched || !statusUnmatchedGtfs || !statusUnmatchedOsm) {
       return;
     }
 
@@ -198,7 +198,7 @@
       statusAll.checked = normalizedValue === 'all';
       statusMatched.checked = normalizedValue === 'matched';
       statusUnmatched.checked = normalizedValue === 'unmatched';
-      statusUnmatchedAtlas.checked = normalizedValue === 'unmatched' || normalizedValue === 'unmatched_atlas';
+      statusUnmatchedGtfs.checked = normalizedValue === 'unmatched' || normalizedValue === 'unmatched_gtfs';
       statusUnmatchedOsm.checked = normalizedValue === 'unmatched' || normalizedValue === 'unmatched_osm';
     }
 
@@ -214,17 +214,17 @@
           nextValue = checkbox.checked ? 'matched' : 'all';
         } else if (checkbox === statusUnmatched) {
           nextValue = checkbox.checked ? 'unmatched' : 'all';
-        } else if (checkbox === statusUnmatchedAtlas) {
+        } else if (checkbox === statusUnmatchedGtfs) {
           if (checkbox.checked) {
-            nextValue = statusUnmatchedOsm.checked ? 'unmatched' : 'unmatched_atlas';
+            nextValue = statusUnmatchedOsm.checked ? 'unmatched' : 'unmatched_gtfs';
           } else {
             nextValue = statusUnmatchedOsm.checked ? 'unmatched_osm' : 'all';
           }
         } else if (checkbox === statusUnmatchedOsm) {
           if (checkbox.checked) {
-            nextValue = statusUnmatchedAtlas.checked ? 'unmatched' : 'unmatched_osm';
+            nextValue = statusUnmatchedGtfs.checked ? 'unmatched' : 'unmatched_osm';
           } else {
-            nextValue = statusUnmatchedAtlas.checked ? 'unmatched_atlas' : 'all';
+            nextValue = statusUnmatchedGtfs.checked ? 'unmatched_gtfs' : 'all';
           }
         }
 
@@ -444,7 +444,7 @@
   }
 
   // The card's "Main map" link opens the main map on the variants this map
-  // shows, with the routes page's keys (?atlas_variant= / ?osm_variant=): a
+  // shows, with the routes page's keys (?gtfs_variant= / ?osm_variant=): a
   // route filter narrowed to them, at this map's view. A comparison sets
   // mapState.mainMapVariants; otherwise the panel's own variants are used.
   function followMainMapLink(mapState, mapElement) {
@@ -454,7 +454,7 @@
     if (!link) return function () {};
     function update() {
       var variants = mapState.mainMapVariants || {
-        atlas_variant: (panel && panel.dataset.atlasVariant) || null,
+        gtfs_variant: (panel && panel.dataset.gtfsVariant) || null,
         osm_variant: (panel && panel.dataset.osmVariant) || null
       };
       var query = Permalinks.encodeParams(variants);
@@ -1082,7 +1082,7 @@
       mapState.contextStops = [];
       var comparison = event.detail;
       mapState.mainMapVariants = comparison ? {
-        atlas_variant: (comparison.gtfs && comparison.gtfs.source_itinerary_id) || null,
+        gtfs_variant: (comparison.gtfs && comparison.gtfs.source_itinerary_id) || null,
         osm_variant: (comparison.osm && comparison.osm.source_itinerary_id) || null
       } : null;
       if (mapState.updateMainMapLink) mapState.updateMainMapLink();
@@ -1142,26 +1142,26 @@
   }
 
   // Permalinks (static/js/shared/permalinks.js): the open variant is kept in
-  // ?atlas_variant= (ATLAS itinerary id) and ?osm_variant= (OSM relation id).
+  // ?gtfs_variant= (GTFS itinerary id) and ?osm_variant= (OSM relation id).
   // The server renders the page that holds a linked variant; this opens it.
-  var VARIANT_KEYS = ['atlas_variant', 'osm_variant'];
+  var VARIANT_KEYS = ['gtfs_variant', 'osm_variant'];
 
   // Encoded as the server's canonical URLs (safe=','), so a reload does not
   // redirect.
   function variantQuery(panel) {
     return Permalinks.encodeParams({
-      atlas_variant: panel.dataset.atlasVariant || null,
+      gtfs_variant: panel.dataset.gtfsVariant || null,
       osm_variant: panel.dataset.osmVariant || null
     }, ',');
   }
 
   function findLinkedVariant(panels) {
     var params = new URLSearchParams(window.location.search);
-    var atlasVariant = params.get('atlas_variant');
+    var gtfsVariant = params.get('gtfs_variant');
     var osmVariant = params.get('osm_variant');
-    if (!atlasVariant && !osmVariant) return { requested: false, panel: null };
+    if (!gtfsVariant && !osmVariant) return { requested: false, panel: null };
     var panel = panels.find(function (candidate) {
-      return (!atlasVariant || candidate.dataset.atlasVariant === atlasVariant) &&
+      return (!gtfsVariant || candidate.dataset.gtfsVariant === gtfsVariant) &&
         (!osmVariant || candidate.dataset.osmVariant === osmVariant);
     });
     return { requested: true, panel: panel || null };
@@ -1169,7 +1169,7 @@
 
   function initVariantPermalinks() {
     var panels = Array.prototype.slice.call(document.querySelectorAll('details.route-card__panel--map'))
-      .filter(function (panel) { return panel.dataset.atlasVariant || panel.dataset.osmVariant; });
+      .filter(function (panel) { return panel.dataset.gtfsVariant || panel.dataset.osmVariant; });
     var tracker = Permalinks.createSelectionTracker(VARIANT_KEYS);
 
     panels.forEach(function (panel) {

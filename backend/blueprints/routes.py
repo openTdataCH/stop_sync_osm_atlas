@@ -160,12 +160,14 @@ ROUTE_VARIANT_KEY_MAX_LENGTH = 255
 def routes_variants_api():
     """The variants of a line (``route_id``), or of the line a variant link names."""
     values = {name: (request.args.get(name) or '').strip() or None
-              for name in ('route_id', 'atlas_variant', 'osm_variant')}
+              for name in ('route_id', 'gtfs_variant', 'osm_variant')}
+    # ``atlas_variant`` is the parameter's name before release 0.7; accepted for one release.
+    values['gtfs_variant'] = values['gtfs_variant'] or (request.args.get('atlas_variant') or '').strip() or None
     if not any(values.values()) or any(len(value) > ROUTE_VARIANT_KEY_MAX_LENGTH
                                        for value in values.values() if value):
-        return jsonify({'error': 'Name a route_id, an atlas_variant or an osm_variant.'}), 400
-    variants = ({'gtfs': values['atlas_variant'], 'osm': values['osm_variant']}
-                if values['atlas_variant'] or values['osm_variant'] else None)
+        return jsonify({'error': 'Name a route_id, a gtfs_variant or an osm_variant.'}), 400
+    variants = ({'gtfs': values['gtfs_variant'], 'osm': values['osm_variant']}
+                if values['gtfs_variant'] or values['osm_variant'] else None)
     try:
         return jsonify(list_route_variants(values['route_id'], variants))
     except LookupError as exc:
