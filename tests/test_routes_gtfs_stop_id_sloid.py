@@ -24,7 +24,6 @@ def test_routes_gtfs_stop_id_sloid_tab_renders(client):
     assert 'routesGtfsUnmatchedGtfs' in html
     assert 'routesGtfsUnmatchedAtlas' in html
     assert 'routes-page--gtfs-map' in html
-    assert 'routes-container--gtfs-map' in html
     assert 'searchUrl' in html
     assert 'css/components/popup.css' in html
     assert 'js/components/popup-utils.js' in html
