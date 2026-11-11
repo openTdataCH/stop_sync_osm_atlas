@@ -589,18 +589,6 @@ function formatDirectionDisplay(direction) {
     return 'Dir: ' + direction;
 }
 
-// Helper function to cycle through direction options
-function getNextDirection(currentDirection) {
-    switch (currentDirection) {
-        case '': return '0';  // Both -> Direction 0
-        case '0': return '1'; // Direction 0 -> Direction 1  
-        case '1': return '';  // Direction 1 -> Both
-        default: return '';   // Default to Both
-    }
-}
-
-// Legacy function - replaced by setRouteDirection and dropdown functionality
-
 // The position of a search filter, or -1. Routes also compare their direction.
 function findSearchFilter(kind, value, direction) {
     for (var i = 0; i < activeFilters.station.length; i++) {

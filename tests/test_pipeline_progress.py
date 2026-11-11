@@ -19,6 +19,10 @@ def event(kind, **fields):
     return dict(event=kind, progress_schema_version=2, stage_id=SPEC['id'], **fields)
 
 
+def plan(*stages):
+    return dict(event='pipeline_plan', progress_schema_version=2, stages=list(stages))
+
+
 @pytest.fixture
 def state():
     plan = initial_progress_plan()
@@ -33,7 +37,7 @@ def store(monkeypatch, tmp_path):
     # Avoid reading operational statistics when testing status persistence.
     store.patch_status({'last_pipeline_data_import_ended_at': NOW})
     pipeline_status.start_run('manual', run_id='run-1')
-    pipeline_status.set_progress_plan([SPEC])
+    pipeline_status.record_progress_event(plan(SPEC))
     return store
 
 
@@ -130,7 +134,7 @@ def test_success_does_not_hide_unresolved_or_failed_children(store):
 
 def test_mixed_cache_reuse_and_execution_is_not_a_reused_phase(store):
     other = {**SPEC, 'id': 'osm.second', 'order': 20}
-    pipeline_status.set_progress_plan([other])
+    pipeline_status.record_progress_event(plan(other))
     pipeline_status.record_progress_event(event('stage_outcome', outcome='reused'))
     pipeline_status.record_progress_event({**event('stage_started'), 'stage_id': other['id']})
     finished = pipeline_status.record_progress_event({**event('stage_finished', seconds=1), 'stage_id': other['id']})

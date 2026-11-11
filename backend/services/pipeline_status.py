@@ -343,15 +343,6 @@ def set_phase_outcome(phase: str, outcome: str) -> Dict[str, Any]:
     return set_status(phase_outcomes=outcomes, phase_history=history, stage_states=stage_states)
 
 
-def set_progress_plan(stages: list[dict[str, Any]]) -> Dict[str, Any]:
-    return record_progress_event(dict(event="pipeline_plan", progress_schema_version=PROGRESS_SCHEMA_VERSION, stages=stages))
-
-
-def set_progress_stage_outcome(stage_id: str, outcome: str) -> Dict[str, Any]:
-    return record_progress_event(dict(event="stage_outcome", progress_schema_version=PROGRESS_SCHEMA_VERSION,
-                                      stage_id=stage_id, outcome=outcome))
-
-
 def record_progress_event(payload: dict[str, Any], *, owner=None, run_id=None) -> Dict[str, Any]:
     """Validate and reduce without writes, then persist one guarded patch."""
     current = get_status()

@@ -199,7 +199,7 @@ def test_late_engine_plan_inherits_an_existing_phase_outcome(monkeypatch):
     )
     pipeline_status.start_run(trigger="manual", run_id="run-reuse")
     pipeline_status.set_phase_outcome("source_files", "reused")
-    status = pipeline_status.set_progress_plan([{
+    status = pipeline_status.record_progress_event(dict(event="pipeline_plan", progress_schema_version=2, stages=[{
         "id": "timetable.engine_owned",
         "parent_id": "source_files",
         "phase": "source_files",
@@ -207,7 +207,7 @@ def test_late_engine_plan_inherits_an_existing_phase_outcome(monkeypatch):
         "description": "Arrives after the runner has recorded reuse.",
         "order": 10,
         "progress_kind": "indeterminate",
-    }])
+    }]))
 
     assert status["stage_states"]["timetable.engine_owned"]["status"] == "reused"
 
@@ -223,7 +223,7 @@ def test_all_reused_engine_children_roll_up_to_the_parent_phase(monkeypatch):
         lambda fields: stored.update(fields) or dict(stored),
     )
     pipeline_status.start_run(trigger="manual", run_id="run-atlas-reuse")
-    pipeline_status.set_progress_plan([{
+    pipeline_status.record_progress_event(dict(event="pipeline_plan", progress_schema_version=2, stages=[{
         "id": "atlas.prepare",
         "parent_id": "source_files",
         "phase": "source_files",
@@ -231,8 +231,9 @@ def test_all_reused_engine_children_roll_up_to_the_parent_phase(monkeypatch):
         "description": "Prepare the ATLAS cache.",
         "order": 10,
         "progress_kind": "indeterminate",
-    }])
-    status = pipeline_status.set_progress_stage_outcome("atlas.prepare", "reused")
+    }]))
+    status = pipeline_status.record_progress_event(dict(event="stage_outcome", progress_schema_version=2,
+                                                        stage_id="atlas.prepare", outcome="reused"))
 
     assert status["phase_outcomes"]["source_files"] == "reused"
     assert status["stage_states"]["atlas.prepare"]["status"] == "reused"
