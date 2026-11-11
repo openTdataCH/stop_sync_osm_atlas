@@ -6,7 +6,6 @@ import pytest
 from backend.blueprints import routes as routes_module
 from backend.extensions import db
 from backend.models import Itinerary, ItineraryBestOverlap, ItineraryMatch, LineFamily, StopCall, StopsMatched
-from backend.services import pipeline_status
 from backend.services.route_comparison import (
     _identity,
     _identity_index,
@@ -149,7 +148,6 @@ def test_empty_sequences_and_single_selection_have_no_misleading_percentage():
 
 @pytest.fixture
 def comparison_db(app, monkeypatch, sqlite_tables):
-    monkeypatch.setattr(pipeline_status, 'get_status', lambda: {'blocking_maintenance': False})
     sqlite_tables(LineFamily, Itinerary, StopCall, ItineraryMatch, ItineraryBestOverlap, StopsMatched)
     with app.app_context():
         db.session.add_all([
@@ -316,18 +314,10 @@ def test_comparison_database_timeout_returns_controlled_retry_response(client, m
     def fail(*_args, **_kwargs):
         raise LockTimeout()
 
-    monkeypatch.setattr(pipeline_status, 'get_status', lambda: {'blocking_maintenance': False})
     monkeypatch.setattr(routes_module, 'list_comparison_options', fail)
     response = client.get('/api/routes/comparison/options?source=atlas')
     assert response.status_code == 503
     assert response.headers['Retry-After'] == '30'
-
-
-def test_comparison_maintenance_guard_runs_before_query(client, monkeypatch):
-    monkeypatch.setattr(pipeline_status, 'get_status', lambda: {'blocking_maintenance': True})
-    response = client.get('/api/routes/comparison?atlas_itinerary_id=1')
-    assert response.status_code == 503
-    assert response.json['phase'] == 'import'
 
 
 def _add_candidate(client, itinerary_id, identities, *, name=None, direction='0', variants=None, uics=None):

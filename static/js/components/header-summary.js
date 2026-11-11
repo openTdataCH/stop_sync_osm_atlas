@@ -8,7 +8,8 @@
         filtersLabel: '#headerSummaryFiltersLabel',
         clearAll: '#clearAllFilters',
         filtersPanel: '#headerSummaryFiltersPanel',
-        filtersRow: '#headerSummaryFiltersRow'
+        filtersRow: '#headerSummaryFiltersRow',
+        copyLink: '#copyMapLink'
     };
 
     function hasOwn(object, key) {
@@ -36,7 +37,8 @@
             filtersLabel: resolveElement(overrides.filtersLabel, DEFAULT_SELECTORS.filtersLabel),
             clearAll: resolveElement(overrides.clearAll, DEFAULT_SELECTORS.clearAll),
             filtersPanel: resolveElement(overrides.filtersPanel, DEFAULT_SELECTORS.filtersPanel),
-            filtersRow: resolveElement(overrides.filtersRow, DEFAULT_SELECTORS.filtersRow)
+            filtersRow: resolveElement(overrides.filtersRow, DEFAULT_SELECTORS.filtersRow),
+            copyLink: resolveElement(overrides.copyLink, DEFAULT_SELECTORS.copyLink)
         };
     }
 
@@ -67,6 +69,9 @@
         var icon = toggle ? toggle.querySelector('.header-summary__filters-toggle-icon') : null;
 
         if (!toggle || !label) return;
+
+        // Without filters the plain page address already shows the same thing.
+        if (elements.copyLink) elements.copyLink.classList.toggle('d-none', activeFilterCount === 0);
 
         if (activeFilterCount > 0 && activeFilterCount <= inlineLimit) {
             if (row) row.classList.add('d-none');

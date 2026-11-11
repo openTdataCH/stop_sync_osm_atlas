@@ -17,11 +17,6 @@
         return document.getElementById('navbarNextRunInfo');
     }
 
-    function isBlockingMaintenance(status) {
-        if (!status) return false;
-        return !!status.blocking_maintenance;
-    }
-
     function isPipelineRunning(status) {
         return !!status && status.status === 'running';
     }
@@ -142,15 +137,8 @@
             return;
         }
 
-        var blocking = isBlockingMaintenance(latestStatus);
-        var running = isPipelineRunning(latestStatus);
-
-        if (running) {
-            if (blocking) {
-                textElement.textContent = element.getAttribute('data-blocking-label') || 'Pipeline running';
-            } else {
-                textElement.textContent = element.getAttribute('data-running-label') || 'Pipeline running in the background';
-            }
+        if (isPipelineRunning(latestStatus)) {
+            textElement.textContent = element.getAttribute('data-running-label') || 'Pipeline running in the background';
             return;
         }
 
@@ -172,70 +160,9 @@
         element.setAttribute('data-default-label', 'Data updated: ' + formatted);
     }
 
-    function updateTimerFields() {
-        if (!latestStatus) return;
-        var maintenanceStartedAt = toDate(latestStatus.maintenance_started_at);
-        var elapsedEl = document.getElementById('pipelineElapsed');
-        var etaEl = document.getElementById('pipelineEta');
-
-        if (elapsedEl && maintenanceStartedAt) {
-            var elapsedSec = Math.max(0, Math.floor((Date.now() - maintenanceStartedAt.getTime()) / 1000));
-            elapsedEl.textContent = SharedUtils.formatDuration(elapsedSec);
-        } else if (elapsedEl) {
-            elapsedEl.textContent = '—';
-        }
-
-        if (etaEl) {
-            if (typeof latestStatus.eta_seconds === 'number' && maintenanceStartedAt) {
-                var elapsed = Math.max(0, Math.floor((Date.now() - maintenanceStartedAt.getTime()) / 1000));
-                var remaining = Math.max(0, latestStatus.eta_seconds - elapsed);
-                etaEl.textContent = SharedUtils.formatDuration(remaining);
-            } else {
-                etaEl.textContent = '—';
-            }
-        }
-    }
-
-    function setOverlayVisible(visible) {
-        var overlay = document.getElementById('pipelineMaintenanceOverlay');
-        if (!overlay) return;
-
-        // Bypassing maintenance overlay for documentation pages
-        var isDocsPage = window.location.pathname.startsWith('/docs');
-        overlay.classList.toggle('is-visible', !!visible && !isDocsPage);
-    }
-
     function applyStatus(status) {
         latestStatus = status || {};
         window.latestPipelineStatus = latestStatus;
-
-        var statusText = document.getElementById('pipelineMaintenanceStatus');
-        var phaseText = document.getElementById('pipelinePhase');
-        var titleText = document.getElementById('pipelineMaintenanceTitle');
-        var blocking = isBlockingMaintenance(latestStatus);
-
-        if (titleText) {
-            titleText.textContent = blocking ? 'Data update in progress' : 'System status';
-        }
-        if (phaseText) {
-            phaseText.textContent = latestStatus.phase || 'idle';
-        }
-        if (statusText) {
-            if (blocking) {
-                var message = latestStatus.message || 'Core data is being refreshed.';
-                var docsUrl = statusText.getAttribute('data-docs-url') || '/docs';
-                
-                statusText.textContent = message + ' Use this time to ';
-                var a = document.createElement('a');
-                a.href = docsUrl;
-                a.className = 'fw-bold';
-                a.textContent = 'read the documentation';
-                statusText.appendChild(a);
-                statusText.appendChild(document.createTextNode('.'));
-            } else {
-                statusText.textContent = latestStatus.message || 'Waiting for status';
-            }
-        }
 
         var dataUpdatedEl = getDataUpdatedElement();
         if (dataUpdatedEl) {
@@ -248,8 +175,6 @@
         syncNextRunInfo();
         syncDataWarning();
 
-        updateTimerFields();
-        setOverlayVisible(blocking);
         document.dispatchEvent(new CustomEvent('pipeline-status:update', {
             detail: latestStatus
         }));
@@ -286,7 +211,6 @@
             syncNavbarStatusLabel();
             syncNextRunInfo();
         }
-        setInterval(updateTimerFields, 1000);
         fetchStatus();
     }
 

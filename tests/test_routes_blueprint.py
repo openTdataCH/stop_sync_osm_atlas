@@ -3,8 +3,7 @@ from types import SimpleNamespace
 import pytest
 from flask import render_template
 
-from backend.pages import routes as route_pages
-from backend.services import pipeline_status, route_listing
+from backend.services import route_listing
 from backend.services.route_listing import _build_direction_group
 from backend.extensions import db
 from backend.models import LineFamily, LineFamilyMatch
@@ -385,7 +384,6 @@ def test_routes_page_uses_sql_page_loader(client, monkeypatch):
         captured.update(kwargs)
         return [], 321
 
-    monkeypatch.setattr(route_pages, 'get_status', lambda: {'blocking_maintenance': False})
     monkeypatch.setattr(route_listing, 'query_route_page', _fake_query_route_page)
     monkeypatch.setattr(route_listing, 'load_available_atlas_operators', lambda: [])
     monkeypatch.setattr(route_listing, 'load_available_osm_route_operators', lambda: [])
@@ -407,39 +405,10 @@ def test_routes_page_uses_sql_page_loader(client, monkeypatch):
     }
 
 
-def test_routes_return_503_before_database_access_during_maintenance(client, monkeypatch):
-    # The pages guard themselves with the maintenance page; the application guards the API with JSON.
-    for module in (route_pages, pipeline_status):
-        monkeypatch.setattr(module, 'get_status', lambda: {
-            'blocking_maintenance': True,
-            'phase': 'import',
-            'message': 'Replacing route tables',
-        })
-    monkeypatch.setattr(
-        route_listing,
-        'query_route_page',
-        lambda **_kwargs: (_ for _ in ()).throw(AssertionError('database queried')),
-    )
-
-    html_response = client.get('/routes')
-    api_response = client.get('/api/routes/gtfs-stop-id-sloid/summary')
-
-    assert html_response.status_code == 503
-    assert html_response.headers['Retry-After'] == '30'
-    assert b'Replacing route tables' in html_response.data
-    assert api_response.status_code == 503
-    assert api_response.json == {
-        'error': 'Replacing route tables',
-        'phase': 'import',
-        'retry_after_seconds': 30,
-    }
-
-
 def test_routes_return_controlled_503_for_database_timeout(client, monkeypatch):
     class _LockTimeout(Exception):
         sqlstate = '55P03'
 
-    monkeypatch.setattr(route_pages, 'get_status', lambda: {'blocking_maintenance': False})
     monkeypatch.setattr(
         route_listing,
         'query_route_page',

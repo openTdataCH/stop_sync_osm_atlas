@@ -103,7 +103,6 @@ def test_running_pipeline_is_present_in_server_rendered_navbar_and_bootstrap_sta
             "status": "running",
             "phase": "matching",
             "message": "Matching sources",
-            "blocking_maintenance": False,
             "last_pipeline_data_import_ended_at": "2026-05-02T19:31:00+02:00",
             "next_run_at": "2026-05-03T08:00:00+00:00",
         },

@@ -802,13 +802,6 @@ def attach_best_overlaps(route_rows):
         group['best_overlap'] = overlaps.get(group['atlas_itinerary_id'] or group['osm_itinerary_id'])
 
 
-def maintenance_reason(status: dict) -> tuple[str, str] | None:
-    """The (message, phase) to answer with while blocking maintenance hides the route data, else None."""
-    if not status.get('blocking_maintenance'):
-        return None
-    return status.get('message') or 'Route data is being refreshed.', status.get('phase') or 'import'
-
-
 def database_busy_reason(exc) -> tuple[str, str]:
     """The (message, phase) to answer with after a database timeout, rolled back; any other error is raised again."""
     if not is_database_timeout_error(exc):

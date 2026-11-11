@@ -78,7 +78,7 @@
             data-pipeline-next-run-at="{{ pipeline_next_run_at or '' }}"
             data-data-updated-at="{{ last_pipeline_data_import_ended_at or '' }}"
             data-default-label="{% if last_pipeline_data_import_ended_at %}Data updated: {{ last_pipeline_data_import_ended_at|format_zurich_display_timestamp }}{% else %}Data not imported yet{% endif %}"
-            data-running-label="Pipeline running in the background" data-blocking-label="Pipeline running" tabindex="0">
+            data-running-label="Pipeline running in the background" tabindex="0">
             {% set data_warning = pipeline_status.data_warning if pipeline_status is defined else None %}
             <button type="button" id="navbarDataWarning"
               class="btn btn-link btn-sm p-0 border-0 me-1 align-baseline navbar-data-warning"
@@ -94,7 +94,7 @@
               endif %}>
               <i class="fas fa-info-circle"></i>
             </button>
-            <span id="navbarDataUpdatedText">{% if pipeline_is_running %}{% if pipeline_status.blocking_maintenance %}Pipeline running{% else %}Pipeline running in the background{% endif %}{% elif last_pipeline_data_import_ended_at %}Data updated: {{ last_pipeline_data_import_ended_at|format_zurich_display_timestamp }}{% else %}Data not imported yet{% endif %}</span>
+            <span id="navbarDataUpdatedText">{% if pipeline_is_running %}Pipeline running in the background{% elif last_pipeline_data_import_ended_at %}Data updated: {{ last_pipeline_data_import_ended_at|format_zurich_display_timestamp }}{% else %}Data not imported yet{% endif %}</span>
           </span>
         </li>
         <li class="nav-item dropdown navbar-theme">

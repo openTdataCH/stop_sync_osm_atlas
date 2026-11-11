@@ -118,7 +118,6 @@ def _base_status() -> Dict[str, Any]:
         "status": "idle",
         "phase": "idle",
         "message": "No update running",
-        "blocking_maintenance": False,
         "processed": None,
         "total": None,
         "eta_seconds": None,
@@ -134,7 +133,6 @@ def _base_status() -> Dict[str, Any]:
             item["id"]: {"status": "waiting"}
             for item in stage_plan
         },
-        "maintenance_started_at": None,
         "updated_at": _now_iso(),
         "finished_at": None,
         "last_success_at": None,
@@ -238,19 +236,6 @@ def get_status() -> Dict[str, Any]:
 
 def set_status(*, expected_run_id=None, **fields: Any) -> Dict[str, Any]:
     current = get_status()
-
-    current_blocking = bool(current.get("blocking_maintenance", False))
-    incoming_blocking = fields.get("blocking_maintenance")
-    incoming_blocking = current_blocking if incoming_blocking is None else bool(incoming_blocking)
-    fields["blocking_maintenance"] = incoming_blocking
-
-    # If starting blocking maintenance mode, record the start time for UI counters.
-    if incoming_blocking and not current_blocking:
-        fields["maintenance_started_at"] = _now_iso()
-    # If leaving blocking maintenance mode, clear the start time.
-    elif not incoming_blocking and current_blocking:
-        fields["maintenance_started_at"] = None
-
     fields["updated_at"] = _now_iso()
     fields["stage_states"] = project_stage_states(dict(current, **fields))
     stored = (_patch_raw_status(fields, expected_run_id=expected_run_id)
@@ -275,7 +260,6 @@ def start_run(
         status="running",
         phase=initial_phase,
         message=message,
-        blocking_maintenance=False,
         processed=None,
         total=None,
         eta_seconds=None,
@@ -356,8 +340,6 @@ def set_phase(
     phase: str,
     message: str,
     *,
-    maintenance: bool = False,
-    blocking_maintenance: Optional[bool] = None,
     processed: Optional[int] = None,
     total: Optional[int] = None,
     eta_seconds: Optional[int] = None,
@@ -366,7 +348,6 @@ def set_phase(
     if current.get("finished_at"):
         return current
     fields = phase_fields(current, phase, message, _now_iso(),
-                          blocking_maintenance=maintenance if blocking_maintenance is None else blocking_maintenance,
                           processed=processed, total=total, eta_seconds=eta_seconds)
     return set_status(**fields)
 
@@ -405,7 +386,6 @@ def finish_success(message: str = "Pipeline update completed", *, warnings=None,
         status="idle",
         phase="idle",
         message=("Dataset published with warnings" if current.get("dataset_published") else "Run completed with warnings") if all_warnings else message,
-        blocking_maintenance=False,
         processed=None,
         total=None,
         eta_seconds=None,
@@ -442,7 +422,6 @@ def finish_failure(error_message: str, *, run_id=None) -> Dict[str, Any]:
         status="failed",
         phase="failed",
         message="Pipeline update failed",
-        blocking_maintenance=False,
         finished_at=ts,
         phase_started_at=None,
         phase_history=history,

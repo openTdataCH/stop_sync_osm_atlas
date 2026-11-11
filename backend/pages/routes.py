@@ -3,7 +3,6 @@ from flask import Blueprint, make_response, render_template, request
 
 from backend.pages.pagination import ListPagination, bounded_int, page_range, per_page_choice
 from backend.services import route_listing
-from backend.services.pipeline_status import get_status
 from backend.services.url_query import canonical_query_redirect
 
 
@@ -33,12 +32,6 @@ def _routes_unavailable_response(message: str, phase: str | None = None):
     ), 503)
     response.headers['Retry-After'] = str(route_listing.ROUTES_RETRY_AFTER_SECONDS)
     return response
-
-
-@route_pages_bp.before_request
-def _guard_routes_during_blocking_maintenance():
-    reason = route_listing.maintenance_reason(get_status())
-    return _routes_unavailable_response(*reason) if reason else None
 
 
 def _handle_route_database_error(exc):

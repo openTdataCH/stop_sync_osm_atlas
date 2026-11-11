@@ -69,7 +69,6 @@ def fake_listing(monkeypatch):
         captured.update(kwargs)
         return [], 30
 
-    monkeypatch.setattr(route_pages, 'get_status', lambda: {'blocking_maintenance': False})
     monkeypatch.setattr(route_listing, 'query_route_page', query_route_page)
     monkeypatch.setattr(route_listing, 'load_available_atlas_operators', lambda: [])
     monkeypatch.setattr(route_listing, 'load_available_osm_route_operators', lambda: [])
@@ -117,7 +116,6 @@ def test_variant_parameters_use_the_canonical_encoding(client, monkeypatch, fake
 
 
 def test_the_gtfs_map_keeps_readable_stop_parameters(client, monkeypatch):
-    monkeypatch.setattr(route_pages, 'get_status', lambda: {'blocking_maintenance': False})
 
     redirected = client.get('/routes/gtfs-stop-id-sloid?sloid=ch%3A1%3Asloid%3A7&other=1')
     assert redirected.status_code == 308

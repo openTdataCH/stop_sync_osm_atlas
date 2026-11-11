@@ -21,6 +21,7 @@ describe('HeaderSummary filter visibility', () => {
         <a href="#" id="clearAllFilters"></a>
         <div id="headerSummaryFiltersRow"></div>
         <div id="headerSummaryFiltersPanel" class="d-none"></div>
+        <button type="button" id="copyMapLink" class="d-none"></button>
       </div>
     `;
   });
@@ -43,6 +44,18 @@ describe('HeaderSummary filter visibility', () => {
     expect(document.getElementById('headerSummaryFiltersLabel').textContent).toBe('Filters: None (All entries)');
     expect(document.getElementById('headerSummaryFiltersPanel').classList.contains('d-none')).toBe(true);
     expect(document.getElementById('headerSummaryFiltersToggle').disabled).toBe(true);
+  });
+
+  test('shows the copy-link icon only while filters are active', () => {
+    const copyLink = document.getElementById('copyMapLink');
+
+    [1, 3].forEach((count) => {
+      window.HeaderSummary.syncFilters({ activeFilterCount: count });
+      expect(copyLink.classList.contains('d-none')).toBe(false);
+    });
+
+    window.HeaderSummary.syncFilters({ activeFilterCount: 0 });
+    expect(copyLink.classList.contains('d-none')).toBe(true);
   });
 
   test('preserves the existing global API and publishes the shared namespace', () => {

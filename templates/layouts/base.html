@@ -50,45 +50,6 @@
     {% block content %}{% endblock %}
   </main>
 
-  <div id="pipelineMaintenanceOverlay" aria-live="polite" aria-atomic="true" role="status">
-    <div class="pipeline-maintenance-card">
-      <div class="pipeline-maintenance-card__header">
-        <svg class="pipeline-sync-icon" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <path id="sync-arrow" d="M 102.8 127.4 A 200 200 0 0 1 456 256 L 486 256 L 426 336 L 381 256 L 411 256 A 155 155 0 0 0 137.3 156.4 Z" />
-          </defs>
-          <g class="sync-static">
-            <text x="256" y="292" text-anchor="middle" font-size="180">{{ review_config.flag }}</text>
-          </g>
-          <g class="sync-spin">
-            <use href="#sync-arrow" fill="#5ba04a" />
-            <use href="#sync-arrow" fill="#173f8a" transform="rotate(180 256 256)" />
-          </g>
-        </svg>
-        <span id="pipelineMaintenanceTitle">Data update in progress</span>
-      </div>
-      <div class="pipeline-maintenance-card__body">
-        <div id="pipelineMaintenanceStatus" class="pipeline-maintenance-card__status" data-docs-url="{{ url_for('docs.docs_page') }}">
-          <!-- Status populated by Javascript -->
-        </div>
-        <div class="pipeline-maintenance-card__timers">
-          <span class="pipeline-maintenance-chip">
-            <i class="far fa-clock"></i>
-            Elapsed: <strong id="pipelineElapsed">—</strong>
-          </span>
-          <span class="pipeline-maintenance-chip">
-            <i class="fas fa-hourglass-half"></i>
-            ETA: <strong id="pipelineEta">—</strong>
-          </span>
-          <span class="pipeline-maintenance-chip">
-            <i class="fas fa-cogs"></i>
-            Phase: <strong id="pipelinePhase">idle</strong>
-          </span>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- Shared helpers (SharedUtils) for every page -->
   <script src="{{ url_for('static', filename='js/shared/utils.js') }}"></script>
   <!-- Bootstrap JS (includes Popper) -->

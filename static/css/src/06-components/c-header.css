@@ -141,9 +141,16 @@
   text-decoration: underline;
 }
 
-.header-summary__actions {
+/* The filters, with the copy-link icon to their right. */
+.header-summary__filters {
   display: flex;
-  justify-content: flex-end;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.header-summary__filters-main {
+  flex: 1;
+  min-width: 0;
 }
 
 .header-summary__copy-link {
@@ -157,7 +164,7 @@
 }
 
 .header-summary__copy-link:hover {
-  text-decoration: underline;
+  color: var(--color-primary-hover);
 }
 
 .header-summary__copy-link.is-copied {

@@ -196,7 +196,7 @@ def _make_point_wkt(lat, lon):
 
 
 # ---------------------------------------------------------------------------
-# Payload builder — runs OUTSIDE the blocking maintenance window
+# Payload builder — runs before staging; readers keep the published snapshot
 # ---------------------------------------------------------------------------
 
 def build_fast_insert_payloads(

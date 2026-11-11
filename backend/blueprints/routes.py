@@ -22,10 +22,7 @@ GTFS_STOP_ID_SLOID_SEARCH_VALUE_MAX_LENGTH = 255
 
 
 def routes_unavailable_response(message: str, phase: str | None = None):
-    """The 503 JSON answer, with Retry-After, while the route data is unavailable.
-
-    The application factory also answers with it while blocking maintenance hides the route data.
-    """
+    """The 503 JSON answer, with Retry-After, while the route data is unavailable."""
     response = make_response(jsonify({
         'error': message,
         'phase': phase,

@@ -104,9 +104,9 @@ class _RunLockHeartbeat:
                 LOGGER.exception("Failed to refresh pipeline lock heartbeat")
 
 
-def _run_subprocess(command: list[str], phase: str, message: str, maintenance: bool = False) -> None:
+def _run_subprocess(command: list[str], phase: str, message: str) -> None:
     run_id = get_status().get("run_id")
-    set_phase(phase=phase, message=message, maintenance=maintenance)
+    set_phase(phase=phase, message=message)
     started = time.perf_counter()
     LOGGER.info("Running command: %s", shlex.join(command))
     env = os.environ.copy()

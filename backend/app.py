@@ -13,12 +13,12 @@ from backend.blueprints.problems import problems_bp
 from backend.blueprints.docs import docs_bp
 from backend.blueprints.quality import quality_bp
 from backend.blueprints.system import system_bp
-from backend.blueprints.routes import routes_bp, routes_unavailable_response
+from backend.blueprints.routes import routes_bp
 from backend.blueprints.seo import seo_bp, seo_template_context
 from backend.pages.main import pages_bp
 from backend.pages.operators import operators_bp
 from backend.pages.routes import route_pages_bp
-from backend.services import pipeline_status, route_listing
+from backend.services import pipeline_status
 from backend.services.time_utils import format_zurich_display_timestamp
 from backend.services.source_config import load_review_config, effective_review_config
 from backend.version import APP_VERSION
@@ -114,14 +114,6 @@ def create_app():
             if request.headers.get('X-Forwarded-Proto', 'http') == 'http' and not request.is_secure:
                 url = request.url.replace('http://', 'https://', 1)
                 return redirect(url, code=301)
-
-    @app.before_request
-    def guard_routes_api_during_blocking_maintenance():
-        # An import replaces the route tables; the routes API answers 503 instead of reading them.
-        if request.blueprint != routes_bp.name:
-            return None
-        reason = route_listing.maintenance_reason(pipeline_status.get_status())
-        return routes_unavailable_response(*reason) if reason else None
 
     @app.context_processor
     def inject_stats_metadata():

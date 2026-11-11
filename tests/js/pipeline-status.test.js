@@ -20,7 +20,7 @@ describe('pipeline status polling', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     updates = [];
-    document.body.innerHTML = '<strong id="pipelinePhase">idle</strong>';
+    document.body.innerHTML = '';
     document.addEventListener('pipeline-status:update', recordUpdate);
   });
 
@@ -45,10 +45,10 @@ describe('pipeline status polling', () => {
     expect(options.signal.aborted).toBe(false);
 
     await settle();
-    expect(document.getElementById('pipelinePhase').textContent).toBe('matching');
     expect(updates).toEqual([{ status: 'running', phase: 'matching' }]);
-    // The elapsed-time clock and the next poll: the settled request left no timeout behind.
-    expect(jest.getTimerCount()).toBe(2);
+    expect(window.latestPipelineStatus).toEqual({ status: 'running', phase: 'matching' });
+    // Only the next poll: the settled request left no timeout behind.
+    expect(jest.getTimerCount()).toBe(1);
 
     jest.advanceTimersByTime(1499);
     expect(window.fetch).toHaveBeenCalledTimes(1);
@@ -64,7 +64,7 @@ describe('pipeline status polling', () => {
     await settle();
     expect(updates).toEqual([{ status: 'idle', phase: 'idle' }]);
     expect(window.latestPipelineStatus).toEqual({ status: 'idle', phase: 'idle' });
-    expect(jest.getTimerCount()).toBe(2);
+    expect(jest.getTimerCount()).toBe(1);
 
     jest.advanceTimersByTime(9999);
     expect(window.fetch).toHaveBeenCalledTimes(1);
@@ -86,7 +86,7 @@ describe('pipeline status polling', () => {
 
     await settle();
     expect(updates).toEqual([]);
-    expect(jest.getTimerCount()).toBe(2);
+    expect(jest.getTimerCount()).toBe(1);
     jest.advanceTimersByTime(10000);
     expect(window.fetch).toHaveBeenCalledTimes(2);
   });
