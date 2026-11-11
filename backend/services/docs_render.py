@@ -21,12 +21,12 @@ from backend.services.docs_stats import (
     convert_github_alerts_to_html, get_canonical_palette_html, heading_slug, replace_stats_placeholders,
 )
 from backend.services.repo_scanner import RepoScanner
-from backend.version import APP_ROOT
+from backend.version import APP_ROOT, engine_dir
 
 
 @lru_cache(maxsize=1)
 def _get_repo_scanner() -> RepoScanner:
-    return RepoScanner(str(APP_ROOT))
+    return RepoScanner(str(APP_ROOT), str(engine_dir()))
 
 
 _CODE_FILE_EXTENSIONS = {

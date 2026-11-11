@@ -374,6 +374,28 @@ def test_auto_linking_of_repo_files():
         assert 'click D' in linked and '/backend/blueprints/docs.py' in linked
 
 
+@pytest.mark.parametrize('layout', ['sibling', 'nested'])
+def test_engine_paths_resolve_wherever_the_engine_checkout_is(tmp_path, layout):
+    """A written-out engine path links in both layouts; a bare name shared by three files links nowhere."""
+    from backend.services.repo_scanner import RepoScanner
+
+    app_root = tmp_path / 'app'
+    engine = tmp_path / 'engine' if layout == 'sibling' else app_root / 'engine'
+    for path in (app_root / 'backend/blueprints/routes.py', app_root / 'backend/pages/routes.py',
+                 engine / 'src/osm_public_transport_matcher/routes.py'):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('')
+
+    scanner = RepoScanner(str(app_root), str(engine))
+    assert scanner.resolve_path('src/osm_public_transport_matcher/routes.py') == \
+        'engine/src/osm_public_transport_matcher/routes.py'
+    assert scanner.resolve_path('backend/pages/routes.py') == 'backend/pages/routes.py'
+    assert scanner.resolve_path('routes.py') is None
+    # Without the engine's source, as in the web image, the engine path stays unlinked.
+    assert RepoScanner(str(app_root), str(tmp_path / 'absent')).resolve_path(
+        'src/osm_public_transport_matcher/routes.py') is None
+
+
 def test_docs_link_to_the_code_quality_dashboard():
     """The sidebar of every page and the header of A4.3 lead to /quality."""
     from backend.app import create_app
