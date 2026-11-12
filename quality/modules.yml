@@ -230,7 +230,6 @@
       "entrypoints": [],
       "dependencies": [
         "app.query-api",
-        "app.pipeline-orchestration",
         "platform.styles-assets"
       ],
       "contracts": {}
