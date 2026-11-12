@@ -1,5 +1,6 @@
 """The Problems page's list and type counts. See documentation/2.4 Problems page.md."""
 from collections import defaultdict
+from types import SimpleNamespace
 
 from flask import Blueprint, request, jsonify, current_app as app
 from sqlalchemy import and_, or_
@@ -119,12 +120,37 @@ def problem_formatter(problems, include_routes):
     return format_problem
 
 
+def unlisted_group_members(problems):
+    """The members of the ATLAS duplicate groups of ``problems`` that none of ``problems`` is about.
+
+    The engine reports a duplicate on some members of its group only: not on a member matched by propagation, and as
+    the OSM duplicate when the matched OSM element is one too (E4.1). A group lists every member all the same, so each
+    missing one comes as a problem-like row with its stop and no priority. A SLOID with several pairs comes once.
+    """
+    listed = {str(problem.stop.sloid) for problem in problems if problem.stop.sloid}
+    wanted = {
+        str(sloid)
+        for problem in problems if problem.stop.atlas_stop_details
+        for sloid in problem.stop.atlas_stop_details.duplicate_group_sloids or ()
+    } - listed
+    if not wanted:
+        return []
+    stops = StopsMatched.query.options(
+        joinedload(StopsMatched.atlas_stop_details), joinedload(StopsMatched.osm_node_details),
+    ).filter(StopsMatched.sloid.in_(wanted)).order_by(StopsMatched.id).all()
+    members = {}
+    for stop in stops:
+        members.setdefault(stop.sloid, SimpleNamespace(stop=stop, problem_type='duplicates', priority=None, stop_id=stop.id))
+    return list(members.values())
+
+
 def duplicate_groups(problems, format_problem):
     """The duplicate problems as groups of at least two stops, in priority order.
 
-    An OSM group holds the OSM-side duplicates with one UIC reference and one
-    local_ref; an ATLAS group the ATLAS-side duplicates with one UIC reference
-    and one designation (both compared without case).
+    An OSM group holds the OSM-side duplicates (P3) with one UIC reference and one local_ref (compared without case).
+    An ATLAS group is a duplicate group of the engine (``duplicate_group_sloids``), formed when any member carries a
+    duplicates problem, P2 or P3; ``problems`` also holds its other members (``unlisted_group_members``). Its priority
+    is P2, an ATLAS duplicate, whatever its members carry.
     """
     members_by_group = defaultdict(dict)
     for problem in problems:
@@ -133,14 +159,20 @@ def duplicate_groups(problems, format_problem):
         if problem.priority == DUPLICATE_GROUP_PRIORITY['osm'] and stop.osm_node_id and osm and osm.osm_local_ref:
             uic_ref = (atlas.uic_ref if atlas else None) or osm.osm_uic_ref or ''
             members_by_group['osm', str(uic_ref), str(osm.osm_local_ref).lower()][stop.osm_node_id] = problem
-        if problem.priority == DUPLICATE_GROUP_PRIORITY['atlas'] and stop.sloid and atlas and atlas.atlas_designation:
-            uic_ref = atlas.uic_ref or ''
-            members_by_group['atlas', str(uic_ref), str(atlas.atlas_designation).strip().lower()][str(stop.sloid)] = problem
+        if stop.sloid and atlas and atlas.duplicate_group_sloids:
+            # The first row of a SLOID stays: a stop matched to a PTv2 pair has two rows with the same problem.
+            members_by_group['atlas', tuple(sorted(atlas.duplicate_group_sloids))].setdefault(str(stop.sloid), problem)
 
     groups = []
-    for (side, uic_ref, name), members in members_by_group.items():
+    for key, members in members_by_group.items():
         if len(members) < 2:
             continue
+        side = key[0]
+        if side == 'osm':
+            uic_ref, name = key[1], key[2]
+        else:
+            atlas = next(iter(members.values())).stop.atlas_stop_details
+            uic_ref, name = str(atlas.uic_ref or ''), str(atlas.atlas_designation or '').strip().lower()
         stops = [problem.stop for problem in members.values()]
         points = [(getattr(stop, f'{side}_lat'), getattr(stop, f'{side}_lon')) for stop in stops]
         points = [(float(lat), float(lon)) for lat, lon in points if lat is not None and lon is not None]
@@ -191,8 +223,12 @@ def get_problems():
         )
 
         if filters['problem_types'] == ['duplicates']:
-            duplicate_problems = filtered_problems(filters, Problem).options(*eager_stop).all()
-            groups = duplicate_groups(duplicate_problems, problem_formatter(duplicate_problems, include_routes))
+            # The priority filter applies to the groups: an ATLAS group is P2 even when its members carry P3.
+            duplicate_problems = filtered_problems({**filters, 'priorities': []}, Problem).options(*eager_stop).all()
+            rows = duplicate_problems + unlisted_group_members(duplicate_problems)
+            groups = duplicate_groups(rows, problem_formatter(rows, include_routes))
+            if filters['priorities']:
+                groups = [group for group in groups if group['priority'] in filters['priorities']]
             if focus is not None:
                 focus_index = next((
                     index for index, group in enumerate(groups)

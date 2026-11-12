@@ -97,6 +97,7 @@ def test_focus_finds_a_duplicate_group_by_any_member(client, problems_db):
                 problems=[('duplicates', 2)],
                 uic_ref=f'850000{index}',
                 atlas_designation='A',
+                duplicate_group_sloids=[f'ch:1:sloid:{index}x', f'ch:1:sloid:{index}y'],
             )
     session.commit()
 
@@ -105,3 +106,24 @@ def test_focus_finds_a_duplicate_group_by_any_member(client, problems_db):
     assert payload['focus_found'] is True
     assert payload['page'] == 3
     assert {member['sloid'] for member in payload['problems'][0]['members']} == {'ch:1:sloid:2x', 'ch:1:sloid:2y'}
+
+
+def test_a_duplicate_group_lists_the_member_matched_by_propagation(client, problems_db):
+    # The engine flags the member a rule matched, not the copy that took its match by propagation (E4.1).
+    group = ['ch:1:sloid:30749:0:2351', 'ch:1:sloid:30749:0:3439']
+    add_stop(problems_db, sloid=group[1], osm_node_id='332083940', problems=[('duplicates', 2)],
+             uic_ref='8501118', atlas_designation='B', duplicate_group_sloids=group)
+    add_stop(problems_db, sloid=group[0], osm_node_id='332083940', problems=[('distance', 1)],
+             uic_ref='8501118', atlas_designation='B', duplicate_group_sloids=group)
+    problems_db.commit()
+
+    payload = get_problems(client, problem_type='duplicates', focus_sloid=group[0])
+
+    assert payload['focus_found'] is True
+    assert payload['total'] == 1
+    [listed] = payload['problems']
+    assert (listed['group_type'], listed['priority']) == ('atlas', 2)
+    assert [(member['sloid'], member['priority']) for member in listed['members']] == [(group[1], 2), (group[0], None)]
+    # An ATLAS group is P2: a P3 filter leaves it out, a P2 filter keeps it.
+    assert get_problems(client, problem_type='duplicates', priority='3')['total'] == 0
+    assert get_problems(client, problem_type='duplicates', priority='2')['total'] == 1

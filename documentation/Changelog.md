@@ -39,6 +39,7 @@ The matching code moves to its own package, the [matching engine](../engine/docu
 - **Faster, clearer map** — Markers are drawn on a canvas, JSON answers are compressed, and a legend explains the markers and lines. Popups keep one width and compare matched stops side by side.
 - **Route variants on the map** — The route filter can keep a single variant, and variant maps colour stops as the main map does.
 - **Links to the documentation** — Filters, match types and problem types link to the section that explains them.
+- **Every ATLAS duplicate group in the Duplicates view** — A group is the engine's duplicate group and lists all its members, also those that took their match by propagation and carry no problem of their own. The view listed only groups with two flagged members, 32 of 283 on the Swiss data. See [A2.4](2.4%20Problems%20page.md#atlas-duplicates-p2).
 - **Problems page on phones** — Copy link and the summary no longer cover the problem card, the keyboard shortcuts hint is hidden, and the filter menus of the map and the Problems page open in full.
 
 ### Data, operators and exports
