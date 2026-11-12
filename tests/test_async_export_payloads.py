@@ -320,3 +320,21 @@ def test_templates_render_in_an_export_thread_without_a_request(app):
 
     with app.app_context():
         assert render_template_string("{{ seo_robots|default('none') }}") == 'none'
+
+
+def test_problem_export_highest_priority_first_starts_with_p1(problems_db):
+    # P1 is the highest priority; a "Top N, highest first" export must not start with P3.
+    from backend.models import Problem, StopsMatched
+
+    for stop_id, priority in ((1, 3), (2, None), (3, 1), (4, 2)):
+        problems_db.add(StopsMatched(id=stop_id, sloid=f'stop-{stop_id}', stop_type='atlas_unmatched'))
+        problems_db.add(Problem(stop_id=stop_id, problem_type='distance', priority=priority))
+    problems_db.commit()
+
+    def priorities(sort):
+        rows, _ = reports_blueprint.generate_report_data(
+            {'report_type': 'problems', 'sort': sort, 'limit': 'all', 'format': 'csv'})
+        return [row.priority for row in rows]
+
+    assert priorities('priority_desc') == [1, 2, 3, None]
+    assert priorities('priority_asc') == [None, 3, 2, 1]

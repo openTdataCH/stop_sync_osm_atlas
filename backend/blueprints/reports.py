@@ -269,10 +269,11 @@ def generate_report_data(params, task_id=None):
             
         elif report_type == 'problems':
             query = query.outerjoin(AtlasStop, StopsMatched.sloid == AtlasStop.sloid)
+            # P1 is the highest priority: "highest first" (priority_desc) is P1, P2, P3, then no priority.
             if sort_param == 'priority_asc':
-                query = query.order_by(db.func.coalesce(Problem.priority, 999).asc(), Problem.stop_id, Problem.problem_type)
-            elif sort_param == 'priority_desc':
                 query = query.order_by(db.func.coalesce(Problem.priority, 999).desc(), Problem.stop_id, Problem.problem_type)
+            elif sort_param == 'priority_desc':
+                query = query.order_by(db.func.coalesce(Problem.priority, 999).asc(), Problem.stop_id, Problem.problem_type)
             elif sort_param == 'operator_desc':
                 query = query.order_by(*_operator_order_columns(ascending=False), Problem.stop_id, Problem.problem_type)
             else:

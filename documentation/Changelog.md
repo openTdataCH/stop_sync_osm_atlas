@@ -39,11 +39,13 @@ The matching code moves to its own package, the [matching engine](../engine/docu
 - **Faster, clearer map** — Markers are drawn on a canvas, JSON answers are compressed, and a legend explains the markers and lines. Popups keep one width and compare matched stops side by side.
 - **Route variants on the map** — The route filter can keep a single variant, and variant maps colour stops as the main map does.
 - **Links to the documentation** — Filters, match types and problem types link to the section that explains them.
+- **Problems page on phones** — Copy link and the summary no longer cover the problem card, the keyboard shortcuts hint is hidden, and the filter menus of the map and the Problems page open in full.
 
 ### Data, operators and exports
 
 - **Analytics by source** — `/data/analytics` is reorganised into stop matching, unmatched, route matching, problems, ATLAS, Swiss GTFS, OSM stops and OSM routes, with plainer layouts.
 - **Simpler operator cards and export form**.
+- **Problems export by priority** — "Priority, highest first" starts with the P1 problems; it started with P3.
 
 ### Public API
 
