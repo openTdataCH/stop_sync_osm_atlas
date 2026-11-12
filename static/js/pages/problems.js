@@ -31,12 +31,18 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function updateSummaryStats() {
         const statsContainer = document.getElementById('headerSummaryStats');
-        const totalCount = ProblemsState.getTotalProblems() || 0;
+        const entries = ProblemsState.getTotalProblems() || 0;
+        const problems = ProblemsState.getProblemCount() || 0;
+        const types = ProblemsState.getSelectedProblemTypes() || [];
+        // The duplicates-only view lists groups; every other view lists stops, each with all its problems.
+        const unit = types.length === 1 && types[0] === 'duplicates'
+            ? (entries === 1 ? ' group' : ' groups') : (entries === 1 ? ' stop' : ' stops');
 
         if (!statsContainer) return;
 
-        statsContainer.innerHTML =
-            '<div><i class="fas fa-exclamation-triangle"></i> ' + SharedUtils.formatCount(totalCount) + ' problems</div>';
+        statsContainer.innerHTML = '<div><i class="fas fa-exclamation-triangle"></i> '
+            + SharedUtils.formatCount(problems) + (problems === 1 ? ' problem' : ' problems')
+            + (unit.includes('group') ? ' in ' : ' at ') + SharedUtils.formatCount(entries) + unit + '</div>';
     }
 
     function applyHeaderSummaryLayoutState() {

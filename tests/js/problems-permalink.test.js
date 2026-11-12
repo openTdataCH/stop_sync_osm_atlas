@@ -159,7 +159,7 @@ describe('Problems page permalinks', () => {
         await flush();
         expect(header()).toBe('Entry 201 of 400 · 1 Problem');
 
-        // Page 2 holds a stop whose duplicate problem forms an extra entry.
+        // Page 2 holds a stop with a duplicate problem: it stays in its stop's entry, so the entries are the stops.
         const page2 = pageOfStops(101, 100).concat([
             stop(150, { id: 'dup150', problem: 'duplicates', priority: 3, duplicate_group_sloids: 'g150' })
         ]);
@@ -172,12 +172,14 @@ describe('Problems page permalinks', () => {
         await flush();
 
         expect(ProblemsState.getFirstLoadedPage()).toBe(2);
-        expect(header()).toBe('Group 200 of 400');
-        expect(window.location.search).toBe('?sloid=ch:1:sloid:150&osm=node/1150');
+        expect(header()).toBe('Entry 200 of 400 · 1 Problem');
+        expect(window.location.search).toBe('?sloid=ch:1:sloid:200&osm=node/1200');
+        expect(ProblemsState.getProblemsByEntry()).toHaveLength(200);
+        expect(ProblemsState.getProblemsByEntry()[49].map(problem => problem.id)).toContain('dup150');
         ProblemsData.navigateToPreviousProblem();
         await flush();
         expect(header()).toBe('Entry 199 of 400 · 1 Problem');
-        expect(window.location.search).toBe('?sloid=ch:1:sloid:200&osm=node/1200');
+        expect(window.location.search).toBe('?sloid=ch:1:sloid:199&osm=node/1199');
         ProblemsData.navigateToNextProblem();
         await flush();
         ProblemsData.navigateToNextProblem();

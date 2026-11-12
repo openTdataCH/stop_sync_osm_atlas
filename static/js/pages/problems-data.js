@@ -74,18 +74,12 @@ window.ProblemsData = (function () {
 
         problems.forEach(problem => {
             let entryKey;
-            const isGroup = problem.problem === 'duplicates' && typeof problem.id === 'string';
-            
+            // A duplicate group of the duplicates-only view is one entry; otherwise an entry is one stop with all its
+            // problems, its duplicate problem included, so the entries are the stops the server counts.
+            const isGroup = problem.problem === 'duplicates' && Array.isArray(problem.members);
+
             if (isGroup) {
                 entryKey = `group_${problem.id}`;
-            } else if (problem.problem === 'duplicates') {
-                // For individual duplicate problems, use the group ID as the key to group them together
-                const groupKey = problem.duplicate_group_sloids || problem.duplicate_group_node_ids;
-                if (groupKey) {
-                    entryKey = `group_auto_${groupKey}`;
-                } else {
-                    entryKey = `dup_stop_${problem.stop_id || problem.id}`;
-                }
             } else {
                 entryKey = `${problem.stop_id || problem.id}_${problem.atlas_lat || problem.osm_lat}_${problem.atlas_lon || problem.osm_lon}`;
             }
@@ -264,6 +258,7 @@ window.ProblemsData = (function () {
             if (mode === 'fresh') {
                 ProblemsState.setAllProblems(data.problems);
                 ProblemsState.setTotalProblems(data.total);
+                ProblemsState.setProblemCount(data.problem_count);
                 ProblemsState.setFirstLoadedPage(data.page);
                 ProblemsState.setCurrentPage(data.page);
                 ProblemsState.setEntryNumberOffset((data.page - 1) * PAGE_SIZE);

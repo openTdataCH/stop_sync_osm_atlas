@@ -404,7 +404,15 @@ window.ProblemsUI = (function () {
                     '<th>Source</th><th>Identifier</th><th>Name</th><th>Coords</th></tr></thead><tbody>';
                 infoHtml += `<tr><td>${badge}</td><td>${ident}</td><td>${name}</td><td>${coords}</td></tr>`;
                 infoHtml += '</tbody></table>';
-                infoHtml += '<div class="mt-2 text-muted" style="font-size: 0.65rem;"><i class="fas fa-info-circle"></i> Part of a duplicates group</div>';
+                // The member's group, in the duplicates-only view.
+                const groupParams = new URLSearchParams({ problem_type: 'duplicates' });
+                if (isOsm) {
+                    const node = String(problem.osm_node_id || '');
+                    groupParams.set('osm', node.startsWith('way_') ? `way/${node.slice(4)}` : `node/${node}`);
+                } else {
+                    groupParams.set('sloid', problem.sloid || '');
+                }
+                infoHtml += `<div class="mt-2 text-muted" style="font-size: 0.65rem;"><i class="fas fa-info-circle"></i> Part of a duplicates group: <a href="${SharedUtils.escapeHtml(`/problems?${groupParams}`)}">see the group</a></div>`;
 
                 actionButtonsHtml += wrapInSection(
                     '<i class="fas fa-clone"></i> Duplicate Entry',
@@ -530,7 +538,7 @@ window.ProblemsUI = (function () {
         const problemCount = currentEntryProblems.length;
         const problemText = problemCount > 1 ? 'Problems' : 'Problem';
         const firstProblemForHeader = currentEntryProblems[0];
-        const isDuplicatesGroupHeader = firstProblemForHeader && firstProblemForHeader.problem === 'duplicates';
+        const isDuplicatesGroupHeader = firstProblemForHeader && Array.isArray(firstProblemForHeader.members);
         const entryNumber = ProblemsData.entryNumber(index);
         const typeDisplay = document.getElementById('problemTypeDisplay');
         if (isDuplicatesGroupHeader) {

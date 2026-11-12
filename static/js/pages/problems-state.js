@@ -32,7 +32,8 @@ window.ProblemsState = (function () {
     let currentPage = 1; // Last loaded page
     let firstLoadedPage = 1; // A permalink can start the list on a later page
     let entryNumberOffset = 0; // Entries before the first loaded one, for "Entry N/Total"
-    let totalProblems = 0;
+    let totalProblems = 0; // Entries of the whole list: stops, or groups in the duplicates-only view
+    let problemCount = 0; // Problems of the whole list
     let isLoadingMore = false;
 
     // UI state
@@ -107,6 +108,9 @@ window.ProblemsState = (function () {
 
         getTotalProblems: () => totalProblems,
         setTotalProblems: (total) => { totalProblems = total; },
+
+        getProblemCount: () => problemCount,
+        setProblemCount: (count) => { problemCount = count; },
 
         getIsLoadingMore: () => isLoadingMore,
         setIsLoadingMore: (loading) => { isLoadingMore = loading; },

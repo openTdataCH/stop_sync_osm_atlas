@@ -240,7 +240,9 @@ def get_problems():
             offset = (page - 1) * limit
             return jsonify({
                 'problems': groups[offset:offset + limit],
+                # Entries are groups here; problem_count counts the duplicate problems, as the type counts do.
                 'total': len(groups),
+                'problem_count': filtered_problems(filters, func.count(Problem.id)).scalar(),
                 'page': page,
                 'limit': limit,
                 **focus_response
@@ -266,7 +268,9 @@ def get_problems():
         format_problem = problem_formatter(page_problems, include_routes)
         return jsonify({
             "problems": [format_problem(problem) for problem in page_problems],
+            # An entry is one stop with all its problems: total counts entries, problem_count problems.
             "total": total_stops,
+            "problem_count": filtered_problems(filters, func.count(Problem.id)).scalar(),
             "page": page,
             "limit": limit,
             **focus_response
@@ -279,14 +283,14 @@ def get_problems():
 @problems_bp.route('/api/problems/stats', methods=['GET'])
 @limiter.limit("120/minute")
 def get_problem_stats():
-    """The number of stops with each type of problem, under the priority, operator and area filters."""
+    """The number of problems of each type, and of all types, under the priority, operator and area filters."""
     try:
         try:
             filters = {**parse_problem_filters(request.args), 'problem_types': []}
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
         counts = dict(
-            filtered_problems(filters, Problem.problem_type, func.count(func.distinct(Problem.stop_id)))
+            filtered_problems(filters, Problem.problem_type, func.count(Problem.id))
             .group_by(Problem.problem_type).all()
         )
         stats = {problem_type: {'all': counts.get(problem_type, 0)} for problem_type in VISIBLE_PROBLEM_TYPES}

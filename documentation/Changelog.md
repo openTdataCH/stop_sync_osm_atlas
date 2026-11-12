@@ -40,6 +40,7 @@ The matching code moves to its own package, the [matching engine](../engine/docu
 - **Route variants on the map** — The route filter can keep a single variant, and variant maps colour stops as the main map does.
 - **Links to the documentation** — Filters, match types and problem types link to the section that explains them.
 - **Every ATLAS duplicate group in the Duplicates view** — A group is the engine's duplicate group and lists all its members, also those that took their match by propagation and carry no problem of their own. The view listed only groups with two flagged members, 32 of 283 on the Swiss data. See [A2.4](2.4%20Problems%20page.md#atlas-duplicates-p2).
+- **Problems page counts** — The summary names problems and stops apart ("43,103 problems at 38,177 stops", or groups in the Duplicates view), and an entry is one stop with all its problems, its duplicate problem included, so "Entry N of M" counts what the list holds. It called 38,177 stops "problems", and the type counts said 43,103. See [A2.4](2.4%20Problems%20page.md#entries).
 - **Problems page on phones** — Copy link and the summary no longer cover the problem card, the keyboard shortcuts hint is hidden, and the filter menus of the map and the Problems page open in full.
 
 ### Data, operators and exports

@@ -79,6 +79,15 @@ def test_problem_counts_follow_the_area(client, stops):
     assert stats['all']['all'] == 3
 
 
+
+def test_the_list_counts_stops_and_problems_apart(client, stops):
+    # Zurich has two problems: the list has four entries, one per stop, and five problems, as the type counts say.
+    listed = client.get('/api/problems', query_string={'limit': 50}).get_json()
+    assert (listed['total'], listed['problem_count']) == (4, 5)
+    assert client.get('/api/problems/stats').get_json()['all']['all'] == 5
+    p1 = client.get('/api/problems', query_string={'priority': '1'}).get_json()
+    assert (p1['total'], p1['problem_count']) == (2, 2)
+
 def test_a_malformed_area_is_an_error_not_every_problem(client, stops):
     for path in ('/api/problems', '/api/problems/stats'):
         response = client.get(path, query_string={'bbox': '7.5,46.9,7.3,47.0'})
