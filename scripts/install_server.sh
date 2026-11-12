@@ -4,7 +4,8 @@
 #
 # Run it after every `git checkout`, as the user the services run as, with DATABASE_URI set. It
 #   1. checks out the engine at the commit pinned in engine.ref into engine/,
-#   2. installs the application and that engine into one virtualenv, .venv/ (VENV to change it),
+#   2. installs the application and that engine into one virtualenv, .venv/ (VENV to change it), and checks that
+#      WeasyPrint finds its system libraries,
 #   3. waits for the database and applies the migrations.
 # Running it again changes nothing that is already in place. PYTHON names the interpreter that creates the
 # virtualenv (default python3; 3.11 or newer, CI tests 3.13).
@@ -43,6 +44,10 @@ fi
 "$venv/bin/python" -m pip install --quiet --disable-pip-version-check -r requirements.txt './engine[swiss,acquisition]'
 "$venv/bin/python" -m pip install --quiet --disable-pip-version-check --no-deps --force-reinstall ./engine
 "$venv/bin/osm-public-transport-matcher" --help > /dev/null
+"$venv/bin/python" -c 'import weasyprint' || {
+    echo "WeasyPrint cannot load its system libraries; install libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0" >&2
+    exit 2
+}
 
 # 3. The database schema.
 export PYTHONPATH="$PWD${PYTHONPATH:+:$PYTHONPATH}"

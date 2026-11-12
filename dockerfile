@@ -22,10 +22,10 @@ WORKDIR /app
 ARG APP_UID=1000
 ARG APP_GID=1000
 RUN groupadd -g ${APP_GID} app && useradd -m -u ${APP_UID} -g ${APP_GID} -s /bin/bash app
-# Pango, Cairo and GDK-PixBuf are the system libraries WeasyPrint draws the PDFs with.
+# Pango and HarfBuzz are the system libraries WeasyPrint draws the PDFs with (its own Debian list).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpango-1.0-0 libpangocairo-1.0-0 libcairo2 libgdk-pixbuf2.0-0 \
-    shared-mime-info && rm -rf /var/lib/apt/lists/*
+    libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 \
+    && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 ENV FLASK_APP=backend/app.py FLASK_RUN_HOST=0.0.0.0 FLASK_RUN_PORT=5001

@@ -4,7 +4,7 @@ FROM python:3.13-slim-bookworm
 COPY --from=node /usr/local /opt/node
 ENV PATH="/opt/node/bin:${PATH}" PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git make libpango-1.0-0 libpangocairo-1.0-0 libcairo2 libgdk-pixbuf2.0-0 \
+    git make libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /workspace/app
 COPY requirements.txt requirements-dev.txt ./
