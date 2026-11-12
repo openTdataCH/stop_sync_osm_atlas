@@ -22,7 +22,7 @@ The other `/api/` endpoints serve the web pages and change without notice; do no
 
 - [Public API](/docs/public_api): the lookup's parameters, response fields and stability rules
 - [Permalinks](/docs/permalinks): the link format of every page
-- [Glossary](/docs/glossary): stop types, match types and other terms
+- [Glossary](/docs/glossary): identifiers, match types, problems and other terms
 - [Stop problems](/docs/stop_problems): what each problem type means
 
 ## Data licences

@@ -97,6 +97,7 @@ Start with the [contributor guide](documentation/Contributing.md). A matching-ru
 
 - [Documentation overview](documentation/0.%20User%20guide.md)
 - [Glossary](documentation/0.4%20Glossary.md)
+- [Developer glossary](documentation/Developer%20glossary.md)
 - [Engine documentation](../engine/documentation/1.%20Input%20integrations%20%26%20acquisition.md)
 - [Review application changelog](documentation/Changelog.md)
 - [Matching engine changelog](../engine/documentation/Changelog.md)
