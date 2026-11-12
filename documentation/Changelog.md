@@ -1,6 +1,6 @@
 # Review application changelog
 
-This page records notable changes to the review application, its database import, browser interface and deployment. Matching releases are recorded separately in the [matching engine changelog](../engine/documentation/Changelog.md).
+Here you can find notable changes to this review web application, its database import, browser interface and deployment. Matching releases are recorded separately in the [matching engine changelog](../engine/documentation/Changelog.md).
 
 Changes to the [result bundle contract](../engine/documentation/Result%20bundle%20format.md) are recorded in both changelogs: here from the consumer side and in the engine changelog from the producer side.
 
@@ -17,7 +17,6 @@ The matching code moves to its own package, the [matching engine](../engine/docu
 - **Not only Switzerland** — Interface features that need SLOIDs or UIC references appear only when the bundle provides them.
 - **Pipeline status** — The Data page shows every phase and stage of a run live, and a run whose process died is marked failed instead of shown as running.
 - **Installation without Docker** — `scripts/install_server.sh` checks out the pinned engine, installs the application and the engine into one virtualenv and applies the migrations; the scheduler finds the engine command in that virtualenv. The database schema starts again from one migration, so a database from an earlier version is recreated once. See [A3](3.%20Application%20architecture%20%26%20deployment.md#deployment-without-docker).
-- **Only the published bundle kept** — Once a run has published its bundle, the runner deletes the bundles of earlier runs, so the disk no longer fills with one bundle per run. See [A3.3](3.3%20Background%20scheduler.md#run-modes).
 - **Documentation PDF without Node** — CI renders the documentation's Mermaid diagrams for each commit of `main` and publishes them next to the quality evidence; a site that cannot render them downloads the set of its commit for the PDF. A diagram nobody rendered becomes a note pointing to the online page instead of failing the export. See [A2.5](2.5%20Reports%20and%20PDFs.md#documentation-pdf).
 
 ### Matching shown in the interface
@@ -26,9 +25,7 @@ The matching code moves to its own package, the [matching engine](../engine/docu
 - **New problem types** — **OSM SLOID** for a SLOID that names a distant or unknown platform, and **disused** for retired OSM elements that still look in use. Disused elements are drawn as grey rings. See [A2.4](2.4%20Problems%20page.md).
 - **More routes linked** — Lines are linked when their variants have the same stops in order, also without a route ID, and variants are compared by station, so a stop at another platform of the same station counts as shared. An OSM relation without `ref_trips` is paired with a variant on its stops in order. See [A2.6](2.6%20Routes%20pages.md).
 - **Several matches per line** — A line can be matched to several lines of the other side: the timetable splits one line into several routes, and OSM can hold a line twice. Each match is a route card, which names the others. See [A2.6](2.6%20Routes%20pages.md#lines-with-several-matches).
-- **Route side called `gtfs` in the code** — Tables, columns, the stored `source` value, JSON fields, CSS classes and JavaScript call the timetable side `gtfs` (`gtfs_line_families`, `gtfs_line_family_id`, `gtfs_itinerary_id`, `routes_gtfs`, `route-card--gtfs_only`); ATLAS stops keep `atlas`. The internal route APIs accept the older `atlas_itinerary_id`, `source=atlas` and `{"atlas": …}` variant keys until the next release. See [A2.6](2.6%20Routes%20pages.md#names).
-- **Link parameters called `gtfs`** — Route links use `gtfs_variant` and `matched=unmatched_gtfs`. Links with the older `atlas_variant` and `matched=unmatched_atlas` keep working: `/routes` redirects them and the map rewrites them. See [A2.9](2.9%20Permalinks.md#older-parameter-names).
-- **What supports a match** — Each matched route card says whether the route ID and the stops link its lines, the stops only, or the route ID alone. The import keeps the engine's `stop_score` of each line link. See [A2.6](2.6%20Routes%20pages.md#what-supports-a-match).
+
 - **GTFS, not ATLAS, on the route side** — Routes and variants come from the timetable, so the Routes pages, route filters and popups call that side GTFS. ATLAS stays the name of the stop registry.
 
 ### Map and Problems page
@@ -38,11 +35,8 @@ The matching code moves to its own package, the [matching engine](../engine/docu
 - **Problems by area** — The map filters by problem type and priority, and the Problems page filters by a drawn rectangle.
 - **Faster, clearer map** — Markers are drawn on a canvas, JSON answers are compressed, and a legend explains the markers and lines. Popups keep one width and compare matched stops side by side.
 - **Route variants on the map** — The route filter can keep a single variant, and variant maps colour stops as the main map does.
-- **Links to the documentation** — Filters, match types and problem types link to the section that explains them.
-- **Every ATLAS duplicate group in the Duplicates view** — A group is the engine's duplicate group and lists all its members, also those that took their match by propagation and carry no problem of their own. The view listed only groups with two flagged members, 32 of 283 on the Swiss data. See [A2.4](2.4%20Problems%20page.md#atlas-duplicates-p2).
 - **Problems page counts** — The summary names problems and stops apart ("43,103 problems at 38,177 stops", or groups in the Duplicates view), and an entry is one stop with all its problems, its duplicate problem included, so "Entry N of M" counts what the list holds. It called 38,177 stops "problems", and the type counts said 43,103. See [A2.4](2.4%20Problems%20page.md#entries).
 - **A duplicate reported once per stop** — Engine `8f19dc7` reports a duplicate on one pair of its stop: the closest that a rule matched, never a propagated one. An ATLAS duplicate matched to a PTv2 platform and its stop position showed the same Duplicate Entry card in two entries, and the type count included each repeat (67 on the Swiss data). See [E4.1](../engine/documentation/4.1%20Stop%20problems.md#duplicate-problems).
-- **A stop's duplicate problem on the map** — Opening an entry on its duplicate problem, or scrolling to that card, draws and frames the stop's pair. It drew no marker and left the map where it was, on all of Switzerland after a page load. See [A2.4](2.4%20Problems%20page.md#entries).
 - **Propagated pairs in the Matched filter** — A pair matched by propagation (OSM pair partner, ATLAS duplicate) is selected with the rule of the match it was propagated from. No rule selected these 14,327 pairs, so leaving out one rule hid all of them. See [A2.2](2.2%20Filter%20and%20search%20logic.md#matched-branch).
 - **Problems page on phones** — Copy link and the summary no longer cover the problem card, the keyboard shortcuts hint is hidden, and the filter menus of the map and the Problems page open in full.
 
@@ -60,8 +54,8 @@ The matching code moves to its own package, the [matching engine](../engine/docu
 ### Documentation and code quality
 
 - **User guide** — Pages for mappers and data stewards on problems, routes, links and the API, plus a [glossary](0.4%20Glossary.md) in plain words. The terms of the code, the engine and the deployment are in a separate [developer glossary](Developer%20glossary.md). See [0. User guide](0.%20User%20guide.md).
-- **New addresses** — Page files are named after their titles, so some addresses change (`/docs/intro` is now `/docs/user_guide`); old addresses are not redirected. Any page can be downloaded alone as a PDF.
-- **Code quality dashboard** — `/quality` maps the modules, files and functions of both repositories and their dependencies in one style, lists what to clean up (functions nothing mentions, copied code, long files) and shows the test and coverage results that CI measured on the running commit, down to each file. The site downloads those results from GitHub by its own commit, so no report is committed any more. See [A4.3](4.3%20Code%20quality.md).
+- Any page can be downloaded alone as a PDF.
+- **Code quality dashboard** — `/quality` maps the modules, files and functions of both repositories and their dependencies, lists what to clean up (functions nothing mentions, copied code, long files) and shows the test and coverage results that CI measured on the running commit, down to each file. The site downloads those results from GitHub by its own commit, so no report is committed any more. See [A4.3](4.3%20Code%20quality.md).
 
 
 ## Version 0.5
