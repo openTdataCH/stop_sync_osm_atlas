@@ -102,13 +102,13 @@ if (browserPath) {
 }
 
 const { default: puppeteer } = await import('puppeteer-core');
-// On a CI runner Chrome sometimes hangs at start and never opens its debugging port. A start takes a second
-// or two, so give up after 15 s and start it again; puppeteer kills the hung process.
-// After a failed start, the next ones print the browser's own output, which says why it hangs.
-async function launchBrowser(attempts = 4) {
+// On a CI runner the browser's first start can be slow: it follows the quality checks on a small machine, and
+// has taken from 5 s to more than 30 s. Puppeteer's default wait is 30 s, so a start gets 90 s, and a failed
+// one is tried again. After a failed start, the next ones print the browser's own output.
+async function launchBrowser(attempts = 3) {
   for (let attempt = 1; ; attempt += 1) {
     try {
-      return await puppeteer.launch({ timeout: 15000, dumpio: attempt > 1, ...puppeteerConfig });
+      return await puppeteer.launch({ timeout: 90000, dumpio: attempt > 1, ...puppeteerConfig });
     } catch (error) {
       if (attempt === attempts) throw error;
       console.error(`Browser start ${attempt} of ${attempts} failed with ${browserPath || 'the default browser'} ` +
