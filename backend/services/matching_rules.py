@@ -68,6 +68,13 @@ PROPAGATION_MATCH_TYPES = (
     ('osm_pair_propagation', 'OSM pair propagation'),
 )
 
+# A propagated match has no rule of its own: it follows the match it was propagated from, which shares this column
+# with it. An OSM pair partner shares the ATLAS stop (sloid), an ATLAS duplicate the OSM element (osm_node_id).
+PROPAGATION_SHARED_COLUMN = {
+    'osm_pair_propagation': 'sloid',
+    'source_duplicate_propagation': 'osm_node_id',
+}
+
 RULES_BY_KEY = {rule.key: rule for rule in MATCHING_RULES}
 MATCH_TYPES = frozenset(match_type for rule in MATCHING_RULES for match_type, _ in rule.match_types)
 ALL_MATCH_TYPES = MATCH_TYPES | {match_type for match_type, _ in PROPAGATION_MATCH_TYPES}

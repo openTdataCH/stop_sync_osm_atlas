@@ -5,7 +5,7 @@ from sqlalchemy.orm import aliased, joinedload
 from backend.extensions import db
 from backend.models import AtlasStop, StopsMatched
 from backend.query_builder import apply_common_filters
-from backend.services.matching_rules import match_types_for_filter
+from backend.services.matching_rules import PROPAGATION_SHARED_COLUMN, match_types_for_filter
 from backend.services.problem_filters import parse_priorities, parse_problem_types
 
 
@@ -97,13 +97,31 @@ def resolve_stop_type_match_filters(stop_filter_str, match_method_str):
 
 
 def build_match_method_conditions(stop_model, matched_methods):
+    """The pairs that the selected rules decided, and the pairs propagated from them.
+
+    A propagated pair belongs to the rule of the match it was propagated from: the other match of its ATLAS stop for
+    an OSM pair partner, the other match of its OSM element for an ATLAS duplicate (PROPAGATION_SHARED_COLUMN).
+    """
     if not matched_methods:
         return None
 
     match_types = sorted({match_type for method in matched_methods for match_type in match_types_for_filter(method)})
     if not match_types:
         return None
-    return stop_model.match_type.in_(match_types)
+    partner = aliased(StopsMatched)
+    propagated = [
+        db.and_(
+            stop_model.match_type == propagation,
+            db.select(1).where(
+                getattr(partner, column) == getattr(stop_model, column),
+                partner.id != stop_model.id,
+                partner.stop_type == 'matched',
+                partner.match_type.in_(match_types),
+            ).exists(),
+        )
+        for propagation, column in PROPAGATION_SHARED_COLUMN.items()
+    ]
+    return db.or_(stop_model.match_type.in_(match_types), *propagated)
 
 
 def build_two_sided_middle_with_matched_sides_condition(stop_model):

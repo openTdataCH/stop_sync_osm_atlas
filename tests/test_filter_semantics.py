@@ -207,3 +207,25 @@ def test_identifier_filters_keep_whole_identifiers_only(problems_db):
     assert kept('8530279', 'station') == ['6151326225']
     assert kept('8500819', 'station') == ['6151326225']
     assert kept('850081', 'station') == []
+
+
+def test_a_propagated_pair_follows_the_rule_of_the_match_it_was_propagated_from(problems_db):
+    # (sloid, OSM element, match type). A platform matched by UIC reference and its PTv2 stop position, which took
+    # the match by propagation, share the ATLAS stop. A platform matched by GTFS route and the ATLAS duplicate that
+    # took its match share the OSM element.
+    for sloid, node, match_type in [
+        ('ch:1:sloid:1', 'platform', 'uic_reference_one_osm'),
+        ('ch:1:sloid:1', 'stop_position', 'osm_pair_propagation'),
+        ('ch:1:sloid:2', 'gtfs_platform', 'gtfs_shared_route'),
+        ('ch:1:sloid:3', 'gtfs_platform', 'source_duplicate_propagation'),
+    ]:
+        problems_db.add(StopsMatched(sloid=sloid, osm_node_id=node, stop_type='matched', match_type=match_type))
+    problems_db.commit()
+
+    def selected(*methods):
+        condition = build_match_method_conditions(StopsMatched, list(methods))
+        return sorted((row.sloid, row.osm_node_id) for row in StopsMatched.query.filter(condition))
+
+    assert selected('reference') == [('ch:1:sloid:1', 'platform'), ('ch:1:sloid:1', 'stop_position')]
+    assert selected('gtfs_shared_route') == [('ch:1:sloid:2', 'gtfs_platform'), ('ch:1:sloid:3', 'gtfs_platform')]
+    assert selected('name') == []
