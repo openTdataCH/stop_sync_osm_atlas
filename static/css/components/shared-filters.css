@@ -130,6 +130,18 @@
     width: min(360px, calc(100vw - 2rem)) !important;
     max-width: calc(100vw - 2rem);
   }
+
+  /* An open menu reaches past the bottom of the panel instead of being cut off at its edge,
+     and scrolls when it is taller than the screen. */
+  .mobile-filters-panel:has(.dropdown-menu.show),
+  .mobile-filters-panel:has(.dropdown-menu.show) .top-filters-bar {
+    overflow: visible;
+  }
+
+  .mobile-filters-panel .dropdown-menu.show {
+    max-height: 60vh;
+    overflow-y: auto;
+  }
 }
 
 /* ==========================================================================

@@ -107,6 +107,18 @@
     max-width: none !important;
     min-width: 0;
   }
+
+  /* The chips wrap so that Copy link stays on screen. */
+  .problem-floating-meta {
+    flex-wrap: wrap;
+    row-gap: var(--space-1);
+  }
+
+  /* The problem card fills the bottom of the screen, so the summary sits at the top, level with Filters. */
+  .problems-page-root .header-summary {
+    top: calc(var(--navbar-height) + var(--space-2));
+    bottom: auto;
+  }
 }
 
 /* -------------------------------------------------------------------------
@@ -510,6 +522,13 @@
 .keyboard-shortcuts-hint.show {
   display: block;
   animation: fadeInUp var(--transition-base);
+}
+
+/* Phones and touch screens have no keyboard for the shortcuts. */
+@media (max-width: 768px), (hover: none) {
+  .keyboard-shortcuts-hint.show {
+    display: none;
+  }
 }
 
 @keyframes fadeInUp {
