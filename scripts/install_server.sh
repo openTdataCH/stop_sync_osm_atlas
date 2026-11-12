@@ -41,6 +41,11 @@ fi
     echo "$venv uses Python $("$venv/bin/python" -V); 3.11 or newer is needed: remove $venv and set PYTHON" >&2
     exit 2
 }
+# Without the venv module's pip (Debian and Ubuntu package it as python3-venv), the virtualenv is left half made.
+"$venv/bin/python" -m pip --version > /dev/null 2>&1 || {
+    echo "$venv has no pip: install python3-venv (Debian, Ubuntu), then remove $venv and run this again" >&2
+    exit 2
+}
 "$venv/bin/python" -m pip install --quiet --disable-pip-version-check -r requirements.txt './engine[swiss,acquisition]'
 "$venv/bin/python" -m pip install --quiet --disable-pip-version-check --no-deps --force-reinstall ./engine
 "$venv/bin/osm-public-transport-matcher" --help > /dev/null
