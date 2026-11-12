@@ -67,7 +67,7 @@ The engine requires no database credentials. The importer validates the bundle a
 
 ## Configuration and development
 
-Copy `env.example` to `.env` to override settings. Source snapshots and runtime state live under `data/`; PostGIS persists in the Compose volume. Long-running services restart unless manually stopped. Database migrations run through the one-shot `migrator` service.
+Copy `env.example` to `.env` to change settings; every setting has a default and is listed in [A3 Settings](documentation/3.%20Application%20architecture%20%26%20deployment.md#settings). Source snapshots and runtime state live under `data/`; PostGIS persists in the Compose volume. Long-running services restart unless manually stopped. Database migrations run through the one-shot `migrator` service.
 
 For day-to-day web development, run this from the application checkout:
 
