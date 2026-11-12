@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -297,6 +298,53 @@ def test_record_data_updated_timestamp_writes_meta_and_status(monkeypatch, tmp_p
     assert result == "2026-05-02T21:31:00+02:00"
     assert captured["value"] == "2026-05-02T21:31:00+02:00"
     assert (tmp_path / "data" / "data_meta.json").read_text(encoding="utf-8") == '{"last_pipeline_data_import_ended_at": "2026-05-02T21:31:00+02:00"}'
+
+
+def _run_with_bundles(monkeypatch, tmp_path, mode, imported):
+    """Runs ``mode`` with an engine that writes a bundle below tmp_path/results and the importer ``imported``."""
+    monkeypatch.setenv('PIPELINE_BUNDLE_DIR', str(tmp_path / 'results'))
+    monkeypatch.setattr(job_runner, '_record_data_updated_timestamp', lambda *args: None)
+    monkeypatch.setattr(job_runner.data_meta, 'update_data_meta', lambda **kw: None)
+    written = []
+
+    def engine(command, **kwargs):
+        destination = Path(command[command.index('--output') + 1])
+        (destination / 'manifest.json').parent.mkdir(parents=True)
+        (destination / 'manifest.json').write_text('{}')
+        written.append(destination)
+
+    monkeypatch.setattr(job_runner, '_run_subprocess', engine)
+    monkeypatch.setattr(job_runner, 'import_bundle', imported)
+    return job_runner.run_pipeline(mode), written
+
+
+def test_published_run_deletes_the_bundles_of_earlier_runs_only(monkeypatch, tmp_path):
+    results = tmp_path / 'results'
+    earlier, interrupted = results / ('a' * 32), results / '.matching-x1y2'
+    for directory in (earlier, interrupted, results / 'kept-by-hand'):
+        directory.mkdir(parents=True)
+    (results / ('b' * 32)).write_text('a file, not a bundle')
+    (tmp_path / 'elsewhere').mkdir()
+    (results / ('c' * 32)).symlink_to(tmp_path / 'elsewhere', target_is_directory=True)
+
+    exit_code, written = _run_with_bundles(
+        monkeypatch, tmp_path, 'full', lambda directory, **kw: {'run_id': 'new', 'schema_version': 1})
+
+    assert exit_code == 0
+    assert sorted(path.name for path in results.iterdir()) == sorted([written[0].name, 'b' * 32, 'c' * 32, 'kept-by-hand'])
+
+
+def test_failed_publication_keeps_every_bundle(monkeypatch, tmp_path):
+    earlier = tmp_path / 'results' / ('a' * 32)
+    earlier.mkdir(parents=True)
+
+    def refused(directory, **kw):
+        raise ValueError('Refused to publish')
+
+    exit_code, written = _run_with_bundles(monkeypatch, tmp_path, 'match-import', refused)
+
+    assert exit_code == 1
+    assert earlier.is_dir() and written[0].is_dir()
 
 
 def test_engine_command_defaults_to_the_engine_beside_the_running_python(monkeypatch, tmp_path):

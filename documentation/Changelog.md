@@ -17,6 +17,7 @@ The matching code moves to its own package, the [matching engine](../engine/docu
 - **Not only Switzerland** — Interface features that need SLOIDs or UIC references appear only when the bundle provides them.
 - **Pipeline status** — The Data page shows every phase and stage of a run live, and a run whose process died is marked failed instead of shown as running.
 - **Installation without Docker** — `scripts/install_server.sh` checks out the pinned engine, installs the application and the engine into one virtualenv and applies the migrations; the scheduler finds the engine command in that virtualenv. The database schema starts again from one migration, so a database from an earlier version is recreated once. See [A3](3.%20Application%20architecture%20%26%20deployment.md#deployment-without-docker).
+- **Only the published bundle kept** — Once a run has published its bundle, the runner deletes the bundles of earlier runs, so the disk no longer fills with one bundle per run. See [A3.3](3.3%20Background%20scheduler.md#run-modes).
 - **Documentation PDF without Node** — CI renders the documentation's Mermaid diagrams for each commit of `main` and publishes them next to the quality evidence; a site that cannot render them downloads the set of its commit for the PDF. A diagram nobody rendered becomes a note pointing to the online page instead of failing the export. See [A2.5](2.5%20Reports%20and%20PDFs.md#documentation-pdf).
 
 ### Matching shown in the interface

@@ -3,6 +3,8 @@ import contextlib
 import json
 import logging
 import os
+import re
+import shutil
 import subprocess
 import sys
 import shlex
@@ -179,6 +181,22 @@ def _engine_command(mode, destination):
     return args
 
 
+# The directories of runs in PIPELINE_BUNDLE_DIR: the bundles this runner names with a hex run id, and the
+# `.matching-*` folders the engine writes a bundle in before renaming it, which an interrupted engine leaves behind.
+_RUN_DIRECTORY = re.compile(r'[0-9a-f]{32}|\.matching-.+')
+
+
+def _remove_earlier_bundles(bundle_root: Path, published: Path) -> None:
+    """Delete every run directory in ``bundle_root`` except ``published``; other files there are left alone.
+
+    The run lease keeps a second run from writing beside this one, so nothing deleted here is in use.
+    """
+    for entry in bundle_root.iterdir():
+        if entry != published and _RUN_DIRECTORY.fullmatch(entry.name) and entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry)
+            LOGGER.info("Deleted the earlier result bundle %s", entry)
+
+
 def run_pipeline(mode: str, trigger: str = "manual") -> int:
     lock_token = acquire_run_lock()
     if lock_token is None:
@@ -243,6 +261,13 @@ def run_pipeline(mode: str, trigger: str = "manual") -> int:
         # Input problems the engine reported without stopping the run.
         warnings[:0] = [str(warning) for warning in (manifest.get('metadata') or {}).get('warnings') or []]
         set_status(expected_run_id=run_id, dataset_published=True)
+        if mode != 'import':
+            # Only the published bundle stays, so the disk does not fill with one bundle per run.
+            try:
+                _remove_earlier_bundles(bundle_root, destination)
+            except OSError as exc:
+                warnings.append(f"Could not delete earlier result bundles: {exc}")
+                LOGGER.warning("Could not delete earlier result bundles: %s", exc)
         _record_data_updated_timestamp()
         data_meta.update_data_meta(active_run_id=manifest['run_id'], result_schema_version=manifest['schema_version'])
         try:

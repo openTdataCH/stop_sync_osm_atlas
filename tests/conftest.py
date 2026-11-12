@@ -28,8 +28,13 @@ os.environ['DATABASE_URI'] = 'sqlite://'
 
 @pytest.fixture(autouse=True)
 def _runtime_state_dir(monkeypatch, tmp_path):
-    """Pipeline status, run lease and export tasks go to a fresh directory per test, never data/runtime."""
+    """Pipeline status, run lease and export tasks go to a fresh directory per test, never data/runtime.
+
+    So do result bundles: a published run deletes the other bundles in PIPELINE_BUNDLE_DIR, which by default
+    is the checkout's data/results.
+    """
     monkeypatch.setenv('STATE_DIR', str(tmp_path / 'runtime'))
+    monkeypatch.setenv('PIPELINE_BUNDLE_DIR', str(tmp_path / 'results'))
 
 
 @pytest.fixture(autouse=True)
