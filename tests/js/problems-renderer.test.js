@@ -67,6 +67,13 @@ describe('ProblemsRenderer final-view marker construction', () => {
     expect(members.every(member => member.atlas_lat === 46.53 && member.atlas_lon === 6.64)).toBe(true);
   });
 
+  test('a stop\'s own duplicate problem, which has no members, draws and frames that stop', () => {
+    window.ProblemsRenderer.drawProblemOnMap(map, { ...matched, problem: 'duplicates' }, layers);
+    expect(order).toEqual(['fitBounds', 'getZoom', 'marker', 'marker']);
+    expect(markers.map(marker => marker.position)).toEqual([[46.53, 6.64], [46.54, 6.65]]);
+    expect(markers[0].openPopup).toHaveBeenCalled();
+  });
+
   test('keeps stops and popups between the toolbar and the problem panel', () => {
     map.getSize = () => ({ x: 1280, y: 747 });
     window.L.point = (x, y) => ({ x, y });

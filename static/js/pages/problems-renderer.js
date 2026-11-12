@@ -54,7 +54,8 @@
         if (!duplicate && !matched && !disused && !['unmatched', 'identifier'].includes(problem.problem)) return;
         const models = new Map();
         const entities = [];
-        const rows = duplicate ? (problem.members || []) : [problem];
+        // A duplicate group draws its members; a stop's own duplicate problem has none and is drawn as that stop.
+        const rows = duplicate && Array.isArray(problem.members) ? problem.members : [problem];
         rows.forEach(stop => ['atlas', 'osm'].forEach(type => {
             if (duplicate && problem.group_type && problem.group_type !== type) return;
             if (!duplicate && !matched && problem.stop_type !== type + (disused ? '_disused' : '_unmatched')) return;

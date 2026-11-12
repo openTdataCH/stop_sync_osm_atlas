@@ -123,9 +123,9 @@ def problem_formatter(problems, include_routes):
 def unlisted_group_members(problems):
     """The members of the ATLAS duplicate groups of ``problems`` that none of ``problems`` is about.
 
-    The engine reports a duplicate on some members of its group only: not on a member matched by propagation, and as
-    the OSM duplicate when the matched OSM element is one too (E4.1). A group lists every member all the same, so each
-    missing one comes as a problem-like row with its stop and no priority. A SLOID with several pairs comes once.
+    The engine reports a duplicate on some members of its group only: not on a member whose only match is propagated,
+    and as the OSM duplicate when the matched OSM element is one too (E4.1). A group lists every member all the same, so
+    each missing one comes as a problem-like row with its stop and no priority. A SLOID with several pairs comes once.
     """
     listed = {str(problem.stop.sloid) for problem in problems if problem.stop.sloid}
     wanted = {
@@ -160,7 +160,7 @@ def duplicate_groups(problems, format_problem):
             uic_ref = (atlas.uic_ref if atlas else None) or osm.osm_uic_ref or ''
             members_by_group['osm', str(uic_ref), str(osm.osm_local_ref).lower()][stop.osm_node_id] = problem
         if stop.sloid and atlas and atlas.duplicate_group_sloids:
-            # The first row of a SLOID stays: a stop matched to a PTv2 pair has two rows with the same problem.
+            # The first row of a SLOID stays: a stop matched to two OSM duplicates carries a problem on each pair.
             members_by_group['atlas', tuple(sorted(atlas.duplicate_group_sloids))].setdefault(str(stop.sloid), problem)
 
     groups = []
