@@ -1,6 +1,6 @@
 # Developer glossary
 
-The terms of the code, the matching engine and the deployment. They add to the [glossary](0.4%20Glossary.md) of the user guide, which defines the words of the site, such as [match](0.4%20Glossary.md#match), [match type](0.4%20Glossary.md#match-type) and [OSM stop unit](0.4%20Glossary.md#osm-stop-unit); this page does not repeat them.
+The terms of the code, the matching engine and the deployment. They add to the [glossary](0.4%20Glossary.md) of the user guide, which defines the words of the site, such as [match](0.4%20Glossary.md#match), [match type](0.4%20Glossary.md#match-type) and [OSM stop unit](0.4%20Glossary.md#osm-stop-unit).
 
 ## Stops in the code
 
