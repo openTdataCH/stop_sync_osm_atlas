@@ -564,6 +564,55 @@ def route_model() -> Diagram:
     return d
 
 
+def route_line_and_variants() -> Diagram:
+    d = Diagram(
+        960, 420,
+        'A line and its variants',
+        'An illustrative bus line 31 on both sides. In the GTFS timetable the line is a route, and its trips '
+        'form one variant per direction and headsign. In OpenStreetMap the line is a route master relation, '
+        'and each of its route relations is one variant. The site matches the two lines first (1), then pairs '
+        'their variants (2). Two variants are paired; the third GTFS variant, a short run to Markt, has no '
+        'route relation in OSM and stays unmatched.',
+    )
+
+    d.add(zone(24, 104, 372, 296, ATLAS, 'GTFS', 'the timetable'))
+    d.add(zone(564, 104, 372, 296, OSM, 'OpenStreetMap', 'relations'))
+
+    d.add(box(44, 130, 332, 58, ATLAS, 'Line: a route', [code('route_id 31-B-j26-1', size=12)],
+              title_size=14, gap=4))
+    d.add(box(584, 130, 332, 58, OSM, 'Line: a route master', [code('type=route_master · ref=31', size=12)],
+              title_size=14, gap=4))
+
+    rows = (
+        (216, 'direction 0 · headsign Spital', 'from=Bahnhof · to=Spital'),
+        (276, 'direction 1 · headsign Bahnhof', 'from=Spital · to=Bahnhof'),
+        (336, 'direction 0 · headsign Markt', None),
+    )
+    for top, gtfs_line, osm_line in rows:
+        middle = top + 24
+        paired = osm_line is not None
+        d.add(arrow([(64, 188), (64, middle), (84, middle)], end_head=False, color=FAINT, corner=6))
+        d.add(box(84, top, 292, 48, ATLAS if paired else UNMATCHED, 'Variant: a group of trips', [gtfs_line],
+                  title_size=13.5, line_size=12, gap=3, pad=6))
+        if paired:
+            d.add(arrow([(896, 188), (896, middle), (876, middle)], end_head=False, color=FAINT, corner=6))
+            d.add(box(584, top, 292, 48, OSM, 'Variant: a route relation', [code(osm_line, size=12)],
+                      title_size=13.5, line_size=12, gap=3, pad=6))
+            tag, _ = pill(480, middle, 'variant match', EXTERNAL, anchor='middle', filled=False)
+            d.add(arrow([(376, middle), (584, middle)], color=INK, end_head=False, width=2), tag)
+        else:
+            d.add(box(584, top, 292, 48, EXTERNAL, None, ['no route relation'], line_size=12.5, dashed=True,
+                      filled=False))
+            tag, _ = pill(480, middle, 'unmatched', UNMATCHED, anchor='middle')
+            d.add(tag)
+
+    tag, _ = pill(480, 159, 'line match', EXTERNAL, anchor='middle', filled=False)
+    d.add(arrow([(376, 159), (584, 159)], color=INK, end_head=False, width=2), tag)
+    d.add(step(402, 159, 1))
+    d.add(step(402, 240, 2))
+    return d
+
+
 PIPELINE_PHASES = (
     (('Check', 'sources'), ENGINE), (('Prepare', 'source files'), ENGINE), (('Load', 'matching', 'inputs'), ENGINE),
     (('Stop', 'matching'), ENGINE), (('Route', 'matching'), ENGINE), (('Build', 'result', 'bundle'), ENGINE),
@@ -625,5 +674,6 @@ DIAGRAMS = (
     ('result-bundle-anatomy', 'engine', result_bundle_anatomy),
     ('import-snapshot-publication', 'app', import_snapshot_publication),
     ('route-model', 'engine', route_model),
+    ('route-line-and-variants', 'app', route_line_and_variants),
     ('pipeline-phases-and-modes', 'app', pipeline_phases_and_modes),
 )
