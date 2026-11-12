@@ -4,7 +4,7 @@ import json
 import pytest
 
 from backend import version
-from backend.services import quality_report
+from backend.services import ci_release, quality_report
 from backend.services.quality_report import EvidenceUnavailable, load_evidence
 from backend.services.quality_report import download as real_download
 
@@ -160,7 +160,7 @@ def test_download_reads_the_release_asset_of_the_commit_and_survives_github_bein
         return Response()
 
     monkeypatch.setattr(quality_report, 'download', real_download)
-    monkeypatch.setattr(quality_report.requests, 'get', get)
+    monkeypatch.setattr(ci_release.requests, 'get', get)
     assert quality_report.download(SHA) == b'{"a": 1}'
     assert asked == [(f'https://github.com/openTdataCH/stop_sync_osm_atlas/releases/download/quality-data/quality-{SHA}.json', 10)]
     Response.status_code = 404
@@ -170,7 +170,7 @@ def test_download_reads_the_release_asset_of_the_commit_and_survives_github_bein
     assert quality_report.download(SHA) is None
 
     def unreachable(url, **options):
-        raise quality_report.requests.ConnectionError('no route')
+        raise ci_release.requests.ConnectionError('no route')
 
-    monkeypatch.setattr(quality_report.requests, 'get', unreachable)
+    monkeypatch.setattr(ci_release.requests, 'get', unreachable)
     assert quality_report.download(SHA) is None

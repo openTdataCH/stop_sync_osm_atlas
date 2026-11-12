@@ -1,4 +1,6 @@
+import io
 from pathlib import Path
+import tarfile
 import xml.etree.ElementTree as ET
 
 import mistune
@@ -7,6 +9,7 @@ from weasyprint import CSS, HTML
 from weasyprint.formatting_structure import boxes
 from weasyprint.urls import URLFetcher, URLFetchingError
 
+from backend.services import docs_diagrams
 from documentation.pdf_generator import build_docs_pdf as docs_builder
 
 
@@ -102,15 +105,77 @@ def test_svg_fallback_labels_wrap_inside_their_box():
     )
 
 
-def test_missing_mermaid_asset_requires_local_prerender(tmp_path, monkeypatch):
-    monkeypatch.setattr(docs_builder, 'DIAGRAMS_DIR', tmp_path)
+DIAGRAM = 'flowchart LR\n  A --> B'
+SHA = 'a' * 40
+SET = f'diagrams-{SHA}.tar.gz'
 
-    try:
-        docs_builder._render_mermaid_to_local_svg('flowchart LR\n  A --> B')
-    except RuntimeError as error:
-        assert 'npm run docs:render-mermaid' in str(error)
-    else:
-        raise AssertionError('A missing Mermaid asset should fail closed')
+
+def _archive(files):
+    body = io.BytesIO()
+    with tarfile.open(fileobj=body, mode='w:gz') as tar:
+        for name, data in files.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+    return body.getvalue()
+
+
+@pytest.fixture
+def ci_diagrams(tmp_path, monkeypatch):
+    """A checkout at SHA with no rendered diagrams. ``published`` is what CI uploaded, ``asked`` every download."""
+    monkeypatch.setattr(docs_builder, 'DIAGRAMS_DIR', tmp_path)
+    monkeypatch.setenv('APP_REVISION', SHA)
+    published, asked = {}, []
+
+    def download(name, max_bytes):
+        asked.append(name)
+        return published.get(name)
+
+    monkeypatch.setattr(docs_diagrams.ci_release, 'download', download)
+    return published, asked
+
+
+def test_a_missing_diagram_comes_from_what_ci_rendered_for_this_commit_once(ci_diagrams):
+    published, asked = ci_diagrams
+    svg = docs_builder._mermaid_asset_path(DIAGRAM)
+    other = docs_builder._mermaid_asset_path('flowchart LR\n  C --> D')
+    published[SET] = _archive({svg.name: b'<svg/>'})
+
+    assert docs_builder._render_mermaid_to_local_svg(DIAGRAM) == svg
+    assert svg.read_bytes() == b'<svg/>'
+    # The set of a commit never changes: a diagram it lacks is not asked for again.
+    assert docs_builder._render_mermaid_to_local_svg('flowchart LR\n  C --> D') is None
+    assert not other.exists() and asked == [SET]
+
+
+def test_a_diagram_nobody_rendered_becomes_a_note_and_github_is_asked_again_later(ci_diagrams, monkeypatch):
+    published, asked = ci_diagrams
+    html = docs_builder._rewrite_mermaid_blocks(f'```mermaid\n{DIAGRAM}\n```')
+    assert docs_builder.MISSING_DIAGRAM_CLASS in html and 'online documentation' in html and '<img' not in html
+    docs_builder._rewrite_mermaid_blocks(f'```mermaid\n{DIAGRAM}\n```')
+    assert asked == [SET]
+
+    # CI has finished in the meantime.
+    published[SET] = _archive({docs_builder._mermaid_asset_path(DIAGRAM).name: b'<svg/>'})
+    later = docs_diagrams.time.time() + docs_diagrams.RETRY_SECONDS + 1
+    monkeypatch.setattr(docs_diagrams.time, 'time', lambda: later)
+    assert '<img' in docs_builder._rewrite_mermaid_blocks(f'```mermaid\n{DIAGRAM}\n```')
+    assert asked == [SET, SET]
+
+
+def test_only_rendered_diagrams_are_taken_from_the_archive(tmp_path, ci_diagrams):
+    published, _ = ci_diagrams
+    svg = docs_builder._mermaid_asset_path(DIAGRAM)
+    published[SET] = _archive({'../escape.svg': b'x', f'sub/{svg.name}': b'x', 'notes.txt': b'x', svg.name: b'<svg/>'})
+    assert docs_diagrams.fetch(tmp_path)
+    assert not (tmp_path.parent / 'escape.svg').exists()
+    assert sorted(path.name for path in tmp_path.iterdir()) == [f'.ci-{SHA}', svg.name]
+
+
+def test_without_a_known_commit_nothing_is_downloaded(ci_diagrams, monkeypatch):
+    _, asked = ci_diagrams
+    monkeypatch.setattr(docs_diagrams, 'app_revision', lambda: None)
+    assert docs_builder._render_mermaid_to_local_svg(DIAGRAM) is None and asked == []
 
 
 def test_one_page_pdf_builds(tmp_path, monkeypatch):

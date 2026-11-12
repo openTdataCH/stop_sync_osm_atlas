@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import html
 import json
+import os
 import re
 import sys
 import textwrap
@@ -24,6 +25,7 @@ from backend.services.docs_sources import (
     build_doc_collections, build_doc_slug_maps, list_markdown_files, normalize_section_key, reading_order,
     rewrite_doc_links, rewrite_repo_links, source_path,
 )
+from backend.services import docs_diagrams
 from backend.services.docs_stats import (
     load_stats_for_docs, replace_stats_placeholders, convert_github_alerts_to_html, get_canonical_palette_html,
     heading_slug,
@@ -310,21 +312,30 @@ def _rewrite_markdown_asset_paths(content: str, source_dir: Path) -> str:
     return pattern.sub(replace, content)
 
 
-def _render_mermaid_to_local_svg(diagram_source: str) -> Path:
+def _mermaid_asset_path(diagram_source: str) -> Path:
+    """Where the rendered SVG of a diagram is: named by a hash of its source, as ``render_docs_mermaid.mjs`` names it."""
     normalized_source = diagram_source.strip() + '\n'
     if "%%{init:" not in normalized_source:
         normalized_source = f'{MERMAID_INIT_DIRECTIVE}\n{normalized_source}'
-
     cache_input = f'{MERMAID_RENDER_CACHE_VERSION}\0{normalized_source}'
     digest = hashlib.sha256(cache_input.encode('utf-8')).hexdigest()[:16]
-    output_path = DIAGRAMS_DIR / f'mermaid-{digest}.svg'
-    if output_path.exists():
-        return output_path
+    return DIAGRAMS_DIR / f'mermaid-{digest}.svg'
 
-    raise RuntimeError(
-        'A pre-rendered Mermaid asset is missing. Run '
-        '`npm run docs:render-mermaid` before building the PDF.'
-    )
+
+def _render_mermaid_to_local_svg(diagram_source: str) -> Path | None:
+    """The rendered SVG of a diagram; None when neither this checkout nor CI has rendered it.
+
+    ``npm run docs:render-mermaid`` renders them locally, the Docker build does it in the image, and a server without
+    Node downloads what CI rendered for its commit.
+    """
+    output_path = _mermaid_asset_path(diagram_source)
+    if output_path.exists() or (docs_diagrams.fetch(DIAGRAMS_DIR) and output_path.exists()):
+        return output_path
+    return None
+
+
+# Printed where a diagram is missing, and looked for by ``__main__``: such a PDF is not kept as the cached one.
+MISSING_DIAGRAM_CLASS = 'mermaid-missing'
 
 
 def _rewrite_mermaid_blocks(content: str) -> str:
@@ -333,6 +344,12 @@ def _rewrite_mermaid_blocks(content: str) -> str:
     def replace(match: re.Match[str]) -> str:
         diagram_source = match.group(1).strip('\n')
         svg_path = _render_mermaid_to_local_svg(diagram_source)
+        if svg_path is None:
+            return (
+                f'\n<div class="mermaid-figure {MISSING_DIAGRAM_CLASS}">\n'
+                '<p>This diagram is shown on the page in the online documentation.</p>\n'
+                '</div>\n'
+            )
         return (
             '\n<div class="mermaid-figure">\n'
             f'<img src="{svg_path.as_uri()}" alt="Mermaid diagram" />\n'
@@ -547,7 +564,16 @@ def _build_pdf(
 if __name__ == '__main__':
     try:
         _build_pdf()
-        print(f'PDF successfully generated at {OUTPUT_PDF_PATH}')
     except Exception as error:
         print(f'PDF generation failed: {error}', file=sys.stderr)
         sys.exit(1)
+    if MISSING_DIAGRAM_CLASS in OUTPUT_HTML_PATH.read_text(encoding='utf-8'):
+        # Served now, but dated as old, so the next request builds it again and asks CI again.
+        os.utime(OUTPUT_PDF_PATH, (0, 0))
+        print(
+            'PDF generated with a note in place of missing Mermaid diagrams. '
+            'Run `npm run docs:render-mermaid` to render them in this checkout.',
+            file=sys.stderr,
+        )
+    else:
+        print(f'PDF successfully generated at {OUTPUT_PDF_PATH}')

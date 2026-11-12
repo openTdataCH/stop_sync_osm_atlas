@@ -6,13 +6,9 @@ import os
 from pathlib import Path
 import time
 
-import requests
-
+from backend.services import ci_release
 from backend.version import app_revision
 
-# CI uploads the evidence of each commit of main as an asset of one release. Anybody can download a release
-# asset; a CI artifact needs a GitHub token, even from a public repository.
-EVIDENCE_URL = 'https://github.com/openTdataCH/stop_sync_osm_atlas/releases/download/quality-data/quality-{revision}.json'
 # Written by `make quality` or `python scripts/quality.py map` in a checkout; Git ignores it.
 LOCAL = 'quality/evidence.json'
 CACHE = '.cache/quality'
@@ -48,18 +44,7 @@ def _validated(evidence):
 
 def download(revision):
     """What CI published for ``revision``, as bytes; None when there is nothing yet or GitHub cannot be reached."""
-    body = b''
-    try:
-        response = requests.get(EVIDENCE_URL.format(revision=revision), timeout=10, stream=True)
-        if response.status_code != 200:
-            return None
-        for chunk in response.iter_content(1 << 16):
-            body += chunk
-            if len(body) > MAX_BYTES:
-                return None
-    except requests.RequestException:
-        return None
-    return body
+    return ci_release.download(f'quality-{revision}.json', MAX_BYTES)
 
 
 def load_evidence(root):

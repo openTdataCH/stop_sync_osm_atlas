@@ -39,21 +39,44 @@ jobs:
           path: quality/
           if-no-files-found: error
           retention-days: 30
-      - name: Publish the evidence for the code quality dashboard
-        # A site running this commit downloads the file by the commit's ID. A release asset is public; a CI
-        # artifact needs a token. Failed runs are published too: the dashboard shows what was measured.
-        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && hashFiles('quality/evidence.json') != ''
+      - name: Set up Node for the documentation diagrams
+        if: always()
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Render the documentation diagrams
+        # The documentation PDF needs the Mermaid diagrams as SVG files, and rendering them needs Node and a
+        # browser. A site without them downloads the set of its commit, published below.
+        id: diagrams
+        if: always()
+        run: |
+          npm ci
+          npm run docs:render-mermaid
+      - name: Publish the evidence and the diagrams for a site running this commit
+        # A site running this commit downloads its files by the commit's ID. A release asset is public; a CI
+        # artifact needs a token. Failed runs publish their evidence too: the dashboard shows what was measured.
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
+          DIAGRAMS_RENDERED: ${{ steps.diagrams.outcome == 'success' }}
         run: |
-          cp quality/evidence.json "quality-$GITHUB_SHA.json"
           gh release view quality-data > /dev/null 2>&1 || gh release create quality-data --prerelease \
             --title "Code quality evidence" \
-            --notes "One file for each commit of main, written by the Quality workflow and read by the code quality dashboard. Not a software release."
-          gh release upload quality-data "quality-$GITHUB_SHA.json" --clobber
-          # Keep the newest 60 commits and every tagged commit: a release deployed later still finds its file.
-          git for-each-ref refs/tags --format='quality-%(if)%(*objectname)%(then)%(*objectname)%(else)%(objectname)%(end).json' \
-            > "$RUNNER_TEMP/tagged.txt"
-          gh release view quality-data --json assets --jq '.assets | sort_by(.createdAt) | reverse | .[60:][].name' \
+            --notes "Files for each commit of main, written by the Quality workflow: the evidence the code quality dashboard reads and the rendered diagrams of the documentation PDF. Not a software release."
+          if [ -f quality/evidence.json ]; then
+            cp quality/evidence.json "quality-$GITHUB_SHA.json"
+            gh release upload quality-data "quality-$GITHUB_SHA.json" --clobber
+          fi
+          if [ "$DIAGRAMS_RENDERED" = true ]; then
+            (cd documentation/generated/diagrams && tar -czf "$GITHUB_WORKSPACE/diagrams-$GITHUB_SHA.tar.gz" mermaid-*.svg)
+            gh release upload quality-data "diagrams-$GITHUB_SHA.tar.gz" --clobber
+          fi
+          # Keep, of each kind, the newest 60 commits and every tagged commit: a release deployed later still finds
+          # its files.
+          git for-each-ref refs/tags --format='%(if)%(*objectname)%(then)%(*objectname)%(else)%(objectname)%(end)' \
+            | awk '{ print "quality-" $0 ".json"; print "diagrams-" $0 ".tar.gz" }' > "$RUNNER_TEMP/tagged.txt"
+          gh release view quality-data --json assets \
+            --jq '.assets | group_by(.name | split("-")[0]) | map(sort_by(.createdAt) | reverse | .[60:]) | flatten | .[].name' \
             | { grep -vxF -f "$RUNNER_TEMP/tagged.txt" || true; } \
             | while read -r name; do gh release delete-asset quality-data "$name" --yes; done

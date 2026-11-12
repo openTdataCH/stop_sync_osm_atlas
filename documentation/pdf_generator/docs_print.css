@@ -227,6 +227,12 @@ img {
   text-align: center;
 }
 
+.mermaid-missing p {
+  margin: 0;
+  color: var(--muted);
+  font-style: italic;
+}
+
 .mermaid-figure img {
   display: inline-block;
   max-width: 100%;
