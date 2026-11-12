@@ -16,6 +16,7 @@ The matching code moves to its own package, the [matching engine](../engine/docu
 - **Atomic publication** — An import is built and checked in a private staging schema, then published in one transaction.
 - **Not only Switzerland** — Interface features that need SLOIDs or UIC references appear only when the bundle provides them.
 - **Pipeline status** — The Data page shows every phase and stage of a run live, and a run whose process died is marked failed instead of shown as running.
+- **Installation without Docker** — `scripts/install_server.sh` checks out the pinned engine, installs the application and the engine into one virtualenv and applies the migrations; the scheduler finds the engine command in that virtualenv. The database schema starts again from one migration, so a database from an earlier version is recreated once. See [A3](3.%20Application%20architecture%20%26%20deployment.md#deployment-without-docker).
 
 ### Matching shown in the interface
 

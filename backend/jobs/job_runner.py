@@ -155,8 +155,19 @@ def _record_data_updated_timestamp() -> str:
     return last_pipeline_data_import_ended_at
 
 
+def _default_matcher_command():
+    """The engine command installed beside the Python running this, else the one on PATH.
+
+    In a virtualenv that holds both the application and the engine, the scheduler then finds the engine without
+    PATH changes or MATCHER_COMMAND.
+    """
+    beside = Path(sys.executable).parent / 'osm-public-transport-matcher'
+    return str(beside) if beside.is_file() else 'osm-public-transport-matcher'
+
+
 def _engine_command(mode, destination):
-    command = shlex.split(os.getenv('MATCHER_COMMAND', 'osm-public-transport-matcher'))
+    configured = os.getenv('MATCHER_COMMAND')
+    command = shlex.split(configured) if configured is not None else [_default_matcher_command()]
     if not command:
         raise ValueError('MATCHER_COMMAND cannot be empty')
     workspace = Path(os.getenv('PIPELINE_WORKSPACE', '.')).resolve()

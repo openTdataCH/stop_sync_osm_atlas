@@ -299,6 +299,14 @@ def test_record_data_updated_timestamp_writes_meta_and_status(monkeypatch, tmp_p
     assert (tmp_path / "data" / "data_meta.json").read_text(encoding="utf-8") == '{"last_pipeline_data_import_ended_at": "2026-05-02T21:31:00+02:00"}'
 
 
+def test_engine_command_defaults_to_the_engine_beside_the_running_python(monkeypatch, tmp_path):
+    monkeypatch.delenv('MATCHER_COMMAND', raising=False)
+    monkeypatch.setattr(job_runner.sys, 'executable', str(tmp_path / 'python'))
+    assert job_runner._engine_command('match-import', tmp_path)[0] == 'osm-public-transport-matcher'
+    (tmp_path / 'osm-public-transport-matcher').write_text('')
+    assert job_runner._engine_command('match-import', tmp_path)[0] == str(tmp_path / 'osm-public-transport-matcher')
+
+
 def test_engine_command_reuses_source_snapshots_without_engine_import(monkeypatch, tmp_path):
     monkeypatch.setenv('MATCHER_COMMAND', '/path/to/engine/bin/osm-public-transport-matcher')
     monkeypatch.setenv('PIPELINE_WORKSPACE', str(tmp_path))
