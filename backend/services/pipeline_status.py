@@ -154,25 +154,12 @@ def _infer_active_phase(data: Dict[str, Any]) -> str:
     if phase and phase not in {"idle", "failed"}:
         return str(phase)
     history = data.get("phase_history") or []
-    legacy_phases = ["initializing", "matching", "import", "publish"]
-    if any(isinstance(entry, dict) and entry.get("phase") in legacy_phases for entry in history):
-        completed_legacy = {
-            entry.get("phase")
-            for entry in history
-            if isinstance(entry, dict) and entry.get("status") != "failed"
-        }
-        for candidate in legacy_phases:
-            if candidate not in completed_legacy:
-                return candidate
-        return "publish"
-
-    ordered_phases = PIPELINE_PHASES
     completed = {
         entry.get("phase")
         for entry in history
         if isinstance(entry, dict) and entry.get("status") != "failed"
     }
-    for candidate in ordered_phases:
+    for candidate in PIPELINE_PHASES:
         if candidate not in completed:
             return candidate
     return "publish"
@@ -205,9 +192,8 @@ def get_status() -> Dict[str, Any]:
             data["last_pipeline_data_import_ended_at"] = stats.get("last_pipeline_data_import_ended_at")
         except Exception:
             pass
-    # A live lease is the authoritative signal that a runner exists. This
-    # defensive projection also repairs the UI view of status files written by
-    # older scheduler versions that reset an active run to idle on startup.
+    # A live lease is the authoritative signal that a runner exists, also before
+    # the runner has written its first status.
     if data.get("status") == "idle" and not data.get("finished_at") and _has_active_run_lock():
         data.update(
             status="running",

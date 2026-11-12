@@ -1048,9 +1048,8 @@ function toggleDirectionDropdown(dropdown) {
 // A route filter can be narrowed to exact variants: a GTFS itinerary, an
 // OSM route relation, or both. They are named with the routes page's keys,
 // gtfs_variant and osm_variant, which the address bar also carries.
-// atlas_variant is gtfs_variant before release 0.7: still read, then replaced.
 
-var ROUTE_VARIANT_KEYS = ['gtfs_variant', 'osm_variant', 'atlas_variant'];
+var ROUTE_VARIANT_KEYS = ['gtfs_variant', 'osm_variant'];
 var routeVariantRequests = {};
 var loadedRouteVariants = {};  // route id -> variants, for the dropdown's options
 

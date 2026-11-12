@@ -230,13 +230,6 @@ def test_api_distinguishes_saved_match_from_preview_and_supports_one_side(compar
     assert all(row['gtfs'] is None for row in one_side['rows'])
 
 
-def test_api_accepts_the_names_of_the_gtfs_side_before_release_0_7(comparison_db):
-    old = comparison_db.get('/api/routes/comparison?atlas_itinerary_id=101&osm_itinerary_id=201').json
-    assert old == comparison_db.get('/api/routes/comparison?gtfs_itinerary_id=101&osm_itinerary_id=201').json
-    assert (comparison_db.get('/api/routes/comparison/options?source=atlas&unmatched=0').json
-            == comparison_db.get('/api/routes/comparison/options?source=gtfs&unmatched=0').json)
-
-
 def test_matched_variants_name_every_saved_counterpart(comparison_db):
     with comparison_db.application.app_context():
         db.session.add(ItineraryMatch(id=2, gtfs_itinerary_id=103, osm_itinerary_id=201))
@@ -322,7 +315,7 @@ def test_comparison_database_timeout_returns_controlled_retry_response(client, m
         raise LockTimeout()
 
     monkeypatch.setattr(routes_module, 'list_comparison_options', fail)
-    response = client.get('/api/routes/comparison/options?source=atlas')
+    response = client.get('/api/routes/comparison/options?source=gtfs')
     assert response.status_code == 503
     assert response.headers['Retry-After'] == '30'
 

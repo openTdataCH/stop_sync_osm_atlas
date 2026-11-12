@@ -43,14 +43,8 @@ def _handle_route_database_error(exc):
     return _routes_unavailable_response(*route_listing.database_busy_reason(exc))
 
 
-# Parameter names and values before release 0.7. Old links still work: the
-# page reads them and redirects to the current names.
-_OLD_MATCH_FILTERS = {'unmatched_atlas': route_listing.ROUTE_UNMATCHED_GTFS}
-
-
 def _normalize_route_match_filter(value: str | None) -> str:
     matched = (value or '').strip().lower()
-    matched = _OLD_MATCH_FILTERS.get(matched, matched)
     return matched if matched in route_listing.ROUTE_MATCH_FILTERS else route_listing.ROUTE_MATCH_ALL
 
 
@@ -81,7 +75,7 @@ def _parse_variant_params():
     """A permalink's variant: GTFS itinerary id and OSM relation id, as stored."""
     def value(name):
         return (request.args.get(name) or '').strip()[:255] or None
-    return value('gtfs_variant') or value('atlas_variant'), value('osm_variant')
+    return value('gtfs_variant'), value('osm_variant')
 
 
 def _page_for_variant(page, per_page, gtfs_variant, osm_variant, **filters):

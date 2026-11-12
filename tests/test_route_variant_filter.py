@@ -122,8 +122,6 @@ def test_route_variants_api(app, variant_db):
     assert response.json['selected']['gtfs']['key'] == SELNAU
     assert client.get('/api/routes/variants?route_id=91-10-A-j26-1').json['variants'][1]['gtfs']['key'] == SELNAU
     assert client.get('/api/routes/variants?osm_variant=999').status_code == 404
-    # The parameter's name before release 0.7.
-    assert client.get('/api/routes/variants', query_string={'atlas_variant': SELNAU}).json['selected']['gtfs']['key'] == SELNAU
     assert client.get('/api/routes/variants').status_code == 400
     assert client.get('/api/routes/variants', query_string={'route_id': 'x' * 256}).status_code == 400
 
@@ -135,8 +133,6 @@ def test_route_variants_parameter_is_positional_and_malformed_input_names_nothin
     assert parse_route_variants('[5]', 2) == [NOTHING, None]
     assert parse_route_variants('not json', 2) == [NOTHING, NOTHING]
     assert parse_route_variants('{"gtfs": "a"}', 1) == [NOTHING]
-    # The key of the GTFS side before release 0.7.
-    assert parse_route_variants(json.dumps([{'atlas': 'Bern', 'osm': '7'}]), 1) == [{'gtfs': 'Bern', 'osm': '7'}]
 
 
 def test_route_directions_keep_their_position_and_variants_reach_the_route_lookup(monkeypatch):

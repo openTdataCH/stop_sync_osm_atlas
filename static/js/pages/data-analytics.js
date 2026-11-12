@@ -11,11 +11,6 @@
         'database',
         'publish'
     ];
-    var LEGACY_PHASES = {
-        initializing: 'source_check',
-        matching: 'stop_matching',
-        import: 'database'
-    };
     var latestStatus = null;
     var progressTimer = null;
     var hoveredPipelineStage = null;
@@ -134,7 +129,6 @@
     }
 
     function normalizedPhase(phase) {
-        if (LEGACY_PHASES[phase]) return LEGACY_PHASES[phase];
         if (STAGES.indexOf(phase) !== -1) return phase;
         if (phase === 'idle') return 'publish';
         return 'source_check';

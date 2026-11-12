@@ -893,11 +893,11 @@ function openStopFromUrl() {
 }
 
 // Opens the route variants named by ?gtfs_variant= / ?osm_variant=, the
-// routes page's keys (?atlas_variant= before release 0.7): a route filter narrowed to them. Without a #map= hash or
+// routes page's keys: a route filter narrowed to them. Without a #map= hash or
 // a stop link, the map fits their stops.
 function openRouteVariantsFromUrl() {
     var params = new URLSearchParams(window.location.search);
-    var gtfs = (params.get('gtfs_variant') || params.get('atlas_variant') || '').trim();
+    var gtfs = (params.get('gtfs_variant') || '').trim();
     var osm = (params.get('osm_variant') || '').trim();
     if (!gtfs && !osm) return Promise.resolve(false);
     if (!SharedUtils.hasCapability('routes')) return Promise.resolve(false);

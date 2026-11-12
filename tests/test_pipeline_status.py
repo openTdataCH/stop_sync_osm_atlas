@@ -279,14 +279,14 @@ def test_active_lock_recovers_status_reset_to_idle(monkeypatch, tmp_path):
         phase="idle",
         finished_at=None,
         phase_started_at="2026-05-02T10:00:00+00:00",
-        phase_history=[{"phase": "initializing", "duration_seconds": 3}],
+        phase_history=[{"phase": "source_check", "duration_seconds": 3}],
     )
     token = pipeline_status.acquire_run_lock(ttl_seconds=30)
 
     try:
         status = pipeline_status.get_status()
         assert status["status"] == "running"
-        assert status["phase"] == "matching"
+        assert status["phase"] == "source_files"
         assert status["message"].startswith("Pipeline process active")
     finally:
         assert token is not None

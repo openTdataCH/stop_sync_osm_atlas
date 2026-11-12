@@ -625,7 +625,4 @@ def add_dataset_stats(stats: Dict[str, Any], session) -> Dict[str, Any]:
     stats['osm_routes'] = compute_osm_route_stats(session)
     stats['gtfs'] = compute_gtfs_stats(session)
     stats['route_links'] = compute_route_link_stats(session)
-    # Sections that earlier versions derived from the bundle or counted differently.
-    for key in ('route_route_matching', 'duplicates', 'osm_way_stops', 'routes'):
-        stats.pop(key, None)
     return stats

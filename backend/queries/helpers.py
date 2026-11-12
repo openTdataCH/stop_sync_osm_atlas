@@ -212,8 +212,7 @@ def parse_route_variants(text, count):
     whole route, ``{"gtfs": key, "osm": key}`` narrows it to those variants
     (keys as in the routes page's ``gtfs_variant``/``osm_variant``). Commas in
     GTFS headsigns rule out the comma lists of the other parameters. Malformed
-    input narrows to nothing rather than widening to the whole route. The key
-    ``atlas`` is the GTFS side before release 0.7, accepted for one release.
+    input narrows to nothing rather than widening to the whole route.
     """
     if not text:
         return [None] * count
@@ -229,7 +228,6 @@ def parse_route_variants(text, count):
         if entry is None:
             variants.append(None)
         elif isinstance(entry, dict):
-            entry = {'gtfs': entry.get('atlas'), **{key: value for key, value in entry.items() if key != 'atlas'}}
             variants.append({source: entry.get(source) if isinstance(entry.get(source), str) else None
                              for source in ('gtfs', 'osm')})
         else:

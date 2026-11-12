@@ -98,10 +98,7 @@ def _comparison_integer(name, *, default=None, maximum=2_147_483_647):
 @routes_bp.route('/api/routes/comparison')
 def routes_comparison_api():
     try:
-        # ``atlas_itinerary_id`` is the parameter's name before release 0.7; accepted for one release.
         gtfs_id = _comparison_integer('gtfs_itinerary_id')
-        if gtfs_id is None:
-            gtfs_id = _comparison_integer('atlas_itinerary_id')
         osm_id = _comparison_integer('osm_itinerary_id')
         if gtfs_id is None and osm_id is None:
             raise ValueError('Select at least one itinerary.')
@@ -120,8 +117,6 @@ def routes_comparison_api():
 def routes_comparison_options_api():
     try:
         source = (request.args.get('source') or '').strip().lower()
-        # ``atlas`` names the GTFS side before release 0.7; accepted for one release.
-        source = {'atlas': 'gtfs'}.get(source, source)
         if source not in {'gtfs', 'osm'}:
             raise ValueError('Invalid source')
         q = (request.args.get('q') or '').strip()
@@ -161,8 +156,6 @@ def routes_variants_api():
     """The variants of a line (``route_id``), or of the line a variant link names."""
     values = {name: (request.args.get(name) or '').strip() or None
               for name in ('route_id', 'gtfs_variant', 'osm_variant')}
-    # ``atlas_variant`` is the parameter's name before release 0.7; accepted for one release.
-    values['gtfs_variant'] = values['gtfs_variant'] or (request.args.get('atlas_variant') or '').strip() or None
     if not any(values.values()) or any(len(value) > ROUTE_VARIANT_KEY_MAX_LENGTH
                                        for value in values.values() if value):
         return jsonify({'error': 'Name a route_id, a gtfs_variant or an osm_variant.'}), 400

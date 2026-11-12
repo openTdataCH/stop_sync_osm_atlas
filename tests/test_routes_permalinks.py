@@ -115,15 +115,6 @@ def test_variant_parameters_use_the_canonical_encoding(client, monkeypatch, fake
     assert non_gtfs.headers['Location'].endswith('/routes/non-gtfs?osm_variant=1012')
 
 
-def test_links_with_the_names_before_release_0_7_redirect_to_the_current_ones(client, monkeypatch, fake_listing):
-    monkeypatch.setattr(route_listing, 'locate_route_variant_page', lambda **kwargs: None)
-
-    response = client.get('/routes?matched=unmatched_atlas&atlas_variant=91-1-Z-j26-1:0:Bern')
-
-    assert response.status_code == 308
-    assert response.headers['Location'].endswith('/routes?matched=unmatched_gtfs&gtfs_variant=91-1-Z-j26-1%3A0%3ABern')
-
-
 def test_the_gtfs_map_keeps_readable_stop_parameters(client, monkeypatch):
 
     redirected = client.get('/routes/gtfs-stop-id-sloid?sloid=ch%3A1%3Asloid%3A7&other=1')

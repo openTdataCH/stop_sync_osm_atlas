@@ -50,12 +50,6 @@ describe('route filter narrowed to variants', () => {
         expect(window.loadDataForViewport).toHaveBeenCalled();
     });
 
-    test('a link with atlas_variant, the name before release 0.7, is rewritten to gtfs_variant', () => {
-        history.replaceState({}, '', '/?sloid=ch:1:sloid:7&atlas_variant=91-10-A-j25-1:0:Z%C3%BCrich+Selnau');
-        window.addRouteVariantFilter({ route_id: '91-10-A-j26-1', selected: { gtfs: SELNAU, osm: null } });
-        expect(window.location.search).toBe('?sloid=ch:1:sloid:7&gtfs_variant=91-10-A-j26-1:0:Z%C3%BCrich+Selnau');
-    });
-
     test('the dropdown lists the line\'s variants by direction, and choosing one or a direction narrows or widens the filter', async () => {
         window.filterByRoute('91-10-A-j26-1', '');
         expect(window.routeVariantsParam()).toBeNull();
