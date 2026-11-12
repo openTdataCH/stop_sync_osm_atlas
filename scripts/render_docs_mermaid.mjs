@@ -102,7 +102,20 @@ if (browserPath) {
 }
 
 const { default: puppeteer } = await import('puppeteer-core');
-const browser = await puppeteer.launch(puppeteerConfig);
+// On a CI runner Chrome sometimes hangs at start and never opens its debugging port. A start takes a second
+// or two, so give up after 15 s and start it again; puppeteer kills the hung process.
+async function launchBrowser(attempts = 4) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await puppeteer.launch({ timeout: 15000, ...puppeteerConfig });
+    } catch (error) {
+      if (attempt === attempts) throw error;
+      console.error(`Browser start ${attempt} of ${attempts} failed (${error.message}); trying again.`);
+    }
+  }
+}
+
+const browser = await launchBrowser();
 try {
   const page = await browser.newPage();
   try {
