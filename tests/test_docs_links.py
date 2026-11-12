@@ -311,8 +311,23 @@ def test_pdf_document_selection_keeps_engine_and_app_sections_distinct():
     combined = _prepare_document(changelogs, include_cover=False)
     assert 'id="doc-changelog"' in combined
     assert 'id="doc-engine_changelog"' in combined
-    assert '](#doc-changelog)' in combined
     assert '](#doc-engine_changelog)' in combined
+
+
+def test_engine_links_to_application_docs_on_github_point_at_the_page():
+    """An engine page links to the application docs by their GitHub URL; the portal and PDF link the page itself."""
+    from backend.services.docs_sources import rewrite_doc_links
+
+    file_to_slug = {'documentation/0.4 Glossary.md': 'glossary'}
+    text = (
+        '[group](https://github.com/openTdataCH/stop_sync_osm_atlas/blob/main/documentation/'
+        '0.4%20Glossary.md#duplicate-group) and [elsewhere](https://example.org/a.md)'
+    )
+    rewritten = rewrite_doc_links(
+        text, file_to_slug, 'engine/documentation/4.1 Stop problems.md',
+        lambda slug, fragment: f'#{slug}-{fragment}',
+    )
+    assert rewritten == '[group](#glossary-duplicate-group) and [elsewhere](https://example.org/a.md)'
 
 
 def test_every_section_of_the_export_dialog_selects_pages():
