@@ -125,6 +125,13 @@ def test_svg_diagrams_are_inlined_so_their_links_work(app):
         assert '<img' in html and '<svg' not in html, markdown
 
 
+def test_an_image_keeps_its_width_so_a_small_screenshot_is_not_stretched(app):
+    html = _render(app, '<img src="images/glossary-stop-popup.png" alt="Popup" width="648" onload="x()">',
+                   doc='documentation/0.4 Glossary.md')
+    assert 'images/glossary-stop-popup.png"' in html and 'src="images/' not in html
+    assert 'width="648"' in html and 'onload' not in html
+
+
 @pytest.fixture(scope='module')
 def pages(app):
     """The rendered article of every documentation page, by address."""

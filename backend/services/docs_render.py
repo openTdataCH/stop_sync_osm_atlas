@@ -390,7 +390,7 @@ def convert_markdown_to_html(
     allowed_attrs = {
         **bleach.sanitizer.ALLOWED_ATTRIBUTES,
         'col': ['width'],
-        'img': ['src', 'alt', 'title'],
+        'img': ['src', 'alt', 'title', 'width'],
         'a': ['href', 'title', 'name', 'target', 'rel', 'class'],
         'span': ['class', 'data-stat-key', 'title', 'style'],
         'div': ['class', 'style'],

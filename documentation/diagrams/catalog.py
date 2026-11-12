@@ -10,7 +10,7 @@ portal scales to the article column. Keep text at 12 units or larger.
 from __future__ import annotations
 
 from kit import (
-    APP, ATLAS, CONTRACT, ENGINE, EXTERNAL, FAINT, GTFS, INK, MUTED, OSM, UNMATCHED,
+    APP, ATLAS, CONTRACT, ENGINE, EXTERNAL, FAINT, GTFS, INK, MUTED, NEUTRAL, OSM, UNMATCHED,
     Diagram, Line, arrow, box, browser, chevron, code, divider, document, legend, node, note, pill, step,
     store, text, zone,
 )
@@ -564,6 +564,70 @@ def route_model() -> Diagram:
     return d
 
 
+def osm_stop_units() -> Diagram:
+    d = Diagram(
+        960, 420,
+        'The three kinds of OSM stop unit',
+        'Three illustrative stops. A single element is one OSM node or way, matched to one ATLAS platform. '
+        'A pair is a platform node with its stop position: the platform is matched and the stop position '
+        'follows by propagation. A two-sided stop is one stop position with a platform on each side of the '
+        'road: each platform is matched to its own ATLAS platform, and the stop position in the middle '
+        'counts as effectively matched.',
+    )
+    panels = (
+        (24, 'Single', 'one node or way', ['One match']),
+        (336, 'Pair', 'a platform and its stop position', ['The stop position follows', 'the platform: propagation']),
+        (648, 'Two-sided stop', 'one stop position, two platforms', ['The middle has no match of its',
+                                                                    'own: effectively matched']),
+    )
+    for x, title, subtitle, caption in panels:
+        d.add(box(x, 104, 288, 262, NEUTRAL, title, [subtitle], filled=False, valign='top', title_size=14,
+                  line_size=12, gap=4))
+        d.add(note(x + 144, 322, caption, size=12, anchor='middle'))
+
+    def osm(cx, letter, label):
+        d.add(node(cx, 206, OSM, radius=11, letter=letter, hollow=letter == 'S'))
+        d.add(text(cx, 184, label, size=11.5, color=INK, anchor='middle'))
+
+    def platform(cx, width, title, top=262):
+        d.add(box(cx - width / 2, top, width, 40, ATLAS, title, title_size=13))
+
+    def match(cx, kind='flow'):
+        d.add(arrow([(cx, 219), (cx, 260)], end_head=False, color=ATLAS.stroke, width=2.2, kind=kind))
+
+    def unit(left, right):
+        d.add(arrow([(left + 11, 206), (right - 11, 206)], end_head=False, color=OSM.stroke, width=2.2,
+                    kind='invoke'))
+
+    osm(168, 'P', 'platform')
+    match(168)
+    platform(168, 150, 'ATLAS platform')
+
+    unit(430, 530)
+    osm(430, 'P', 'platform')
+    osm(530, 'S', 'stop position')
+    match(430)
+    match(530, kind='optional')
+    platform(480, 190, 'ATLAS platform')
+
+    unit(712, 792)
+    unit(792, 872)
+    osm(712, 'P', 'platform')
+    osm(792, 'S', 'stop position')
+    osm(872, 'P', 'platform')
+    match(712)
+    match(872)
+    platform(712, 110, 'Platform A')
+    platform(872, 110, 'Platform B')
+
+    legend_svg, _ = legend(24, 396, [
+        ('node:P', OSM, 'OSM platform'), ('hollow:S', OSM, 'OSM stop position'),
+        ('link-dashed', OSM.stroke, 'one OSM stop unit'), ('link', ATLAS.stroke, 'match'),
+    ], column_gap=22)
+    d.add(legend_svg)
+    return d
+
+
 def route_line_and_variants() -> Diagram:
     d = Diagram(
         960, 420,
@@ -675,5 +739,6 @@ DIAGRAMS = (
     ('import-snapshot-publication', 'app', import_snapshot_publication),
     ('route-model', 'engine', route_model),
     ('route-line-and-variants', 'app', route_line_and_variants),
+    ('osm-stop-units', 'app', osm_stop_units),
     ('pipeline-phases-and-modes', 'app', pipeline_phases_and_modes),
 )
