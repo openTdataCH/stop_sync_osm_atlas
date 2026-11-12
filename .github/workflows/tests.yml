@@ -51,6 +51,8 @@ jobs:
         id: diagrams
         if: always()
         run: |
+          # The quality container mounts its own node_modules here, which leaves an empty folder owned by root.
+          sudo rm -rf node_modules
           npm ci
           npm run docs:render-mermaid
       - name: Publish the evidence and the diagrams for a site running this commit
