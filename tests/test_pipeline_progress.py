@@ -1,4 +1,5 @@
 """Public lifecycle behavior, independent of storage and engine implementation."""
+import json
 from copy import deepcopy
 
 import pytest
@@ -187,16 +188,17 @@ def test_runner_ignores_malformed_telemetry_and_keeps_consuming(store):
     assert store.read_status()['stage_states'][SPEC['id']]['status'] == 'running'
 
 
-def test_historical_version_one_plan_keeps_its_recorded_roots(store):
+def test_historical_version_one_plan_keeps_its_recorded_roots(store, tmp_path):
     old_plan = [
         dict(id='osm', parent_id=None, phase='osm', label='Prepare OpenStreetMap', description='OSM', order=40),
         dict(id='osm.prepare', parent_id='osm', phase='osm', label='Parse OSM', description='OSM', order=20),
     ]
-    store.write_status(dict(
+    # The status file an older version left behind, whole: the store itself only patches.
+    (tmp_path / 'pipeline_status.json').write_text(json.dumps(dict(
         status='idle', phase='idle', finished_at=NOW, last_pipeline_data_import_ended_at=NOW,
         progress_schema_version=1, stage_plan=old_plan,
         stage_states={'osm.prepare': {'status': 'complete', 'duration_seconds': 4}},
-    ))
+    )), encoding='utf-8')
     status = pipeline_status.get_status()
     assert status['stage_plan'] == old_plan
     assert status['stage_states']['osm']['status'] == 'complete'

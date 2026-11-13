@@ -42,10 +42,6 @@ class FilePipelineStateStore:
         with self._guard_lock():
             return read_json_object(self._lock_path)
 
-    def write_status(self, payload: Dict[str, Any]) -> None:
-        with self._guard_lock():
-            write_json_atomic(self._status_path, payload)
-
     def patch_status(self, fields: Dict[str, Any], *, expected_run_id: str | None = None) -> Dict[str, Any]:
         with self._guard_lock():
             current = read_json_object(self._status_path)
