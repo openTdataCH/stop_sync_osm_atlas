@@ -518,7 +518,7 @@ def build_map(roots, catalogs, ownership):
                 if isinstance(node, DEFINITIONS):
                     sid = f'{fid}:{node.name}@{node.lineno}'
                     local.setdefault(node.name, []).append(sid)
-                    nodes.append(dict(id=sid, kind='symbol', name=node.name, line=node.lineno, module=mid, language='py'))
+                    nodes.append(dict(id=sid, kind='symbol', name=node.name, line=node.lineno, module=mid, language='py', callable=True))
                     symbols[sid] = node
                     # A decorator hands the function to a framework: a route, a command, a fixture, a property.
                     if node.decorator_list or re.fullmatch(r'__\w+__', node.name):
@@ -534,7 +534,8 @@ def build_map(roots, catalogs, ownership):
             facts = javascript[str(roots[repo] / path)]
             sids = [f"{fid}:{symbol['name']}@{symbol['line']}" for symbol in facts['symbols']]
             for symbol, sid in zip(facts['symbols'], sids):
-                nodes.append(dict(id=sid, kind='symbol', name=symbol['name'], line=symbol['line'], module=mid, language='js'))
+                nodes.append(dict(id=sid, kind='symbol', name=symbol['name'], line=symbol['line'], module=mid, language='js',
+                                  callable=symbol['callable']))
             mentions['js'].update(facts['mentions'])
             # A name read inside a function or class is read by it; outside any, by the file.
             facts['sources'] = [fid if reference['symbol'] is None else sids[reference['symbol']] for reference in facts['references']]
@@ -651,6 +652,8 @@ def build_map(roots, catalogs, ownership):
     # A function is unused when the production code never spells its name again, in code, in a template or as a
     # one-word string: not called, not passed, not imported. Tests are no production code, so a function only its
     # tests use is unused too. Routes, catalog entry points and names a framework calls are used without being spelled.
+    # Only a function or class can be unused: a value a script shares, as the object it publishes on window for its
+    # tests, holds no code of its own.
     used_unseen = called_unseen | {route['symbol'] for route in routes}
     declared = Counter(node['name'].rsplit('.', 1)[-1] for node in nodes if node['kind'] == 'symbol' and node['language'] == 'js')
     template_names = set(re.findall(r'[A-Za-z_$][\w$]*', '\n'.join(templates)))
@@ -659,7 +662,7 @@ def build_map(roots, catalogs, ownership):
             continue
         name = node['name'].rsplit('.', 1)[-1]
         spelled = mentions[node['language']][name] - (declared[name] if node['language'] == 'js' else 0)
-        node['unused'] = not (spelled > 0 or name in FRAMEWORK_NAMES or node['id'] in used_unseen or name in template_names)
+        node['unused'] = node['callable'] and not (spelled > 0 or name in FRAMEWORK_NAMES or node['id'] in used_unseen or name in template_names)
     graph = dict(generated_at=datetime.now(timezone.utc).isoformat(),
                  limitations=['Python import syntax is exact; runtime resolution can differ.',
                               'Python calls resolve through local definitions and imports only; calls through objects, attributes of instances and dynamic dispatch are missing.',
@@ -667,7 +670,7 @@ def build_map(roots, catalogs, ownership):
                               'JavaScript calls resolve through the names in scope only; calls through objects, such as this.render(), and methods of objects passed around are missing.',
                               'HTTP requests and page links reach a Flask route through its URL text or url_for endpoint. A URL built at runtime is listed as a blind spot, not linked.',
                               'Shared database tables, external services and the data a view passes to its template are not links.',
-                              'A function is marked unused when no production code spells its name. A name shared with a used function hides an unused one; a function reached only through a name built at runtime is marked wrongly.'],
+                              'A function is marked unused when no production code spells its name. A name shared with a used function hides an unused one; a function reached only through a name built at runtime is marked wrongly. A value that is no function or class, as a variable or the object a script publishes, is never marked.'],
                  routes=[{key: value for key, value in route.items() if key != 'regex'} for route in routes],
                  blind_spots=dict(unmatched=unique_rows(unmatched), dynamic=unique_rows(dynamic),
                                   shared_names=[dict(name=name, symbols=sorted(sids)) for name, sids in sorted(shared.items()) if len(sids) > 1]),

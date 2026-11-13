@@ -103,10 +103,9 @@ function analyze(text, ast, namespaces) {
     const links = [];
     // Local names for a namespace, as ``var namespace = global.MapComponents = ...``.
     const aliases = {};
-    // Each symbol's source range and whether it is a function or class; the declaration node a scope variable is
-    // defined by, and the top-level declarations by name, for resolving references to symbols.
+    // Each symbol's source range; the declaration node a scope variable is defined by, and the top-level
+    // declarations by name, for resolving references to symbols.
     const ranges = [];
-    const callable = [];
     const byNode = new Map();
     const topLevelNames = {};
     const parents = new Map();
@@ -128,9 +127,9 @@ function analyze(text, ast, namespaces) {
         return false;
     };
     const define = (name, node, shared, options = {}) => {
-        const index = symbols.push({ name, line: line(node) }) - 1;
+        // Callable: a function or class. Any other shared value, as the object a script publishes, is not.
+        const index = symbols.push({ name, line: line(node), callable: Boolean(options.callable) }) - 1;
         ranges.push(node.range);
-        callable.push(Boolean(options.callable));
         if (options.declaration) byNode.set(options.declaration, index);
         if (options.topLevel && topLevelNames[name] === undefined) topLevelNames[name] = index;
         if (shared && globals[name] === undefined) globals[name] = line(node);
@@ -202,7 +201,7 @@ function analyze(text, ast, namespaces) {
     // function eslint-scope resolves the name; a script's top-level declarations are globals, left unresolved.
     const link = (identifier, target) => {
         const source = enclosing(identifier);
-        if (target === undefined || !callable[target] || source === target) return;
+        if (target === undefined || !symbols[target].callable || source === target) return;
         const parent = parents.get(identifier);
         const called = parent && (parent.type === 'CallExpression' || parent.type === 'NewExpression') && parent.callee === identifier;
         links.push({ source, target, kind: called ? 'calls' : 'uses', line: line(identifier) });

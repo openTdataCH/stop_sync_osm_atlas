@@ -304,7 +304,7 @@ def test_map_marks_functions_no_production_code_names_and_draws_the_recorded_clo
         'migrations/step.py': 'def upgrade():\n    pass\n',
         'templates/page.html': '{{ in_template() }} <a onclick="clicked()">x</a>\n',
         'static/js/page.js': "function clicked() {}\nfunction orphanScript() {}\nfunction built() {}\nvar markup = '<a onclick=\"built()\">';\n"
-                             "class Panel {\n    constructor() {}\n    open() {}\n}\nnew Panel();\n",
+                             "class Panel {\n    constructor() {}\n    open() {}\n}\nnew Panel();\nwindow.PageHandle = { start: clicked };\n",
         'static/js/copy.js': 'function clicked() {}\n',
     }
     for name, text in sources.items():
@@ -320,7 +320,8 @@ def test_map_marks_functions_no_production_code_names_and_draws_the_recorded_clo
     code_map = quality.build_map({'app': tmp_path}, {'app': {'modules': [module], 'contracts': []}}, {('app', name): 'app.web' for name in sources})
     # Used without being named: an entry point, a decorated function, a special method, a migration step, a
     # constructor. Named: in code, in a template, in markup built in a string, as a one-word string, by another script.
-    assert sorted(row['name'] for row in code_map['symbols'] if row.get('unused')) == ['Row', 'markup', 'open', 'orphan', 'orphanScript']
+    # No function or class, so never unused: the variable markup and the object PageHandle, which nothing names again.
+    assert sorted(row['name'] for row in code_map['symbols'] if row.get('unused')) == ['Row', 'open', 'orphan', 'orphanScript']
     assert all('unused' not in row for row in code_map['symbols'] if row['name'] in ('used', 'entry', 'clicked'))
     # A clone joins two files of the map; its lines come from the last duplication run.
     assert code_map['clones'] == [{'files': ['app:static/js/page.js', 'app:static/js/copy.js'], 'lines': 12, 'locations': [

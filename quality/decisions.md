@@ -39,7 +39,9 @@ be seen before it is pushed.
 
 Unused code is a marking on the map, not a gate: a function is unused when no
 production code names it. Vulture at full confidence reported nothing, and the
-rule by name also covers the browser scripts.
+rule by name also covers the browser scripts. Only a function or a class is
+marked: the object a page script publishes on `window` for its tests holds no
+code of its own.
 
 ## One map at three depths
 
