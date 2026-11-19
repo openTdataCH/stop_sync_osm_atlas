@@ -32,8 +32,8 @@ if ! git -C engine cat-file -e "$pin^{commit}" 2>/dev/null; then
 fi
 git -C engine checkout --quiet --detach "$pin"
 
-# 2. One virtualenv for the website, the scheduler and the engine command. The engine's version number does not
-#    change with every commit, so it is reinstalled each time to match the checkout.
+# 2. One virtualenv for the website, the scheduler and the engine command. pip reinstalls a local folder every time,
+#    so the installed engine matches the checkout although its version number does not change with every commit.
 if [ ! -x "$venv/bin/python" ]; then
     "${PYTHON:-python3}" -m venv "$venv"
 fi
@@ -47,7 +47,6 @@ fi
     exit 2
 }
 "$venv/bin/python" -m pip install --quiet --disable-pip-version-check -r requirements.txt './engine[swiss,acquisition]'
-"$venv/bin/python" -m pip install --quiet --disable-pip-version-check --no-deps --force-reinstall ./engine
 "$venv/bin/osm-public-transport-matcher" --help > /dev/null
 "$venv/bin/python" -c 'import weasyprint' || {
     echo "WeasyPrint cannot load its system libraries; install libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0" >&2

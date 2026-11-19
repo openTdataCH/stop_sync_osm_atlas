@@ -30,7 +30,7 @@ def test_update_next_run_timestamp_serializes_utc_iso(monkeypatch):
 
     service._update_next_run_timestamp()
 
-    assert captured == {"value": expected.isoformat(), "interval_hours": service.PIPELINE_SCHEDULE_INTERVAL_HOURS}
+    assert captured == {"value": expected.isoformat()}
 
 
 def test_scheduler_started_listener_refreshes_next_run(monkeypatch):
@@ -69,8 +69,10 @@ def test_scheduler_startup_preserves_an_active_pipeline_status(monkeypatch, tmp_
         started_at="2026-05-02T10:00:00+00:00",
     )
 
+    planned = (datetime.now(timezone.utc) + timedelta(hours=1)).replace(microsecond=0)
+
     class DummyJob:
-        next_run_time = datetime(2026, 5, 3, 8, 0, tzinfo=timezone.utc)
+        next_run_time = planned
 
     class DummyScheduler:
         def add_job(self, *args, **kwargs):
@@ -96,4 +98,4 @@ def test_scheduler_startup_preserves_an_active_pipeline_status(monkeypatch, tmp_
     assert status["phase"] == "matching"
     assert status["message"] == "Matching sources"
     assert status["run_id"] == "run-active"
-    assert status["next_run_at"] == "2026-05-03T08:00:00+00:00"
+    assert status["next_run_at"] == planned.isoformat()

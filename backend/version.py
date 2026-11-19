@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import re
 
-APP_VERSION = "0.6.0"
+APP_VERSION = "0.6.1"
 
 ENGINE_REPOSITORY_URL = "https://github.com/openTdataCH/osm-public-transport-matcher"
 

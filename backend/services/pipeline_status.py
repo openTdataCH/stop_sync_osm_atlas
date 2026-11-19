@@ -1,3 +1,4 @@
+import logging
 import os
 import socket
 import uuid
@@ -15,6 +16,20 @@ from backend.services.pipeline_progress import (
 )
 from backend.services.pipeline_state_store import get_pipeline_state_store
 from backend.services.time_utils import format_zurich_display_timestamp, parse_utc_timestamp
+
+LOGGER = logging.getLogger(__name__)
+
+
+def _load_schedule_interval_hours() -> float:
+    interval_hours = float(os.getenv("PIPELINE_SCHEDULE_INTERVAL_HOURS", "1"))
+    if interval_hours <= 0:
+        raise ValueError("PIPELINE_SCHEDULE_INTERVAL_HOURS must be > 0")
+    return interval_hours
+
+
+# Hours between scheduled runs. The scheduler service starts runs on it; the website reads it to tell when the data
+# is overdue and when the next run is due, also when something else, such as a systemd timer, starts the runs.
+SCHEDULE_INTERVAL_HOURS = _load_schedule_interval_hours()
 
 _DEFAULT_LOCK_TTL_SECONDS = int(os.getenv("PIPELINE_LOCK_TTL_SECONDS", "14400"))
 _DEFAULT_HEARTBEAT_SECONDS = int(
@@ -131,7 +146,7 @@ def _base_status() -> Dict[str, Any]:
         "failed_stage": None,
         "last_pipeline_data_import_ended_at": None,
         "next_run_at": None,
-        "schedule_interval_hours": None,
+        "last_scheduled_run_started_at": None,
     }
 
 
@@ -172,10 +187,26 @@ def _data_warning(data: Dict[str, Any]) -> str | None:
     if data.get("status") == "failed" and not data.get("dataset_published"):
         return f"Latest update failed; {shown}"
     published_at = parse_utc_timestamp(published)
-    interval = data.get("schedule_interval_hours")
-    if published_at and isinstance(interval, (int, float)) and interval > 0:
-        if datetime.now(timezone.utc) - published_at > timedelta(hours=2 * interval):
-            return f"No update for more than {2 * interval:g} hours; {shown}"
+    if published_at and datetime.now(timezone.utc) - published_at > timedelta(hours=2 * SCHEDULE_INTERVAL_HOURS):
+        return f"No update for more than {2 * SCHEDULE_INTERVAL_HOURS:g} hours; {shown}"
+    return None
+
+
+def _next_run_at(data: Dict[str, Any]) -> str | None:
+    """When the next scheduled run is due; None unless that time is still ahead.
+
+    The scheduler service writes the time it has planned. When something else starts the scheduled runs, such as a
+    systemd timer, the next one is due one interval after the last scheduled run started.
+    """
+    now = datetime.now(timezone.utc)
+    planned = parse_utc_timestamp(data.get("next_run_at"))
+    if planned and planned > now:
+        return data["next_run_at"]
+    last_start = parse_utc_timestamp(data.get("last_scheduled_run_started_at"))
+    if last_start:
+        due = last_start + timedelta(hours=SCHEDULE_INTERVAL_HOURS)
+        if due > now:
+            return due.isoformat()
     return None
 
 
@@ -203,8 +234,9 @@ def get_status() -> Dict[str, Any]:
             started_at=data.get("started_at") or data.get("phase_started_at"),
         )
     data["stage_states"] = project_stage_states(data)
-    # Derived on every read and never stored, so it ages without a writer.
+    # Derived on every read and never stored, so they age without a writer.
     data["data_warning"] = _data_warning(data)
+    data["next_run_at"] = _next_run_at(data)
     return data
 
 
@@ -230,7 +262,10 @@ def start_run(
         raise ValueError(f"Unknown initial pipeline phase: {initial_phase}")
     run_identifier = run_id or str(uuid.uuid4())
     started_at = _now_iso()
+    # The next scheduled run is due one interval after this one when no scheduler service plans it.
+    scheduled = {"last_scheduled_run_started_at": started_at} if trigger == "scheduled" else {}
     set_status(
+        **scheduled,
         status="running",
         phase=initial_phase,
         message=message,
@@ -405,13 +440,10 @@ def finish_failure(error_message: str, *, run_id=None) -> Dict[str, Any]:
     )
 
 
-def set_next_run(next_run_at: Optional[str], *, interval_hours: Optional[float] = None) -> Dict[str, Any]:
+def set_next_run(next_run_at: Optional[str]) -> Dict[str, Any]:
     # Scheduling metadata has a separate writer from execution state. Patch
     # only its own fields so a scheduler refresh cannot change an active run.
-    fields: Dict[str, Any] = {"next_run_at": next_run_at, "schedule_updated_at": _now_iso()}
-    if interval_hours is not None:
-        fields["schedule_interval_hours"] = interval_hours
-    stored = _patch_raw_status(fields)
+    stored = _patch_raw_status({"next_run_at": next_run_at, "schedule_updated_at": _now_iso()})
     result = _base_status()
     result.update(stored)
     return result
@@ -465,12 +497,24 @@ def reconcile_orphaned_run(
 
 
 def acquire_run_lock(ttl_seconds: int = _DEFAULT_LOCK_TTL_SECONDS) -> Optional[str]:
+    """Take the run lease and return its token, or None when another run holds it.
+
+    A lease is taken over when its run is marked running but its process is gone, the check the scheduler's watchdog
+    makes every minute: a run started without the scheduler, by a systemd timer, recovers from a crashed run too.
+    """
     token = str(uuid.uuid4())
     store = get_pipeline_state_store()
     owner = _current_lock_owner()
     if store.acquire_lock(token, ttl_seconds=max(1, ttl_seconds), owner=owner):
         return token
 
+    if reconcile_orphaned_run():
+        LOGGER.error("Recovered an interrupted pipeline run and released its stale lease")
+        if store.acquire_lock(token, ttl_seconds=max(1, ttl_seconds), owner=owner):
+            return token
+        return None
+
+    # A finished run whose lease was not released, for example by a scheduler process that is still alive.
     status = get_status()
     lock_state = store.read_lock()
     lock_acquired_at = parse_utc_timestamp(lock_state.get("acquired_at"))

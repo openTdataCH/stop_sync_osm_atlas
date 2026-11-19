@@ -9,7 +9,7 @@ from apscheduler.events import EVENT_SCHEDULER_STARTED
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
-from backend.services.pipeline_status import reconcile_orphaned_run, set_next_run
+from backend.services.pipeline_status import SCHEDULE_INTERVAL_HOURS, reconcile_orphaned_run, set_next_run
 from backend.jobs.job_runner import run_pipeline
 
 LOGGER = logging.getLogger(__name__)
@@ -17,21 +17,11 @@ LOG_LEVEL = os.getenv("PIPELINE_LOG_LEVEL", "INFO").upper()
 PIPELINE_TIMEZONE = os.getenv("PIPELINE_TIMEZONE", "Europe/Zurich")
 PIPELINE_WATCHDOG_INTERVAL_SECONDS = int(os.getenv("PIPELINE_WATCHDOG_INTERVAL_SECONDS", "60"))
 
-
-def _load_schedule_interval_hours() -> float:
-    interval_hours = float(os.getenv("PIPELINE_SCHEDULE_INTERVAL_HOURS", "1"))
-    if interval_hours <= 0:
-        raise ValueError("PIPELINE_SCHEDULE_INTERVAL_HOURS must be > 0")
-    return interval_hours
-
-
-PIPELINE_SCHEDULE_INTERVAL_HOURS = _load_schedule_interval_hours()
-
 scheduler = BlockingScheduler(timezone=PIPELINE_TIMEZONE)
 
 
 def _create_interval_trigger(interval_hours: Optional[float] = None) -> IntervalTrigger:
-    hours = interval_hours or PIPELINE_SCHEDULE_INTERVAL_HOURS
+    hours = interval_hours or SCHEDULE_INTERVAL_HOURS
     return IntervalTrigger(
         minutes=round(hours * 60),
         timezone=PIPELINE_TIMEZONE,
@@ -50,8 +40,7 @@ def _update_next_run_timestamp() -> None:
         next_run = getattr(job, "next_fire_time", None)
 
     if next_run:
-        # The web app reads the interval here to tell when the data is overdue.
-        set_next_run(next_run.astimezone(timezone.utc).isoformat(), interval_hours=PIPELINE_SCHEDULE_INTERVAL_HOURS)
+        set_next_run(next_run.astimezone(timezone.utc).isoformat())
         return
 
     set_next_run(None)
@@ -119,8 +108,8 @@ def main() -> None:
     _update_next_run_timestamp()
     LOGGER.info(
         "Scheduler started: pipeline every %g hour(s) / %d min (%s)",
-        PIPELINE_SCHEDULE_INTERVAL_HOURS,
-        round(PIPELINE_SCHEDULE_INTERVAL_HOURS * 60),
+        SCHEDULE_INTERVAL_HOURS,
+        round(SCHEDULE_INTERVAL_HOURS * 60),
         PIPELINE_TIMEZONE,
     )
 

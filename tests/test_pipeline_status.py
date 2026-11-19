@@ -96,7 +96,8 @@ def test_failure_reports_the_failed_stage_and_its_own_cause(monkeypatch):
     assert killed["last_error"] == "The matching engine exited with code -9"
 
 
-def test_data_warning_reports_a_failed_or_overdue_update():
+def test_data_warning_reports_a_failed_or_overdue_update(monkeypatch):
+    from backend.services import pipeline_status
     from backend.services.pipeline_status import _data_warning
 
     published = "2026-10-30T03:00:00+01:00"
@@ -104,16 +105,59 @@ def test_data_warning_reports_a_failed_or_overdue_update():
         "Latest update failed; showing data from 2026-10-30 03:00")
     assert _data_warning({"status": "failed"}) == "Latest update failed; no data is published yet"
     # A failure after the switch still shows the newest data.
+    just_published = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
     assert _data_warning({"status": "failed", "dataset_published": True,
-                          "last_pipeline_data_import_ended_at": published}) is None
+                          "last_pipeline_data_import_ended_at": just_published}) is None
 
+    # The interval is the website's own setting, so the warning needs no scheduler service.
+    monkeypatch.setattr(pipeline_status, "SCHEDULE_INTERVAL_HOURS", 24)
     now = datetime.now(timezone.utc)
-    recent = {"status": "idle", "schedule_interval_hours": 24,
-              "last_pipeline_data_import_ended_at": (now - timedelta(hours=47)).isoformat()}
+    recent = {"status": "idle", "last_pipeline_data_import_ended_at": (now - timedelta(hours=47)).isoformat()}
     overdue = dict(recent, last_pipeline_data_import_ended_at=(now - timedelta(hours=49)).isoformat())
     assert _data_warning(recent) is None
     assert _data_warning(overdue).startswith("No update for more than 48 hours; showing data from ")
-    assert _data_warning(dict(overdue, schedule_interval_hours=None)) is None
+
+
+def test_next_run_is_the_planned_time_else_one_interval_after_the_last_scheduled_start(monkeypatch):
+    from backend.services import pipeline_status
+    from backend.services.pipeline_status import _next_run_at
+
+    monkeypatch.setattr(pipeline_status, "SCHEDULE_INTERVAL_HOURS", 1)
+    now = datetime.now(timezone.utc)
+    planned = (now + timedelta(minutes=20)).isoformat()
+    started = now - timedelta(minutes=10)
+
+    # The scheduler service's planned time wins while it is ahead.
+    assert _next_run_at({"next_run_at": planned, "last_scheduled_run_started_at": started.isoformat()}) == planned
+    # Without it, as with a systemd timer, the next run is due one interval after the last scheduled start.
+    assert _next_run_at({"last_scheduled_run_started_at": started.isoformat()}) == (
+        started + timedelta(hours=1)).isoformat()
+    past = (now - timedelta(minutes=5)).isoformat()
+    assert _next_run_at({"next_run_at": past, "last_scheduled_run_started_at": started.isoformat()}) == (
+        started + timedelta(hours=1)).isoformat()
+    # A time already gone is never shown: a run that overran its interval, or a timer that stopped.
+    assert _next_run_at({"last_scheduled_run_started_at": (now - timedelta(minutes=61)).isoformat()}) is None
+    assert _next_run_at({"next_run_at": past}) is None
+    assert _next_run_at({}) is None
+
+
+def test_only_a_scheduled_run_moves_the_next_run(monkeypatch, tmp_path):
+    from backend.services import pipeline_status
+
+    monkeypatch.setenv("STATE_DIR", str(tmp_path / "runtime"))
+    monkeypatch.setattr(pipeline_status, "SCHEDULE_INTERVAL_HOURS", 1)
+
+    pipeline_status.start_run(trigger="manual", run_id="run-manual")
+    assert pipeline_status.get_status()["next_run_at"] is None
+
+    pipeline_status.start_run(trigger="scheduled", run_id="run-scheduled")
+    status = pipeline_status.get_status()
+    started = datetime.fromisoformat(status["started_at"])
+    assert status["last_scheduled_run_started_at"] == status["started_at"]
+    assert status["next_run_at"] == (started + timedelta(hours=1)).isoformat()
+
+    pipeline_status.start_run(trigger="manual", run_id="run-manual-2")
+    assert pipeline_status.get_status()["last_scheduled_run_started_at"] == status["started_at"]
 
 
 def test_pipeline_status_records_and_clears_reused_phase_outcomes(monkeypatch):
@@ -258,15 +302,17 @@ def test_pipeline_status_patches_do_not_overwrite_run_or_schedule_fields(monkeyp
     runtime_dir = tmp_path / "runtime"
     monkeypatch.setenv("STATE_DIR", str(runtime_dir))
 
-    pipeline_status.set_next_run("2026-05-03T08:00:00+00:00")
+    tomorrow = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+    later = (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()
+    pipeline_status.set_next_run(tomorrow)
     pipeline_status.set_status(status="running", phase="matching", message="Matching")
-    pipeline_status.set_next_run("2026-05-04T08:00:00+00:00")
+    pipeline_status.set_next_run(later)
 
     status = pipeline_status.get_status()
     assert status["status"] == "running"
     assert status["phase"] == "matching"
     assert status["message"] == "Matching"
-    assert status["next_run_at"] == "2026-05-04T08:00:00+00:00"
+    assert status["next_run_at"] == later
 
 
 def test_active_lock_recovers_status_reset_to_idle(monkeypatch, tmp_path):
@@ -387,3 +433,44 @@ def test_liveness_reconciliation_recovers_a_stale_lease_from_another_host(monkey
     assert pipeline_status.reconcile_orphaned_run(stale_after_seconds=60) is True
     assert pipeline_status.get_status()["status"] == "failed"
     assert get_pipeline_state_store().read_lock() == {}
+
+
+def test_a_new_run_takes_over_the_lease_of_a_dead_process(monkeypatch, tmp_path):
+    """Without the scheduler's watchdog, as with a systemd timer, the next run recovers from a crashed one."""
+    import socket
+    from backend.services import pipeline_status
+    from backend.services.pipeline_state_store import get_pipeline_state_store
+
+    monkeypatch.setenv("STATE_DIR", str(tmp_path / "runtime"))
+    store = get_pipeline_state_store()
+    assert store.acquire_lock(
+        "dead-token",
+        ttl_seconds=14400,
+        owner={"host": socket.gethostname(), "runtime_instance": "before-the-reboot", "pid": 999999,
+               "process_start_ticks": "1"},
+    )
+    pipeline_status.set_status(status="running", phase="stop_matching", run_id="run-crashed",
+                               phase_started_at=datetime.now(timezone.utc).isoformat())
+
+    token = pipeline_status.acquire_run_lock(ttl_seconds=300)
+
+    assert token is not None
+    assert store.read_lock()["token"] == token
+    crashed = pipeline_status.get_status()
+    assert crashed["status"] == "failed"
+    assert crashed["run_id"] == "run-crashed"
+    assert "stopped unexpectedly" in crashed["last_error"]
+    pipeline_status.release_run_lock(token)
+
+
+def test_a_new_run_leaves_the_lease_of_a_live_run_alone(monkeypatch, tmp_path):
+    from backend.services import pipeline_status
+
+    monkeypatch.setenv("STATE_DIR", str(tmp_path / "runtime"))
+    live = pipeline_status.acquire_run_lock(ttl_seconds=300)
+    pipeline_status.set_status(status="running", phase="stop_matching", run_id="run-live",
+                               phase_started_at=datetime.now(timezone.utc).isoformat())
+
+    assert pipeline_status.acquire_run_lock(ttl_seconds=300) is None
+    assert pipeline_status.get_status()["status"] == "running"
+    pipeline_status.release_run_lock(live)
