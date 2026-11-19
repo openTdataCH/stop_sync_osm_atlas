@@ -11,8 +11,7 @@ x-build: &build
 
 # The settings every container receives. A name without a value takes it from .env or the shell and stays unset
 # otherwise, so each default lives in the code alone (documentation/3. Application architecture & deployment.md,
-# section "Settings"). Values are given only where Docker differs: the database container, and a larger GTFS
-# memory budget for the 4 GB scheduler. ENGINE_DIR is a path on the host and is deliberately not passed.
+# section "Settings"). Values are given only where Docker differs: the database container. ENGINE_DIR is a path on the host and is deliberately not passed.
 x-settings: &settings
   DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
   REVIEW_CONFIG:
@@ -38,7 +37,7 @@ x-settings: &settings
   DB_IMPORT_BATCH_SIZE:
   GTFS_PROCESSING_BACKEND:
   GTFS_THREADS:
-  GTFS_MEMORY_LIMIT: ${GTFS_MEMORY_LIMIT:-1536MB}
+  GTFS_MEMORY_LIMIT:
 
 services:
   db:

@@ -10,7 +10,7 @@ Changes to the [result bundle contract](../engine/documentation/Result%20bundle%
 
 - **Runs started by a systemd timer** — Without the scheduler service, the next run takes over the lease of a crashed one, and the navbar shows the overdue warning and the next run time from `PIPELINE_SCHEDULE_INTERVAL_HOURS`. See [A3.3](3.3%20Background%20scheduler.md#schedule).
 - **`install_server.sh`** installs the engine once: pip already reinstalls a local folder every time.
-- **Servers without Docker** need `GTFS_MEMORY_LIMIT=1536MB`, as Compose sets: the engine's default runs out of memory on the Swiss timetable. See [A3](3.%20Application%20architecture%20%26%20deployment.md#deployment-without-docker).
+- **Engine 0.1.1** — `GTFS_MEMORY_LIMIT` defaults to `1536MB`: `768MB` ran out of memory on the Swiss timetable outside Docker.
 
 ## Version 0.6.0
 
