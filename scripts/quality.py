@@ -814,7 +814,7 @@ def debt(roots, catalogs, ownership, write_baseline=False):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['check', 'coverage', 'report', 'map', 'debt'])
-    parser.add_argument('--engine-dir', type=Path, help='Engine checkout (default: ENGINE_DIR, engine/ or ../engine)')
+    parser.add_argument('--engine-dir', type=Path, help='Engine checkout (default: ENGINE_DIR or engine/)')
     parser.add_argument('--write-baseline', action='store_true')
     args = parser.parse_args()
     try:

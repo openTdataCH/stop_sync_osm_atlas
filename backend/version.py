@@ -18,16 +18,9 @@ def engine_blob_base() -> str:
 
 
 def engine_dir() -> Path:
-    """The engine checkout: ``ENGINE_DIR`` if set (relative to this app), else ``engine/``, else ``../engine``.
-
-    ``engine/`` is where CI checks out the engine and where the app image keeps the
-    engine's documentation; a developer usually has the sibling ``../engine``.
-    """
+    """The engine checkout: ``ENGINE_DIR`` if set (relative to this app), else ``engine/``."""
     configured = os.getenv("ENGINE_DIR", "").strip()
-    if configured:
-        return (APP_ROOT / configured).resolve()
-    nested = APP_ROOT / "engine"
-    return (nested if (nested / "pyproject.toml").is_file() else APP_ROOT.parent / "engine").resolve()
+    return (APP_ROOT / configured if configured else APP_ROOT / "engine").resolve()
 
 
 def app_revision() -> str | None:

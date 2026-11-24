@@ -81,7 +81,7 @@ def revision(root: Path) -> str | None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=("fast", "full", "syntax"))
-    parser.add_argument("--engine-dir", type=Path, help="Engine checkout (default: ENGINE_DIR, engine/ or ../engine)")
+    parser.add_argument("--engine-dir", type=Path, help="Engine checkout (default: ENGINE_DIR or engine/)")
     parser.add_argument("--engine-python", default=os.getenv("ENGINE_PYTHON", "/opt/engine-venv/bin/python"))
     args = parser.parse_args()
     if args.mode == "syntax":

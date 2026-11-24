@@ -432,3 +432,40 @@ def test_docs_link_to_the_code_quality_dashboard():
 
         partial = client.get('/docs/code_quality', headers={'X-Docs-Partial': '1'}).get_json()
         assert 'href="/quality"' in partial['header_html']
+
+
+def test_engine_dir_defaults_to_nested_and_respects_env(monkeypatch):
+    """engine_dir() uses ENGINE_DIR when set and otherwise defaults to engine/ without guessing sibling paths."""
+    from backend.version import APP_ROOT, engine_dir
+
+    monkeypatch.delenv('ENGINE_DIR', raising=False)
+    assert engine_dir() == (APP_ROOT / 'engine').resolve()
+
+    monkeypatch.setenv('ENGINE_DIR', '   ')
+    assert engine_dir() == (APP_ROOT / 'engine').resolve()
+
+    monkeypatch.setenv('ENGINE_DIR', '../custom-engine')
+    assert engine_dir() == (APP_ROOT / '../custom-engine').resolve()
+
+    monkeypatch.setenv('ENGINE_DIR', '/srv/atlas/osm-public-transport-matcher')
+    assert engine_dir() == Path('/srv/atlas/osm-public-transport-matcher').resolve()
+
+
+def test_create_app_warns_when_engine_docs_missing(monkeypatch, tmp_path, caplog):
+    """Startup warns when ENGINE_DIR does not contain engine documentation, and stays quiet when it does."""
+    import logging
+    from backend.app import create_app
+
+    missing = tmp_path / 'absent'
+    monkeypatch.setenv('ENGINE_DIR', str(missing))
+    with caplog.at_level(logging.WARNING, logger='backend.app'):
+        create_app()
+    assert any('ENGINE_DIR' in record.message for record in caplog.records)
+
+    present = tmp_path / 'present'
+    (present / 'documentation').mkdir(parents=True)
+    caplog.clear()
+    monkeypatch.setenv('ENGINE_DIR', str(present))
+    with caplog.at_level(logging.WARNING, logger='backend.app'):
+        create_app()
+    assert not any('ENGINE_DIR' in record.message for record in caplog.records)

@@ -10,12 +10,10 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const configPath = join(repoRoot, 'documentation', 'pdf_generator', 'mermaid_render_config.json');
 const puppeteerConfigPath = join(repoRoot, 'documentation', 'pdf_generator', 'puppeteer-config.json');
 const outputDir = join(repoRoot, 'documentation', 'generated', 'diagrams');
-const embeddedEngineRoot = join(repoRoot, 'engine');
-const engineRoot = process.env.ENGINE_DIR
-  ? resolve(repoRoot, process.env.ENGINE_DIR)
-  : existsSync(join(embeddedEngineRoot, 'pyproject.toml'))
-    ? embeddedEngineRoot
-    : resolve(repoRoot, '..', 'engine');
+const configuredEngineDir = (process.env.ENGINE_DIR || '').trim();
+const engineRoot = configuredEngineDir
+  ? resolve(repoRoot, configuredEngineDir)
+  : join(repoRoot, 'engine');
 const sourceDirs = [
   join(repoRoot, 'documentation'),
   join(engineRoot, 'documentation'),

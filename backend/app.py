@@ -21,7 +21,7 @@ from backend.pages.routes import route_pages_bp
 from backend.services import pipeline_status
 from backend.services.time_utils import format_zurich_display_timestamp
 from backend.services.source_config import load_review_config, effective_review_config
-from backend.version import APP_VERSION
+from backend.version import APP_VERSION, engine_dir
 
 # Smaller JSON saves too few bytes to be worth compressing.
 JSON_GZIP_MIN_BYTES = 1024
@@ -87,6 +87,12 @@ def create_app():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     logging.getLogger('werkzeug').setLevel(logging.WARNING)
+    engine_docs = engine_dir() / 'documentation'
+    if not engine_docs.is_dir():
+        logging.getLogger(__name__).warning(
+            'Engine documentation not found at %s; set ENGINE_DIR to the engine checkout.',
+            engine_docs,
+        )
 
     db.init_app(app)
     limiter.init_app(app)

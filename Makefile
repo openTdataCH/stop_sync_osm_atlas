@@ -7,8 +7,8 @@ QUALITY_COMPOSE = docker compose -p osm-atlas-quality -f compose.quality.yml
 dev:
 	FLASK_DEBUG=1 docker compose up --build -d db migrator app
 
-# Every target finds the engine checkout in ENGINE_DIR (`make quality ENGINE_DIR=path`;
-# the Docker targets also read .env), else ../engine.
+# Set ENGINE_DIR for an external engine checkout (`make quality ENGINE_DIR=path`);
+# Docker targets also read .env and default to ../engine on the host, while native tools default to engine/.
 
 # Native fast checks use Python 3.13, Node 22, requirements.txt, requirements-dev.txt and npm ci.
 quality-fast:
