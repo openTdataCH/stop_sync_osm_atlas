@@ -1,4 +1,5 @@
 from flask import Flask, request, redirect
+from werkzeug.middleware.proxy_fix import ProxyFix
 import gzip
 import logging
 import os
@@ -97,6 +98,14 @@ def create_app():
     db.init_app(app)
     limiter.init_app(app)
     migrate.init_app(app, db)
+
+    trusted_proxies = _bounded_env_int('TRUSTED_PROXY_COUNT', 0, minimum=0, maximum=2)
+    if trusted_proxies > 0:
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app,
+            x_for=trusted_proxies,
+            x_proto=trusted_proxies,
+        )
 
     # Register blueprints
     app.register_blueprint(data_bp)
