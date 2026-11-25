@@ -681,11 +681,11 @@
                 lead: 'The name of the function or class appears nowhere else in the code of either repository, tests aside. Probably unused: check for a call the map cannot see before deleting.',
                 items: tidy.unused.map((symbol) => ['<a href="#' + escapeHtml(symbol.id) + '" class="quality-link" data-select-function="' + escapeHtml(symbol.id) + '"><code>'
                     + escapeHtml(symbol.name) + '</code></a>' + module(symbol.file), '', sourceLink(data, symbol.file, symbol.line)]) },
-            { title: 'Copied code', warn: false, lead: 'The same block of at least 10 lines in two places. The largest come first.',
+            { title: 'Copied code', warn: false, lead: 'The same block of at least 10 lines in two places.',
                 items: tidy.clones.map((clone, index) => ({ clone, index })).sort((a, b) => b.clone.lines - a.clone.lines).map(({ clone, index }) => [
                     '<a href="#clone" class="quality-link" data-select-clone="' + index + '">' + clone.files.map(baseName).map(escapeHtml).join(' ⇄ ') + '</a>', plural(clone.lines, 'line'),
                     clone.locations.map((location) => sourceLink(data, location.file, location.start)).join('<br>')]) },
-            { title: 'Files over ' + FILE_BUDGET.toLocaleString('en') + ' lines', warn: false, lead: 'Long files are hard to review and are where copies hide. Generated and data files are not counted.',
+            { title: 'Files over ' + FILE_BUDGET.toLocaleString('en') + ' lines', warn: false, lead: 'Long files are hard to review and are where copies hide.',
                 items: tidy.large.map((file) => [fileButton(file.id) + module(file.id), file.lines.toLocaleString('en') + ' lines', sourceLink(data, file.id)]) }
         ]);
     }
