@@ -398,45 +398,71 @@
             : item) + '</li>').join('') + '</ul>';
     }
 
-    // The guide's button hides the whole panel; the ⓘ Details button in the toolbar brings it back.
+    // The panel's × button always hides the whole panel; the ⓘ Details button in the toolbar brings it back.
     const HIDE_PANEL_BUTTON = '<button type="button" class="quality-panel__close" data-hide-panel title="Hide the details panel" aria-label="Hide the details panel"><i class="fas fa-times" aria-hidden="true"></i></button>';
-    const CLOSE_BUTTON = '<button type="button" class="quality-panel__close" data-clear-selection title="Close (Esc)" aria-label="Close details"><i class="fas fa-times" aria-hidden="true"></i></button>';
+    const PANEL_TABS = [['modules', 'Module'], ['files', 'Files'], ['symbols', 'Function']];
+    const GUIDE = {
+        modules: {
+            title: 'How to read the modules',
+            steps: [
+                '<strong>Circles</strong> are catalog modules sized by lines of code, stacked above their dependencies.',
+                '<strong>Arcs</strong> point to what a module uses: orange dashed = undeclared, dotted grey = declared without code references, inner/upward = against layering.',
+                '<strong>Purple diamonds</strong> are shared file contracts between repositories.',
+                'Click a module or arc for details; double-click a module for its files. Drag to pan, <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+scroll to zoom.'
+            ]
+        },
+        files: {
+            title: 'How to read the files',
+            steps: [
+                '<strong>Dots</strong> are files sized by line count inside each module\'s circle; ringed dots exceed ' + FILE_BUDGET.toLocaleString('en') + ' lines.',
+                '<strong>Lines</strong> connect files that reference each other; dashed black lines mark copied code.',
+                'Colour by <strong>Branch coverage</strong> for per-file coverage (grey = unmeasured).',
+                'Click a file for details; double-click a file or module circle for its functions.'
+            ]
+        },
+        symbols: {
+            title: 'How to read the functions',
+            steps: [
+                '<strong>Dots</strong> are functions or classes sized by how many callers use them; hollow dots have no static references in production code.',
+                '<strong>Lines</strong> show direct calls and references (calls through objects such as <code>self.save()</code> or <code>this.render()</code> are not traced).',
+                'Click a module in the list or double-click its circle to isolate it; <kbd>Esc</kbd> or <strong>Reset</strong> shows all functions.',
+                'Click a dot for callers and callees, or use <strong>Search</strong> to jump by name.'
+            ]
+        }
+    };
+
+    function panelHeaderHtml(level) {
+        return '<div class="quality-panel__header">'
+            + '<div class="quality-panel__tabs" role="group" aria-label="Map level">'
+            + PANEL_TABS.map(([id, label]) => '<button type="button" class="quality-panel__tab' + (id === level ? ' is-active' : '')
+                + '" data-panel-level="' + id + '" aria-pressed="' + (id === level) + '">' + label + '</button>').join('')
+            + '</div>' + HIDE_PANEL_BUTTON + '</div>';
+    }
+
+    function guideStepsHtml(level) {
+        return '<ul class="quality-steps">' + GUIDE[level].steps.map((step) => '<li>' + step + '</li>').join('') + '</ul>';
+    }
+
+    function detailChrome(state, eyebrow) {
+        const level = (state && state.level) || 'modules';
+        return panelHeaderHtml(level)
+            + '<details class="quality-panel__guide"><summary>' + GUIDE[level].title + '</summary>' + guideStepsHtml(level) + '</details>'
+            + '<div class="quality-panel__context"><p class="quality-eyebrow">' + eyebrow + '</p>'
+            + '<button type="button" class="quality-panel__clear" data-clear-selection title="Clear selection (Esc)">Clear</button></div>';
+    }
 
     function overviewHtml(state) {
-        const steps = {
-            modules: [
-                'Each circle is a module: a group of files with one responsibility in the module catalog. Its area is its lines of code.',
-                'A module sits above the modules it lists as dependencies. An arc goes from the module whose code uses another to the module it uses, so arcs run downwards, on the outer side of the column.',
-                'An orange dashed arc is a dependency the catalog does not declare, and a dotted grey one is declared but used by no code. An arc that runs upwards goes against the layering and bends to the inner side.',
-                'A purple diamond is a contract: the two repositories share a file format, not code.',
-                'Select a module or an arc for its details. Double-click a module to see its files in the same circle.',
-                'Drag to move. Zoom with the buttons or <kbd>Ctrl</kbd>/<kbd>⌘</kbd> and scroll.'
-            ],
-            files: [
-                'The circles are the modules, where they are on <strong>Modules</strong>. Each dot is a file; a larger dot is a longer file, and a ringed one is over ' + FILE_BUDGET.toLocaleString('en') + ' lines.',
-                'Thin lines join files that use each other. Select a file to light its own lines and list what it uses and what uses it.',
-                'A dashed black line joins two files that hold the same block of code. Select it to see where.',
-                'Colour by <strong>Branch coverage</strong> paints each file with its own coverage: grey files are not measured.',
-                'Click a module in the list to light its files. Double-click a file or a circle to see its functions.'
-            ],
-            symbols: [
-                'Each dot is a function or class. Each module is a circle; a module drawn alone has a circle for each file.',
-                'A larger dot is used by more functions and files. A hollow dot has a name that nothing else in the code mentions: it is probably unused.',
-                'A line joins a function to one it calls or references. Calls through objects, such as <code>self.save()</code> or <code>this.render()</code>, are not seen.',
-                'Click a module in the list, or double-click its circle, to draw it alone. <kbd>Esc</kbd> or <strong>Reset</strong> shows every function again.',
-                'Select a dot for its callers and callees. Search finds a function, class or file by name.'
-            ]
-        };
-        const titles = { modules: 'How to read the modules', files: 'How to read the files', symbols: 'How to read the functions' };
-        return '<p class="quality-eyebrow">Code map</p><h2 class="quality-panel__title">' + titles[state.level] + '</h2>'
-            + '<ol class="quality-steps">' + steps[state.level].map((step) => '<li>' + step + '</li>').join('') + '</ol>';
+        const level = (state && state.level) || 'modules';
+        return panelHeaderHtml(level)
+            + '<h2 class="quality-panel__title">' + GUIDE[level].title + '</h2>'
+            + guideStepsHtml(level);
     }
 
     function fileButton(fileId) {
         return '<a href="#' + escapeHtml(fileId) + '" class="quality-link" data-select-file="' + escapeHtml(fileId) + '">' + escapeHtml(baseName(fileId)) + '</a>';
     }
 
-    function moduleHtml(context, moduleId, closeButton = CLOSE_BUTTON) {
+    function moduleHtml(context, moduleId) {
         const module = context.modules[moduleId];
         const codeMap = context.data.code_map;
         const row = (context.report.modules || {})[moduleId];
@@ -464,8 +490,7 @@
         const docs = Object.keys(module.docs || {}).map((kind) => module.docs[kind].map((path) => escapeHtml(kind) + ': ' + sourceLink(context.data, module.repository + ':' + path)).join('<br>'));
         const level = (id, icon, label) => (context.state.level === id ? '' : '<button type="button" class="quality-button" data-go-level="' + id
             + '" data-go-module="' + escapeHtml(moduleId) + '"><i class="fas ' + icon + '" aria-hidden="true"></i> ' + label + '</button>');
-        return closeButton
-            + '<p class="quality-eyebrow">' + escapeHtml((REPOSITORIES[module.repository] || {}).label || module.repository) + ' module</p>'
+        return detailChrome(context.state, escapeHtml((REPOSITORIES[module.repository] || {}).label || module.repository) + ' module')
             + '<h2 class="quality-panel__title">' + escapeHtml(module.title) + '</h2>'
             + '<div class="quality-panel__meta"><code>' + escapeHtml(module.id) + '</code>' + criticalityBadge(module.criticality) + '</div>'
             + '<p>' + escapeHtml(module.responsibility) + '</p>'
@@ -499,8 +524,7 @@
             ? 'The catalog declares this dependency, but no code reference was found. It may go through the database or a URL built at runtime, which the map does not see, or the declaration is out of date.'
             : link.declared ? 'The catalog declares this dependency.'
                 : '<strong class="quality-warn-text">The catalog does not declare this dependency.</strong> Either declare it in <code>quality/modules.yml</code> or remove the reference.';
-        return CLOSE_BUTTON
-            + '<p class="quality-eyebrow">Module dependency</p>'
+        return detailChrome(context.state, 'Module dependency')
             + '<h2 class="quality-panel__title">' + moduleButton(link.source) + ' → ' + moduleButton(link.target) + '</h2>'
             + '<p>' + status + '</p>'
             + (link.count ? '<p class="quality-muted">' + plural(link.count, 'code reference') + ': ' + escapeHtml(kindsText(link.kinds)) + '.</p>' : '')
@@ -515,8 +539,7 @@
     function modulesHtml(context, moduleIds) {
         const chosen = new Set(moduleIds);
         const between = context.moduleLinks.filter((link) => chosen.has(link.source) && chosen.has(link.target));
-        return CLOSE_BUTTON
-            + '<p class="quality-eyebrow">' + moduleIds.length + ' modules</p>'
+        return detailChrome(context.state, moduleIds.length + ' modules')
             + '<h2 class="quality-panel__title">' + moduleIds.map(moduleButton).join(' + ') + '</h2>'
             + '<p class="quality-muted">The map keeps these modules and lights the lines that go from one to another. The others fade.</p>'
             + '<h3 class="quality-panel__subtitle">Dependencies between them (' + between.length + ')</h3>'
@@ -545,8 +568,7 @@
             facts.push(typeof coverage.branches === 'number' ? coverage.branches + '% branch coverage' : 'no branches');
             if (typeof coverage.lines === 'number') facts.push(coverage.lines + '% of lines covered');
         }
-        return CLOSE_BUTTON
-            + '<p class="quality-eyebrow">File in ' + escapeHtml(shortName(file.module)) + '</p>'
+        return detailChrome(context.state, 'File in ' + escapeHtml(shortName(file.module)))
             + '<h2 class="quality-panel__title">' + escapeHtml(baseName(fileId)) + '</h2>'
             + '<p>' + sourceLink(context.data, fileId) + '</p>'
             + '<p class="quality-muted">' + facts.join(', ') + '.</p>'
@@ -588,8 +610,7 @@
         const rows = (side, other) => links.filter((link) => link[side] === symbolId)
             .sort((a, b) => a[other].localeCompare(b[other]) || a.kind.localeCompare(b.kind))
             .map((link) => [end(link[other]), escapeHtml(kindsText({ [link.kind]: link.count }))]);
-        return CLOSE_BUTTON
-            + '<p class="quality-eyebrow">Function in ' + escapeHtml(baseName(symbol.file)) + '</p>'
+        return detailChrome(context.state, 'Function in ' + escapeHtml(baseName(symbol.file)))
             + '<h2 class="quality-panel__title"><code>' + escapeHtml(symbol.name) + '</code></h2>'
             + '<p>' + sourceLink(context.data, symbol.file, symbol.line) + '</p>'
             + '<p class="quality-muted">In ' + fileButton(symbol.file) + ', module ' + moduleButton(moduleId) + '.</p>'
@@ -603,8 +624,7 @@
     /** One pair of copied blocks: where each copy is. */
     function cloneHtml(context, index) {
         const clone = context.data.code_map.clones[index];
-        return CLOSE_BUTTON
-            + '<p class="quality-eyebrow">Copied code</p>'
+        return detailChrome(context.state, 'Copied code')
             + '<h2 class="quality-panel__title">' + plural(clone.lines, 'line') + ' found twice</h2>'
             + '<p>The same block of code is in both places. One shared function would leave a single copy to change.</p>'
             + list(clone.locations.map((location) => [fileButton(location.file) + ' <span class="quality-tag">' + escapeHtml(shortName(context.owners[location.file] || '')) + '</span>',
@@ -613,8 +633,7 @@
 
     function contractHtml(context, contractId) {
         const contract = (context.data.code_map.contracts || []).find((item) => 'contract:' + item.id === contractId);
-        return CLOSE_BUTTON
-            + '<p class="quality-eyebrow">Contract</p>'
+        return detailChrome(context.state, 'Contract')
             + '<h2 class="quality-panel__title">' + escapeHtml(contract.title) + '</h2>'
             + '<p><code>' + escapeHtml(contract.id) + '</code></p>'
             + '<p>The repositories do not import each other. They agree on this versioned format instead, and contract tests check both sides.</p>'
@@ -778,7 +797,7 @@
 
     global.QualityRendering = {
         escapeHtml, nodeColor, laneSummary, kindsText, mapElements, GRAPH_STYLE, legendHtml, HIDE_PANEL_BUTTON,
-        CLOSE_BUTTON, overviewHtml, moduleHtml, moduleLinkHtml, modulesHtml, fileHtml, functionHtml, cloneHtml,
+        overviewHtml, moduleHtml, moduleLinkHtml, modulesHtml, fileHtml, functionHtml, cloneHtml,
         contractHtml, findingsHtml, blindSpotsHtml, cleanupHtml, figuresHtml, tableHtml, runStatus, summaryHtml,
         checksHtml, unavailableHtml
     };

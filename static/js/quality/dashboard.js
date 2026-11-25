@@ -13,8 +13,8 @@
         moduleLines, coverageOf
     } = global.QualityMap;
     const {
-        escapeHtml, nodeColor, laneSummary, kindsText, mapElements, GRAPH_STYLE, legendHtml, HIDE_PANEL_BUTTON,
-        CLOSE_BUTTON, overviewHtml, moduleHtml, moduleLinkHtml, modulesHtml, fileHtml, functionHtml, cloneHtml,
+        escapeHtml, nodeColor, laneSummary, kindsText, mapElements, GRAPH_STYLE, legendHtml,
+        overviewHtml, moduleHtml, moduleLinkHtml, modulesHtml, fileHtml, functionHtml, cloneHtml,
         contractHtml, findingsHtml, blindSpotsHtml, cleanupHtml, figuresHtml, tableHtml, runStatus, summaryHtml,
         checksHtml, unavailableHtml
     } = global.QualityRendering;
@@ -177,8 +177,7 @@
                 return;
             }
             if (state.module && state.level === 'modules') cy.getElementById(state.module).select();
-            // A module drawn alone is the map itself: its × hides the panel. Elsewhere it gives up the focus.
-            setPanel(state.module ? moduleHtml(context, state.module, state.level === 'symbols' ? HIDE_PANEL_BUTTON : CLOSE_BUTTON) : HIDE_PANEL_BUTTON + overviewHtml(state));
+            setPanel(state.module ? moduleHtml(context, state.module) : overviewHtml(state));
         }
 
         function select(target) {
@@ -188,6 +187,7 @@
             else if (state.level === 'modules') setModules(null);
             if (!kind || kind === 'module') {
                 showFocus();
+                if (kind === 'module' && !state.panelOpen) setPanelOpen(true);
                 chrome();
                 return;
             }
@@ -351,6 +351,16 @@
             showFocus();
             chrome();
             if (after) after();
+        }
+
+        /** What the viewport should frame: a selected dot and its neighbours, the modules in focus, or the whole map. */
+        function fitTarget() {
+            const chosen = selected();
+            if (state.level !== 'modules' && chosen && chosen.length) {
+                return chosen.isNode() ? chosen.closedNeighborhood() : chosen.connectedNodes().union(chosen);
+            }
+            const area = focusArea();
+            return area && area.length ? area : cy.elements();
         }
 
         /** Brings the module in focus, or the whole map, into view. */
@@ -581,19 +591,38 @@
         });
 
         root.addEventListener('click', (event) => {
-            const target = event.target.closest('[data-select-module], [data-select-link], [data-select-function], [data-select-file], [data-select-clone], [data-show-functions], [data-go-level], [data-explorer-module], [data-explorer-pick], [data-level], [data-color-by], [data-zoom], [data-clear-selection], [data-hide-panel], [data-reset]');
+            const target = event.target.closest('[data-select-module], [data-select-link], [data-select-function], [data-select-file], [data-select-clone], [data-show-functions], [data-go-level], [data-panel-level], [data-explorer-module], [data-explorer-pick], [data-level], [data-color-by], [data-zoom], [data-clear-selection], [data-hide-panel], [data-reset]');
             if (!target || !cy) return;
             event.preventDefault();
             const data = target.dataset;
             const inPanel = Boolean(target.closest('#qualityPanel'));
-            if (data.selectModule) go(inPanel ? state.level : 'modules', data.selectModule, frame);
-            else if (data.selectLink) showEdge('modules', 'link:' + data.selectLink);
+            if (data.selectModule) {
+                go(inPanel ? state.level : 'modules', data.selectModule, frame);
+                if (!state.panelOpen) setPanelOpen(true);
+            } else if (data.selectLink) showEdge('modules', 'link:' + data.selectLink);
             else if (data.selectFunction) showSymbol(data.selectFunction);
             else if (data.selectFile) showFile(data.selectFile);
             else if (data.selectClone) showEdge('files', 'clone:' + data.selectClone);
             else if (data.showFunctions) showFunctionsOf(data.showFunctions);
             else if (data.goLevel) go(data.goLevel, data.goModule);
-            else if (data.explorerPick || (data.explorerModule && (event.ctrlKey || event.metaKey || event.shiftKey))) {
+            else if (data.panelLevel) {
+                const level = data.panelLevel;
+                if (level !== state.level) {
+                    const chosen = selected();
+                    const item = chosen && chosen.length === 1 ? chosen.data() : null;
+                    if (level === 'modules') {
+                        const owner = item && item.kind === 'file' ? context.owners[item.id]
+                            : item && item.kind === 'symbol' ? context.owners[item.file] : null;
+                        go('modules', owner || state.modules);
+                    } else if (level === 'files') {
+                        if (item && item.kind === 'symbol' && item.file) showFile(item.file);
+                        else go('files', state.modules);
+                    } else if (level === 'symbols') {
+                        if (item && item.kind === 'file') showFunctionsOf(item.id);
+                        else go('symbols', state.modules);
+                    }
+                }
+            } else if (data.explorerPick || (data.explorerModule && (event.ctrlKey || event.metaKey || event.shiftKey))) {
                 // The box, or a click with Ctrl, ⌘ or Shift, adds a module to the ones in focus or takes it out.
                 const moduleId = data.explorerPick || data.explorerModule;
                 go(state.level, state.modules.includes(moduleId) ? state.modules.filter((id) => id !== moduleId) : state.modules.concat(moduleId), frame);
@@ -656,7 +685,12 @@
             if (cy) {
                 hideTooltip();
                 cy.resize();
-                cy.fit(cy.elements(), fitPadding());
+                const target = fitTarget();
+                cy.fit(target, fitPadding());
+                if (state.level === 'symbols' && cy.zoom() > MODULE_MAX_ZOOM) {
+                    cy.zoom(MODULE_MAX_ZOOM);
+                    cy.center(target);
+                }
             }
         }
         if (workspace && expandButton) {

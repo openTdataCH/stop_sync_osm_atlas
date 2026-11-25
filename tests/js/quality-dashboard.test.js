@@ -1015,25 +1015,45 @@ describe('QualityDashboard', () => {
       expect(panel()).toContain('serve');
     });
 
-    test('the guide, and a module drawn alone, hide the panel back into the Details button', async () => {
-      const cy = await open('symbols');
+    test('the panel × always hides it in one click, the panel tabs switch levels, and the guide folds on selection', async () => {
+      const cy = await open('files');
       const workspace = document.querySelector('.quality-workspace');
       const toggle = document.getElementById('qualityPanelToggle');
+      // With nothing selected the guide is open and the Files tab is active.
+      expect(document.querySelector('#qualityPanel .quality-panel__guide')).toBeNull();
+      expect(pressed('#qualityPanel [data-panel-level="files"]')).toBe('true');
+      // Selecting a file folds the general explanation and keeps × as a one-click panel hide.
+      handler(cy, 'tap')({ target: cy.getElementById('app:backend/api.py') });
+      const folded = document.querySelector('#qualityPanel .quality-panel__guide');
+      expect(folded).not.toBeNull();
+      expect(folded.open).toBe(false);
       click('#qualityPanel [data-hide-panel]');
       expect(workspace.classList.contains('is-panel-hidden')).toBe(true);
       expect(toggle.classList.contains('is-nudged')).toBe(true);
       expect(document.activeElement).toBe(toggle);
-      click('#qualityPanelToggle');
+      // Clicking a module re-opens a hidden panel.
+      click('#qualityTable [data-select-module="app.api"]');
+      await nextFrame();
       expect(workspace.classList.contains('is-panel-hidden')).toBe(false);
       expect(toggle.classList.contains('is-nudged')).toBe(false);
       expect(document.getElementById('qualityPanel').classList.contains('is-opening')).toBe(true);
+      expect(pressed('#qualityPanel [data-panel-level="modules"]')).toBe('true');
+      // Panel tabs switch levels while preserving context.
+      click('#qualityPanel [data-panel-level="symbols"]');
+      await nextFrame();
+      expect(pressed('[data-level="symbols"]')).toBe('true');
+      expect(cy.nodes('.dot').length).toBe(3);
+      // Clear unfocuses without hiding the panel; × hides the panel without losing the module.
+      click('#qualityPanel [data-clear-selection]');
+      expect(cy.nodes('.dot').length).toBe(4);
+      expect(workspace.classList.contains('is-panel-hidden')).toBe(false);
       click('[data-explorer-module="app.api"]');
       click('#qualityPanel [data-hide-panel]');
       expect(workspace.classList.contains('is-panel-hidden')).toBe(true);
       expect(cy.nodes('.dot').length).toBe(3);
     });
 
-    test('the expand button fills the window below the navbar and Esc returns to the page', async () => {
+    test('the expand button fills the window below the navbar, preserves focus zoom, and Esc returns to the page', async () => {
       const cy = await open();
       const workspace = document.querySelector('.quality-workspace');
       const button = document.getElementById('qualityFullscreen');
@@ -1055,8 +1075,15 @@ describe('QualityDashboard', () => {
       expect(button.getAttribute('aria-label')).toBe('Expand the map to the window');
       expect(button.querySelector('i').className).toBe('fas fa-expand');
       expect(button.textContent).toBe('Expand');
+      // Focused on one module on Files, toggling Expand keeps that module fitted instead of zooming out to the whole map.
+      click('[data-explorer-module="app.api"]');
+      click('[data-level="files"]');
+      await nextFrame();
+      cy.fit.mockClear();
       click('#qualityFullscreen');
+      expect(cy.fit.mock.calls[0][0].id()).toBe('region:app.api');
       click('#qualityFullscreen');
+      expect(cy.fit.mock.calls[1][0].id()).toBe('region:app.api');
       expect(workspace.classList.contains('is-expanded')).toBe(false);
       expect(cy.resize).toHaveBeenCalledTimes(4);
     });

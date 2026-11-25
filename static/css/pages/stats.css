@@ -105,11 +105,14 @@
 
 .stats-section-nav::-webkit-scrollbar { display: none; }
 
+/* Positioned with left/width instead of translate3d: on iOS Safari, promoting
+   this pill to a 3D compositing layer inside a sticky, rounded overflow-x: auto
+   container can composite its opaque background on top of the z-index: 1 links. */
 .stats-section-nav__indicator {
   position: absolute;
   top: 0.28rem;
   bottom: 0.28rem;
-  left: 0;
+  left: var(--stats-nav-indicator-x, 0px);
   z-index: 0;
   width: var(--stats-nav-indicator-width, 0px);
   border: 1px solid var(--color-border);
@@ -118,14 +121,12 @@
   box-shadow: var(--shadow-xs);
   opacity: 0;
   pointer-events: none;
-  transform: translate3d(var(--stats-nav-indicator-x, 0px), 0, 0);
-  transform-origin: center;
 }
 
 .stats-section-nav.is-ready .stats-section-nav__indicator {
   opacity: 1;
   transition:
-    transform 520ms cubic-bezier(0.2, 0.88, 0.24, 1.08),
+    left 520ms cubic-bezier(0.2, 0.88, 0.24, 1.08),
     width 440ms cubic-bezier(0.34, 1.28, 0.64, 1),
     opacity 180ms ease;
 }
@@ -143,10 +144,17 @@
   transition: color 240ms ease, transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.stats-section-nav__link:hover {
-  color: var(--color-fg);
-  background: var(--color-surface-veil);
-  transform: translateY(-1px);
+.stats-section-nav__link:hover,
+.stats-section-nav__link:focus-visible {
+  text-decoration: none;
+}
+
+@media (hover: hover) {
+  .stats-section-nav__link:hover {
+    color: var(--color-fg);
+    background: var(--color-surface-veil);
+    transform: translateY(-1px);
+  }
 }
 
 .stats-section-nav__link.is-active {
@@ -687,6 +695,10 @@
 .stats-columns {
   display: grid;
   gap: var(--space-6) var(--space-8);
+}
+
+.stats-columns > * {
+  min-width: 0;
 }
 
 .stats-columns--2 {
@@ -1259,7 +1271,7 @@
 @media (max-width: 991.98px) {
   .source-freshness { grid-template-columns: 1fr; }
   .source-freshness__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .stats-columns--3 { grid-template-columns: 1fr; }
+  .stats-columns--3 { grid-template-columns: minmax(0, 1fr); }
   .attribute-matrix__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .attribute-matrix__item:nth-child(4n) { border-right: 1px solid var(--color-border); }
   .attribute-matrix__item:nth-child(2n) { border-right: 0; }
@@ -1283,7 +1295,7 @@
   .pipeline-timeline { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pipeline-timeline__stage { min-width: 0; }
   .stats-block { padding: var(--space-4); }
-  .stats-columns--2 { grid-template-columns: 1fr; }
+  .stats-columns--2 { grid-template-columns: minmax(0, 1fr); }
   .stats-bar { grid-template-columns: minmax(0, 1fr) 4rem 3rem; }
   .stats-bar__track { grid-column: 1 / -1; grid-row: 2; }
   .mapping-paths__header { flex-direction: column; }
