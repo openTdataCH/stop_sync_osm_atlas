@@ -32,6 +32,7 @@
 }
 
 .operators-header__heading {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -525,6 +526,15 @@ a.operator-breakdown__value i {
 @media (max-width: 760px) {
   .operators-page {
     padding-top: 0.75rem;
+  }
+
+  .operators-info {
+    position: static;
+  }
+
+  .operators-info__tooltip {
+    left: 0;
+    width: min(340px, 100%);
   }
 
   .operators-header__link {
