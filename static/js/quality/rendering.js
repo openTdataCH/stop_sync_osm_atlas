@@ -474,6 +474,7 @@
             + (row ? '<h3 class="quality-panel__subtitle">CI results</h3><dl class="quality-kv">' + lanes + '</dl>' : '')
             + '<h3 class="quality-panel__subtitle">To clean up</h3><dl class="quality-kv">'
             + count('Functions nothing mentions', context.tidy.unused.filter((symbol) => mine(symbol.file)).length)
+            + (context.tidy.unreached.some((route) => mine(route.file)) ? count('Routes nothing reaches', context.tidy.unreached.filter((route) => mine(route.file)).length) : '')
             + count('Copied blocks', context.tidy.clones.filter((clone) => clone.files.some(mine)).length)
             + count('Files over ' + FILE_BUDGET.toLocaleString('en') + ' lines', context.tidy.large.filter((file) => mine(file.id)).length) + '</dl>'
             + '<h3 class="quality-panel__subtitle">Depends on</h3>' + list(outgoing.map((link) => dependencyItem(link, link.target)), 'Nothing.')
@@ -660,15 +661,11 @@
         return findingGroups([
             { title: 'References that reach nothing', lead: 'A URL, <code>url_for</code> endpoint or template name in the code that the app does not serve: a typo, a route that was removed, or a URL with a part the map could not follow.',
                 items: spots.unmatched.map((row) => ['<code>' + escapeHtml(row.reference) + '</code>', escapeHtml(UNMATCHED_KINDS[row.kind] || row.kind), at(row)]) },
-            { title: 'Routes nothing in the code reaches', lead: 'No script, template or view requests or links to these. They may serve outside clients, crawlers or links in the documentation, be reached through a URL built at runtime, or be unused.',
-                items: spots.unreached.map((route) => ['<code>' + escapeHtml(route.pattern) + '</code>', escapeHtml(route.methods.join(', ')), sourceLink(data, route.file, route.line)]), warn: false },
             { title: 'URLs and templates chosen at runtime', lead: 'Here the code passes a variable, not a fixed text, to a request, <code>url_for</code> or <code>render_template</code>, so the map draws no arrow from this line. This is expected and not a defect: it only means an arrow may be missing.',
                 items: spots.dynamic.map((row) => ['<code>' + escapeHtml(row.expression) + '</code>', escapeHtml(DYNAMIC_KINDS[row.kind] || row.kind), at(row)]), warn: false },
             { title: 'Browser names declared by several scripts', lead: 'Scripts share one global scope, so a reference to one of these names cannot be linked to one script; on a page loading several, the last one wins.',
                 items: spots.sharedNames.map((row) => ['<code>' + escapeHtml(row.name) + '</code>', plural(row.symbols.length, 'script'),
-                    row.symbols.map((symbol) => sourceLink(data, symbolFile(symbol), symbolLine(symbol))).join('<br>')]) },
-            { title: 'Limits of the method', lead: 'What reading the code cannot establish, whatever the code looks like.',
-                items: (data.code_map.limitations || []).map(escapeHtml), warn: false }
+                    row.symbols.map((symbol) => sourceLink(data, symbolFile(symbol), symbolLine(symbol))).join('<br>')]) }
         ]);
     }
 
@@ -676,11 +673,20 @@
         const data = context.data;
         const tidy = context.tidy;
         const module = (fileId) => ' <span class="quality-tag">' + escapeHtml(shortName(context.owners[fileId] || '')) + '</span>';
+        const routeLink = (route) => {
+            const label = '<code>' + escapeHtml(route.pattern) + '</code>';
+            return route.symbol && context.symbols[route.symbol]
+                ? '<a href="#' + escapeHtml(route.symbol) + '" class="quality-link" data-select-function="' + escapeHtml(route.symbol) + '">' + label + '</a>'
+                : '<a href="#' + escapeHtml(route.file) + '" class="quality-link" data-select-file="' + escapeHtml(route.file) + '">' + label + '</a>';
+        };
         return findingGroups([
             { title: 'Functions nothing mentions', warn: false,
                 lead: 'The name of the function or class appears nowhere else in the code of either repository, tests aside. Probably unused: check for a call the map cannot see before deleting.',
                 items: tidy.unused.map((symbol) => ['<a href="#' + escapeHtml(symbol.id) + '" class="quality-link" data-select-function="' + escapeHtml(symbol.id) + '"><code>'
                     + escapeHtml(symbol.name) + '</code></a>' + module(symbol.file), '', sourceLink(data, symbol.file, symbol.line)]) },
+            { title: 'Routes nothing in the code reaches', warn: false,
+                lead: 'No script, template or view requests or links to these. They may serve outside clients, crawlers or links in the documentation, be reached through a URL built at runtime, or be unused.',
+                items: tidy.unreached.map((route) => [routeLink(route) + module(route.file), escapeHtml(route.methods.join(', ')), sourceLink(data, route.file, route.line)]) },
             { title: 'Copied code', warn: false, lead: 'The same block of at least 10 lines in two places.',
                 items: tidy.clones.map((clone, index) => ({ clone, index })).sort((a, b) => b.clone.lines - a.clone.lines).map(({ clone, index }) => [
                     '<a href="#clone" class="quality-link" data-select-clone="' + index + '">' + clone.files.map(baseName).map(escapeHtml).join(' ⇄ ') + '</a>', plural(clone.lines, 'line'),

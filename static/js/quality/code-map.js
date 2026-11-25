@@ -142,12 +142,11 @@
         };
     }
 
-    /** Where reading the code is not enough: references that reach nothing, routes nothing reaches, runtime URLs and ambiguous names. */
+    /** Where reading the code is not enough: references that reach nothing, runtime URLs and ambiguous names. */
     function blindSpots(codeMap) {
         const spots = codeMap.blind_spots || {};
         return {
             unmatched: spots.unmatched || [],
-            unreached: (codeMap.routes || []).filter((route) => !route.requested_by.length && !route.linked_by.length),
             dynamic: spots.dynamic || [],
             sharedNames: spots.shared_names || []
         };
@@ -155,11 +154,13 @@
 
     /**
      * What the map points at for cleaning up: functions and classes whose name nothing else in the code mentions,
-     * blocks of code found twice, and code files longer than FILE_BUDGET lines, longest first.
+     * routes nothing in the code reaches, blocks of code found twice, and code files longer than FILE_BUDGET lines,
+     * longest first.
      */
     function cleanup(codeMap) {
         return {
             unused: (codeMap.symbols || []).filter((symbol) => symbol.unused),
+            unreached: (codeMap.routes || []).filter((route) => !route.requested_by.length && !route.linked_by.length),
             clones: codeMap.clones || [],
             large: codeMap.files.filter((file) => CODE_FILE.test(file.id) && (file.lines || 0) > FILE_BUDGET).sort((a, b) => b.lines - a.lines || a.id.localeCompare(b.id))
         };

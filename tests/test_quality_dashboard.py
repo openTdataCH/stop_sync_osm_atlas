@@ -39,6 +39,7 @@ def test_page_offers_the_three_levels_with_the_search_the_module_list_and_the_re
     assert html.count('data-needs-report') == 2
     # The expand button is a class on the workspace, not the browser's full screen.
     assert 'id="qualityFullscreen" title="Expand the map to the window"' in html
+    assert '/docs/code_quality#what-the-map-cannot-see' in html
 
 
 def test_a_commit_without_published_results_is_unavailable_and_named(client, checkout):

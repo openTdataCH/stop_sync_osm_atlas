@@ -120,13 +120,12 @@ describe('QualityDashboard', () => {
     expect(crossing).toMatchObject({ count: 1, crossing: true, declared: false });
   });
 
-  test('blind spots list unmatched references, unreached routes, runtime URLs and shared names', () => {
+  test('blind spots list unmatched references, runtime URLs and shared names', () => {
     const spots = window.QualityMap.blindSpots(codeMap());
     expect(spots.unmatched.map((row) => row.reference)).toEqual(['/api/missing']);
-    expect(spots.unreached.map((route) => route.pattern)).toEqual(['/api/old']);
     expect(spots.dynamic.map((row) => row.expression)).toEqual(['config.url']);
     expect(spots.sharedNames.map((row) => row.name)).toEqual(['helper']);
-    expect(window.QualityMap.blindSpots({ files: [], links: [] })).toEqual({ unmatched: [], unreached: [], dynamic: [], sharedNames: [] });
+    expect(window.QualityMap.blindSpots({ files: [], links: [] })).toEqual({ unmatched: [], dynamic: [], sharedNames: [] });
   });
 
   test('findings report undeclared links, cycles, private names and unused declarations', () => {
@@ -138,15 +137,16 @@ describe('QualityDashboard', () => {
     expect(findings.unused.map((link) => link.target)).toEqual(['app.ui']);
   });
 
-  test('cleanup candidates are functions nothing mentions, copied blocks and long code files', () => {
+  test('cleanup candidates are functions nothing mentions, unreached routes, copied blocks and long code files', () => {
     const map = codeMap();
     map.files.push({ id: 'app:package-lock.json', module: 'app.ui', lines: 9000, symbols: 0 });
     const tidy = window.QualityMap.cleanup(map);
     expect(tidy.unused.map((symbol) => symbol.name)).toEqual(['run']);
+    expect(tidy.unreached.map((route) => route.pattern)).toEqual(['/api/old']);
     expect(tidy.clones).toHaveLength(1);
     // A lock file is long but is no code to tidy.
     expect(tidy.large.map((file) => file.id)).toEqual(['engine:src/core.py']);
-    expect(window.QualityMap.cleanup({ files: [] })).toEqual({ unused: [], clones: [], large: [] });
+    expect(window.QualityMap.cleanup({ files: [] })).toEqual({ unused: [], unreached: [], clones: [], large: [] });
   });
 
   test('a module sits above its dependencies, each repository in its own column, on one bottom line', () => {
@@ -680,13 +680,14 @@ describe('QualityDashboard', () => {
       expect(document.getElementById('qualityFindings').textContent).toContain('_private');
       const tidy = document.getElementById('qualityCleanup').textContent;
       expect(tidy).toContain('run');
+      expect(tidy).toContain('/api/old');
       expect(tidy).toContain('api.py ⇄ importer.py');
       expect(tidy).toContain('1,200 lines');
       const spots = document.getElementById('qualityBlindSpots').textContent;
       expect(spots).toContain('/api/missing');
-      expect(spots).toContain('/api/old');
+      expect(spots).not.toContain('/api/old');
       expect(spots).toContain('config.url');
-      expect(spots).toContain('Static reading only.');
+      expect(spots).not.toContain('Static reading only.');
       expect(document.querySelectorAll('#qualityTable tbody tr')).toHaveLength(2);
       expect(document.querySelectorAll('#qualityTable thead th')).toHaveLength(7);
       expect(document.getElementById('qualityTable').textContent).toContain('87.5%');
@@ -979,6 +980,10 @@ describe('QualityDashboard', () => {
       await nextFrame();
       expect(pressed('[data-level="symbols"]')).toBe('true');
       expect(cy.$(':selected').id()).toBe('app:backend/importer.py:run@5');
+      click('#qualityCleanup [data-select-file="app:backend/api.py"]');
+      await nextFrame();
+      expect(pressed('[data-level="files"]')).toBe('true');
+      expect(cy.$(':selected').id()).toBe('app:backend/api.py');
       click('#qualityFindings [data-select-link="app.api>app.import"]');
       await nextFrame();
       expect(pressed('[data-level="modules"]')).toBe('true');
