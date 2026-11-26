@@ -153,6 +153,27 @@ describe('map filter links', () => {
         expect(document.getElementById('activeFilters').textContent).toContain('All problems');
     });
 
+    test('closing problem type and priority chips unchecks their boxes and updates filters', () => {
+        window.updateHeaderSummary = jest.fn();
+        window.initFilterEventHandlers();
+        window.restoreFiltersFromUrl('?problem_type=distance&priority=1,2');
+        updateActiveFilters();
+
+        const removeType = document.querySelector('#activeFilters .remove-filter[data-target=".filter-problem-type[value=\\"distance\\"]"]');
+        expect(removeType).not.toBeNull();
+        removeType.click();
+        expect(document.getElementById('problemType-distance').checked).toBe(false);
+        expect(activeFilters.problemTypes).toEqual([]);
+        expect(window.filterUrlQuery()).toBe('priority=1,2');
+
+        const removePriority = document.querySelector('#activeFilters .remove-filter[data-target=".filter-problem-priority[value=\\"1\\"]"]');
+        expect(removePriority).not.toBeNull();
+        removePriority.click();
+        expect(document.getElementById('problemPriority-1').checked).toBe(false);
+        expect(activeFilters.problemPriorities).toEqual(['2']);
+        expect(window.filterUrlQuery()).toBe('priority=2');
+    });
+
     test('a filter that is already applied is left alone, with a toast instead of an alert', () => {
         window.updateHeaderSummary = jest.fn();
         const notify = jest.spyOn(SharedUtils, 'notify').mockImplementation(() => {});

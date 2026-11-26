@@ -6,15 +6,23 @@
 
     const SharedUtils = {};
 
+    const HTML_ESCAPE_MAP = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    };
+
     /**
-     * Escape HTML to prevent XSS attacks
+     * Escape HTML special characters so text is safe in both element bodies and quoted attributes
      * @param {string|null} text - Text to escape
      * @returns {string} Escaped HTML string
      */
     SharedUtils.escapeHtml = function(text) {
-        const div = document.createElement('div');
-        div.textContent = text == null ? '' : String(text);
-        return div.innerHTML;
+        return (text == null ? '' : String(text)).replace(/[&<>"']/g, function(ch) {
+            return HTML_ESCAPE_MAP[ch];
+        });
     };
 
     // Presentation labels stay separate from the app's compatibility field names.

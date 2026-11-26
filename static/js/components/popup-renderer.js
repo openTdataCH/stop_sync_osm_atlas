@@ -175,7 +175,7 @@
     // The Index page turns this into a permalink; the raw id keeps the
     // URL format in one place (Permalinks.stopParams).
     function buildCopyLinkButtonHtml(type, ref) {
-        const safeRef = SharedUtils.escapeHtml(ref).replace(/"/g, '&quot;');
+        const safeRef = SharedUtils.escapeHtml(ref);
         return `<button type="button" class="popup-copy-link" data-permalink-type="${type}" data-permalink-ref="${safeRef}" title="Copy a link that opens the map on this stop"><i class="fas fa-link"></i> Copy link</button>`;
     }
 
@@ -200,7 +200,7 @@
         }
         if (hasValue(permalinkRef)) links.push(buildCopyLinkButtonHtml(type, permalinkRef));
         if (hasValue(mainMapUrl)) {
-            const safeUrl = SharedUtils.escapeHtml(mainMapUrl).replace(/"/g, '&quot;');
+            const safeUrl = SharedUtils.escapeHtml(mainMapUrl);
             links.push(`<a href="${safeUrl}" class="popup-main-map-link" target="_blank" rel="noopener" title="Open the main map on this stop in a new tab"><i class="fas fa-map-marked-alt"></i> Open in main map</a>`);
         }
         const osmEditorLinkHtml = links.length
@@ -253,7 +253,7 @@
             headerText += `${label} Stop`;
             const sourceUrl = SharedUtils.sourceUrl(data);
             if (sourceUrl) {
-                linkHtml = ` <a href="${SharedUtils.escapeHtml(sourceUrl).replace(/"/g, '&quot;')}" target="_blank" rel="noopener noreferrer">(view on ${label})</a>`;
+                linkHtml = ` <a href="${SharedUtils.escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">(view on ${label})</a>`;
             }
         } else {
             headerText += 'OSM Node';
@@ -850,7 +850,7 @@
             ? SharedUtils.sourceUrl(data)
             : (hasValue(data.osm_node_id) ? buildOsmBrowseUrl(data.osm_node_id) : null);
         if (!url) return label;
-        const safeUrl = SharedUtils.escapeHtml(url).replace(/"/g, '&quot;');
+        const safeUrl = SharedUtils.escapeHtml(url);
         const site = type === 'atlas' ? label : 'OpenStreetMap';
         return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" title="View on ${site}">${label} <i class="fas fa-external-link-alt"></i></a>`;
     }
@@ -903,7 +903,7 @@
         if (typeof options.mainMapUrl === 'function') {
             const url = options.mainMapUrl(type, ref);
             if (hasValue(url)) {
-                const safeUrl = SharedUtils.escapeHtml(url).replace(/"/g, '&quot;');
+                const safeUrl = SharedUtils.escapeHtml(url);
                 links.push(`<a href="${safeUrl}" class="popup-main-map-link" target="_blank" rel="noopener" title="Open the main map on this stop in a new tab"><i class="fas fa-map-marked-alt"></i> Main map</a>`);
             }
         }

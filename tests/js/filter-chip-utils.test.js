@@ -21,4 +21,20 @@ describe('FilterChipUtils', () => {
     expect(remove.getAttribute('aria-label')).toBe('Clear identifier search');
     expect(remove.getAttribute('title')).toBe('Clear identifier search');
   });
+
+  test('escapes quotes in HTML and data attributes so selectors round-trip intact', () => {
+    expect(window.SharedUtils.escapeHtml(`<a title="x" data-k='y'>&</a>`))
+      .toBe('&lt;a title=&quot;x&quot; data-k=&#39;y&#39;&gt;&amp;&lt;/a&gt;');
+
+    const container = document.createElement('div');
+    const selector = '.filter-problem-type[value="distance"]';
+    container.innerHTML = window.FilterChipUtils.buildRemovableChip({
+      label: 'Problem: "Distance"',
+      data: { type: 'problem', target: selector }
+    });
+
+    const remove = container.querySelector('.remove-filter');
+    expect(remove.dataset.type).toBe('problem');
+    expect(remove.dataset.target).toBe(selector);
+  });
 });
